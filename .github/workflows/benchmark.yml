@@ -1,0 +1,127 @@
+name: benchmark
+
+# Does the graph earn its place? `docs/decisions/0001-retrieval-is-measured-not-
+# argued.md` says that question gets an answer with a number in it, and this is
+# where the number comes from.
+#
+# ## Why this is a separate workflow, and not a gate
+#
+# It reports. It does not fail the build on a bad score, and that is a decision
+# rather than an omission: as of writing, the graph loses to `frequency` -- a
+# baseline that returns the most-churned files, ignores the seed entirely, and
+# costs nothing -- on both corpora below. Wired as a gate it would be red from
+# its first run, and a gate that is red for a reason the author already knows
+# about is a gate the author learns to skip. It becomes a gate the day a
+# committed baseline exists to regress against.
+#
+# ## Why these numbers are safe to run on a shared free runner
+#
+# `benchmark.py` measures recall@k against git co-change, not wall-clock time.
+# Recall is deterministic and machine-independent: the same pinned corpus gives
+# the same number on a laptop, on a busy runner, and in a year. Timing on a
+# shared runner varies by tens of percent between identical runs, which is why
+# nothing here asserts a duration. Measured cost, for the record: ~17 s for
+# requests, ~34 s for flask. The free ubuntu-latest runner is 4 vCPU / 16 GB
+# with a six-hour job ceiling, so this is not close to any limit.
+#
+# ## Why the corpora are pinned
+#
+# A benchmark against a moving HEAD changes for reasons that are not yours, and
+# the first thing anyone does with an unexplained movement is stop reading the
+# chart. Bumping a SHA below is a deliberate commit that says "the corpus
+# changed", and the diff in the number belongs to that commit.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly. Nothing here varies day to day -- the corpora are pinned and the
+    # metric is deterministic -- so this exists to catch our own drift, not the
+    # world's. Note GitHub disables scheduled workflows after 60 days without
+    # repository activity, and that cron on the free tier is best-effort and
+    # routinely runs late; neither matters for a weekly report.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  recall:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Two corpora with deliberately different shapes. requests is small
+          # enough that uniform sampling is a strong control -- 64 files in the
+          # graph means random draws hit often -- and the graph scored *below*
+          # random there. flask is an order of magnitude wider and the graph
+          # scored 7x random. Reporting only the flattering one would be the
+          # easiest way to make this chart meaningless.
+          - name: requests
+            repo: psf/requests
+            ref: 145b5399486b56e00250204f033441f3fdf2f3c9  # 2024-05-24
+            commits: 300
+          - name: flask
+            repo: pallets/flask
+            ref: 73ce26c3e822cdc2ccf99625619a50c91f163f8d  # 2025-03-29
+            commits: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: fetch the corpus at its pinned commit
+        run: |
+          set -euo pipefail
+          # Blobless rather than shallow: the benchmark reads which files each
+          # commit touched, so the history is the input. --filter=blob:none
+          # keeps the file *contents* out of the clone, which is the part that
+          # is large and the part nothing here needs.
+          git clone --quiet --filter=blob:none \
+            "https://github.com/${{ matrix.repo }}" corpus
+          git -C corpus checkout -q "${{ matrix.ref }}"
+
+      - name: build the graph and measure recall@10
+        run: |
+          set -euo pipefail
+          python3 shared/scripts/index/build.py --root corpus > /dev/null
+
+          # Twice, for the two audiences: the table carries the prose verdict a
+          # human needs to read the numbers, the JSON is what a baseline will
+          # be diffed against later. Safe to run twice only because the
+          # sampling is seeded (`random.Random(0)` in benchmark.py) -- if it
+          # were not, the archived JSON and the reported table would be two
+          # different measurements presented as one.
+          python3 shared/scripts/index/benchmark.py \
+            --root corpus --k 10 --commits ${{ matrix.commits }} \
+            | tee result.txt
+          python3 shared/scripts/index/benchmark.py \
+            --root corpus --k 10 --commits ${{ matrix.commits }} --json \
+            > result.json
+
+      - name: put the table where it will actually be read
+        run: |
+          {
+            echo "## ${{ matrix.name }} @ \`${{ matrix.ref }}\`"
+            echo
+            echo '```'
+            cat result.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recall-${{ matrix.name }}
+          path: result.json
+          retention-days: 90

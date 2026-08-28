@@ -70,8 +70,13 @@ def resolve_script(root, raw):
     (`shared/scripts/gates/x.py`) and the layout it scaffolds into a target
     repository (`scripts/gates/x.py`). Both name the same file, and a gate that
     understood only one of them would be red on half of its own documentation.
-    A leading `<placeholder>/` segment is stripped for the same reason."""
-    rel = re.sub(r"^<[^<>/]+>/", "", raw.strip())
+
+    A leading `${CLAUDE_PLUGIN_ROOT}/` is stripped too. That is the variable
+    Claude Code sets to a plugin's install location, so a skill telling an agent
+    to run something inside the plugin must use it -- and until it was stripped
+    here, every command that did went *silently unchecked*, which is the failure
+    mode this gate exists to prevent, one level up."""
+    rel = re.sub(r"^\$\{CLAUDE_PLUGIN_ROOT\}/|^<[^<>/]+>/", "", raw.strip())
     for cand in (rel, os.path.join("shared", rel)):
         if os.path.isfile(os.path.join(root, cand)):
             return cand
@@ -178,8 +183,8 @@ def main():
                 # -- `python3 -m swebench...`, a snippet from another project.
                 # Only a path that looks like it belongs here is a finding.
                 raw = m.group(1)
-                if re.sub(r"^<[^<>/]+>/", "", raw).startswith(
-                        ("scripts/", "shared/", "hooks/")):
+                if re.sub(r"^\$\{CLAUDE_PLUGIN_ROOT\}/|^<[^<>/]+>/", "",
+                          raw).startswith(("scripts/", "shared/", "hooks/")):
                     findings.append(f"{rel}:{i}  names a script that does not "
                                     f"exist: {raw}")
                 continue

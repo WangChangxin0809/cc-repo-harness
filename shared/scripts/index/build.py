@@ -10,10 +10,11 @@ divergence produces confidently wrong answers -- strictly worse than no answers,
 because nobody goes and checks. A full rebuild of a 100k-line repository is a
 few seconds; that is cheap enough that correctness wins.
 
-Symbols come from tree-sitter when it is installed, and from per-language
-regexes when it is not. Which one was used is recorded in the report, because
-the regex path misses things the parser would catch and an agent that does not
-know which one ran cannot calibrate how much to trust a hole.
+Symbols come from per-language regexes. That is the whole extractor -- there is
+no parser-backed path, and the report says `regex` because that is what ran.
+The regexes miss what regexes miss (multi-line signatures, anything behind a
+macro or a decorator that rewrites the name), and `--report` records the holes
+it knows about so an agent can calibrate how much to trust an absence.
 
 Nodes:  file:<path>  sym:<path>:<name>  doc:<path>
 Edges:  defines · references · imports · calls · governs · supersedes
@@ -114,12 +115,25 @@ def tracked_files(root):
     return kept, len(all_files) - len(kept)
 
 
-def try_tree_sitter():
-    try:
-        import tree_sitter_languages  # noqa: F401
-        return "tree-sitter"
-    except ImportError:
-        return "regex"
+# Symbols come from the per-language regexes in LANGS, always. There is no
+# second extractor and no optional upgrade path.
+#
+# There used to be a `try_tree_sitter()` here that imported
+# `tree_sitter_languages`, discarded it, and returned the string "tree-sitter"
+# — which then appeared in the report's Extractor row. Nothing about extraction
+# changed; only the label did. So on any machine where that package happened to
+# be installed, the file headed "Index negative control", whose stated job is to
+# record what the graph cannot see, opened by misreporting how it had seen
+# anything at all. A negative control that lies in its first row is worse than
+# no negative control, because it is read as evidence.
+#
+# It is not coming back in that shape. If a parser-backed extractor is wanted,
+# it has to actually extract, and it has to name a package that installs:
+# `tree_sitter_languages` published nothing for Python 3.12+ and cannot be
+# installed on this repository's own ceiling version. The maintained successor
+# is `tree-sitter-language-pack`. Until something is built against it and
+# measured with index/benchmark.py, this reports what it does.
+EXTRACTOR = "regex"
 
 
 GOVERNS_CAP = 200
@@ -281,7 +295,7 @@ def scan(root, files, excluded=0):
         docs=len([n for n in g["nodes"].values() if n["kind"] == "doc"]),
         symbols=len([n for n in g["nodes"].values() if n["kind"] == "symbol"]),
         edges=len(g["edges"]),
-        extractor=try_tree_sitter(),
+        extractor=EXTRACTOR,
         excluded_by_policy=excluded,
         blind=dict(
             skipped_by_extension=dict(sorted(skipped.items(),

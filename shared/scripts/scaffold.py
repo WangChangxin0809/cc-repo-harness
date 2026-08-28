@@ -348,6 +348,13 @@ run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
 run fast "documented commands run"   python3 scripts/gates/check_docs_runnable.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
 
+# Uncomment if this repository is itself a Claude Code plugin. It checks the
+# manifest, the component layout, and that no skill tells an agent to guess a
+# path instead of using ${CLAUDE_PLUGIN_ROOT}. Left off by default because it
+# exits 2 -- COULD NOT JUDGE -- without a .claude-plugin/, and an unjudgeable
+# check wired in unconditionally makes every run of this script exit 2.
+# run fast "plugin surface"          python3 scripts/gates/check_plugin_structure.py
+
 # --- unit: minutes -----------------------------------------------------------
 run unit "layering"                  python3 scripts/gates/check_layering.py
 # run unit "tests"                   <your test command>

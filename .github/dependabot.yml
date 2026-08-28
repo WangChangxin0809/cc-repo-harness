@@ -1,0 +1,24 @@
+version: 2
+
+# The repository has no dependencies by design -- Python standard library only,
+# and that claim is enforced by running on 3.9 and 3.13 with nothing installed.
+# So there is exactly one thing here that can rot: the actions the workflows
+# call, which are third-party code running with a token in a repository whose
+# whole subject is not executing code you have not read.
+#
+# `actions/checkout@v4` is a moving tag. Dependabot turns each move into a pull
+# request with a diff and a changelog, which is the reviewable form of the same
+# decision the trust gate asks a human to make locally.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Grouped, because four separate "bump a patch version" pull requests a
+    # month is how people learn to merge them without looking -- which is the
+    # supply-chain failure this file was added to prevent.
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3

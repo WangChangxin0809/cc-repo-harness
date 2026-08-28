@@ -24,12 +24,14 @@ wrong reason, which is exactly the bug it is supposed to catch.
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -59,6 +61,21 @@ def make_repo(tmp):
         ("src/types/model.py", "class Model:\n    pass\n"),
         ("src/service/use.py", "from src.types.model import Model\n\n"
                                "def use():\n    return Model()\n"),
+        # The demo repository is also a minimal plugin. check_plugin_structure
+        # exits 2 -- cannot judge -- without a manifest, and every case here
+        # asserts a green baseline first, so the surface has to exist before a
+        # defect can be planted in it.
+        (".claude-plugin/plugin.json", json.dumps({
+            "name": "demo-plugin",
+            "version": "0.1.0",
+            "description": "A demonstration plugin.",
+        }, indent=2) + "\n"),
+        ("skills/demo/SKILL.md",
+         "---\nname: demo\ndescription: Demonstrate something, when asked to.\n"
+         "---\n\n# Demo\n\nGuidance lives here.\n"),
+        ("agents/helper.md",
+         "---\nname: helper\ndescription: Helps with demonstrations.\n---\n\n"
+         "You help.\n"),
         (".claude/guards.json", json.dumps({
             "protected_branches": ["main"],
             "layers": [{"name": "types", "paths": ["src/types/"]},
@@ -183,6 +200,54 @@ CASES = [
                               "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
                               "## License\n\nMIT.\n"),
     ),
+    # The plugin surface. This is the half of the repository that Claude Code
+    # actually loads, and until this gate existed it had no coverage at all --
+    # payload is code and code gets selftests, while a skill is markdown and
+    # nobody writes a test for a paragraph.
+    dict(
+        gate="check_plugin_structure.py",
+        why="a skill telling an agent to guess the plugin's location",
+        needle="hand-invented placeholder",
+        plant=lambda t: write(t, "skills/demo/SKILL.md",
+                              "---\nname: demo\ndescription: Demonstrate "
+                              "something, when asked to.\n---\n\n"
+                              "Read `<plugin>/references/moments.md` first.\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="component directories nested inside .claude-plugin/",
+        needle="not inside .claude-plugin/",
+        plant=lambda t: write(t, ".claude-plugin/skills/x/SKILL.md",
+                              "---\nname: x\ndescription: Does x.\n---\n\nx\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="a skill whose frontmatter has no description",
+        needle="deciding whether this skill is ever activated",
+        plant=lambda t: write(t, "skills/demo/SKILL.md",
+                              "---\nname: demo\n---\n\nGuidance lives here.\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="a manifest version that is not semver",
+        needle="is not semver",
+        plant=lambda t: write(t, ".claude-plugin/plugin.json",
+                              json.dumps({"name": "demo-plugin",
+                                          "version": "v0.1",
+                                          "description": "A demo plugin."},
+                                         indent=2) + "\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="the variable itself, which must NOT be reported",
+        needle=None,
+        plant=lambda t: write(t, "skills/demo/SKILL.md",
+                              "---\nname: demo\ndescription: Demonstrate "
+                              "something, when asked to.\n---\n\n"
+                              "Read `${CLAUDE_PLUGIN_ROOT}/references/"
+                              "moments.md` first.\n"),
+    ),
+
     # A script whose real interface the documents below either match or do not.
     # `--tier` exists, `--dry-run` exists, `--flavour` never did.
     dict(
@@ -218,6 +283,29 @@ CASES = [
                   "# Setup\n\n```bash\npython3 scripts/scaffold.py bootstrap "
                   "--tier B\n```\n")),
     ),
+    # A command written the way a skill has to write it: behind the variable
+    # Claude Code sets to the plugin's install location. This case is red, not
+    # green, on purpose. A green one would not pin anything -- delete the strip
+    # in resolve_script() and the command stops resolving, so it is silently
+    # skipped and the gate still exits 0. That is precisely the bug this case
+    # exists to catch, and it was live here until the day it was found: every
+    # `${CLAUDE_PLUGIN_ROOT}` command in the skills went unchecked.
+    dict(
+        gate="check_docs_runnable.py",
+        why="a bad flag on a command written with ${CLAUDE_PLUGIN_ROOT}",
+        needle="has no option --flavour",
+        plant=lambda t: (
+            write(t, "scripts/scaffold.py",
+                  "import argparse\n\n\n"
+                  "def main():\n"
+                  "    ap = argparse.ArgumentParser()\n"
+                  "    ap.add_argument('command', choices=['init', 'check'])\n"
+                  "    ap.add_argument('--tier')\n"
+                  "    return ap.parse_args()\n"),
+            write(t, "docs/how-to/setup.md",
+                  "# Setup\n\n```bash\npython3 ${CLAUDE_PLUGIN_ROOT}/scripts/"
+                  "scaffold.py init --tier B --flavour vanilla\n```\n")),
+    ),
     # Three ways to be right that a blunter check would call wrong: a
     # placeholder value, a `<plugin>/` prefix, and a hook wiring quoted inside
     # JSON, which is not a command line at all.
@@ -236,6 +324,8 @@ CASES = [
                   "    return ap.parse_args()\n"),
             write(t, "docs/how-to/setup.md",
                   "# Setup\n\n```bash\n"
+                  "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py init "
+                  "--tier <A|B|C>\n"
                   "python3 <plugin>/scripts/scaffold.py init --tier <A|B|C>\n"
                   "python3 scripts/scaffold.py check --dry-run  # a comment\n"
                   "```\n\nWire it up:\n\n```json\n"
@@ -256,6 +346,40 @@ CASES = [
                              "# docs\n\n| I want to | Read | Edit |\n|---|---|---|\n"
                              "| a thing | [how](how-to/thing.md) | src/ |\n"
                              "| gone | [g](how-to/removed.md) | src/ |\n"),
+    ),
+
+    # --- negative controls ---------------------------------------------------
+    # Each gate needs at least one of these, and coverage_gaps() below enforces
+    # it. Without one, a gate that flagged *everything* would show a perfect row
+    # of red-on-defect results and nobody would find out until it had cost
+    # someone an afternoon. These plant the thing most easily mistaken for the
+    # defect -- the documented exemption, the deliberate escape hatch -- so they
+    # also pin those exemptions against silent removal.
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
+        why="a nested CLAUDE.md far over the root cap",
+        needle=None,
+        plant=lambda t: write(t, "src/api/CLAUDE.md",
+                              "# api\n\n" + "".join(f"- rule {i}\n"
+                                                    for i in range(1, 80))),
+    ),
+    dict(
+        gate="check_docs_index.py",
+        why="a document that declares why nothing routes to it",
+        needle=None,
+        plant=lambda t: write(t, "docs/reference/scratch.md",
+                              "<!-- unrouted: a worked example kept for one "
+                              "release, deliberately not in the table -->\n\n"
+                              "# Scratch\n"),
+    ),
+    dict(
+        gate="check_layering.py",
+        why="an import inside a single layer",
+        needle=None,
+        plant=lambda t: write(t, "src/service/other.py",
+                              "from src.service.use import use\n\n"
+                              "def other():\n    return use()\n"),
     ),
 ]
 
@@ -278,6 +402,45 @@ def run_gate(case, root):
                "--root", root, *case.get("args", [])], root)
 
 
+def coverage_gaps():
+    """Every gate in this directory is covered in both directions.
+
+    The cases above are a hand-written list, and for a long time that was the
+    whole suite: adding `check_something.py` with no entry here left it untested
+    while the run stayed green, which reads as evidence that it works.
+    `guards/selftest.py` never had this hole -- it enumerates the directory and
+    makes each guard declare its own cases -- and the asymmetry was not a
+    decision, it was an oversight in the one file whose subject is exactly this.
+
+    So enumerate, and require both directions per gate. One red case proves the
+    gate can fire; one green case proves it does not fire on everything. A gate
+    with only the first is indistinguishable from `exit 1`.
+    """
+    on_disk = {os.path.basename(p) for p in
+               glob.glob(os.path.join(HERE, "check_*.py"))}
+    red, green = defaultdict(int), defaultdict(int)
+    for case in CASES:
+        (green if case["needle"] is None else red)[case["gate"]] += 1
+
+    gaps = []
+    for gate in sorted(on_disk):
+        if not red[gate] and not green[gate]:
+            gaps.append(f"{gate}\n    has no cases at all — nothing here proves "
+                        f"it works, and the suite stays green regardless")
+        elif not red[gate]:
+            gaps.append(f"{gate}\n    has no case that expects a failure — "
+                        f"nobody has watched it turn red")
+        elif not green[gate]:
+            gaps.append(f"{gate}\n    has no case that must stay green — a gate "
+                        f"that flagged everything would pass this suite")
+
+    for gate in sorted(set(red) | set(green)):
+        if gate not in on_disk:
+            gaps.append(f"{gate}\n    has cases here but no such file in "
+                        f"{os.path.relpath(HERE)} — a stale case tests nothing")
+    return gaps
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--verbose", action="store_true")
@@ -287,7 +450,7 @@ def main():
         print("cannot run: git not on PATH", file=sys.stderr)
         return 2
 
-    failures = []
+    failures = coverage_gaps()
     for case in CASES:
         label = f"{case['gate']}: {case['why']}"
         tmp = make_repo(tempfile.mkdtemp(prefix="gate-selftest-"))

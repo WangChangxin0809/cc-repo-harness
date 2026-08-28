@@ -139,9 +139,15 @@ finding out that the thing was built for a repository nobody actually has.
 - git
 - Claude Code with plugin support
 
-`tree-sitter-languages`, if installed, upgrades the index's symbol extraction.
-Without it the index falls back to per-language regexes and says so in its
-report, so you always know which one produced the graph you are reading.
+No optional dependencies either. The index extracts symbols with per-language
+regexes, and `docs/generated/index-report.md` records the holes that leaves —
+the files it skipped, the imports it could not resolve, the dispatch it cannot
+see. Read that before trusting an absence in the graph.
+
+This section used to promise that installing `tree-sitter-languages` upgraded
+extraction. It did not, and the report said `tree-sitter` anyway — see
+[0003](docs/decisions/0003-the-extractor-is-regexes-and-says-so.md) for what
+that broke and what it would take to build the extractor for real.
 
 ## Contributing
 

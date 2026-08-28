@@ -57,9 +57,14 @@ true inside `src/billing/` costs every session nothing until someone opens
 
 ## Path convention
 
-`<skill>/…` and `<plugin>/…` mean files inside this plugin. Bare paths like
-`scripts/guards/` mean the **target repository** — that is where things end up,
-and where they must keep working after the plugin is gone.
+`${CLAUDE_PLUGIN_ROOT}/…` means a file inside this plugin. It is a real
+environment variable set by Claude Code, not a placeholder to substitute by
+hand — a plugin's install location differs by install method and platform, so
+anything that hardcodes a path or asks the reader to guess one is broken on
+somebody's machine. `<skill>/…` means a file beside the SKILL.md being read.
+
+Bare paths like `scripts/guards/` mean the **target repository** — that is where
+things end up, and where they must keep working after the plugin is gone.
 
 ## Steps
 
@@ -69,7 +74,7 @@ step is not done — move on only when it reads true.
 ### 0. Survey before touching anything
 
 ```bash
-python3 <plugin>/shared/scripts/probe_repo.py --root <repo>
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/probe_repo.py --root <repo>
 ```
 
 It reports which of the seven moments are wired, what discipline already exists,
@@ -107,8 +112,8 @@ classification was performed as a formality.
 ### 3. Scaffold
 
 ```bash
-python3 <plugin>/shared/scripts/scaffold.py --root <repo> --tier <A|B|C> --dry-run
-python3 <plugin>/shared/scripts/scaffold.py --root <repo> --tier <A|B|C>
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A|B|C> --dry-run
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A|B|C>
 ```
 
 Additive and idempotent; nothing existing is overwritten; `settings.json` is
@@ -160,7 +165,7 @@ why this plugin's own hook will not run a repository's guards until you have
 explicitly trusted them:
 
 ```bash
-python3 <plugin>/hooks/run_repo_guards.py --status
+python3 ${CLAUDE_PLUGIN_ROOT}/hooks/run_repo_guards.py --status
 ```
 
 Then **break one on purpose** and confirm the selftest goes red. A guard you
