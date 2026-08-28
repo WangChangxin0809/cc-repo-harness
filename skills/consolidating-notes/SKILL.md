@@ -24,14 +24,21 @@ the evidence needed to tell a good merge from a lossy one, and lossy merges are
 the normal failure — they read beautifully.
 
 ```bash
-python3 <plugin>/shared/scripts/dream.py prepare --src .agent-notes --snap .snap
-# snapshot is chmod'd read-only; write the synthesis to a NEW directory
-python3 <plugin>/shared/scripts/dream.py diff --old .snap --new .synth
+python3 <plugin>/shared/scripts/dream.py prepare --notes .agent-notes --sessions .agent-sessions
+# snapshot is chmod'd read-only; the synthesis writes to .dream/candidate/ only
+python3 <plugin>/shared/scripts/dream.py diff
 ```
 
-The diff reports four buckets: unchanged, rewritten, **dropped**, new. Dropped is
-the one to read line by line. Everything else is easy to skim and hard to get
-wrong.
+`diff` reports three things, in the order they matter:
+
+1. **What is gone.** Every measurement, commit hash, and path present in the
+   input and absent from the candidate, quoted. This is the check the whole
+   invariant exists to enable, and it is mechanical — do not do it by eye.
+2. **What has no destination.** Entries that survived without a `ROUTE:` line.
+   A consolidation whose output is a tidier pile of notes has moved nothing.
+3. **Unchanged / rewritten / dropped / new**, by name.
+
+Read 1 and 2. Skim 3.
 
 ## What must survive verbatim
 

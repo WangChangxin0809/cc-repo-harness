@@ -39,9 +39,9 @@ need to look at what was dropped.
 ## The mechanics, by hand
 
 ```bash
-python3 <plugin>/shared/scripts/dream.py prepare --src .agent-notes --snap .snap
-# synthesize into a NEW directory — never back into --src or --snap
-python3 <plugin>/shared/scripts/dream.py diff --old .snap --new .synth
+python3 <plugin>/shared/scripts/dream.py prepare --notes .agent-notes --sessions .agent-sessions
+# the synthesis reads .dream/BRIEF.md and writes ONLY to .dream/candidate/
+python3 <plugin>/shared/scripts/dream.py diff
 ```
 
 `prepare` copies and then chmods the snapshot read-only. That is not paranoia
@@ -50,19 +50,35 @@ the filesystem rather than of everyone's discipline. In-place editing destroys
 the evidence needed to tell a good merge from a lossy one, and lossy merges are
 the normal failure — they read beautifully.
 
-`diff` reports four buckets: unchanged, rewritten, **dropped**, new. Read
-dropped line by line; skim the rest.
+`diff` leads with what is **gone**: every measurement, commit hash, and path
+that appears in the snapshot and not in the candidate, quoted in full. That
+comparison is by content, not by filename — consolidation *merges*, so an entry
+that moved from `cache.md` into `perf.md` must not read as a loss, and a number
+deleted during that move must not read as a move.
+
+It then lists entries that survived with no `ROUTE:` line, and only then the
+per-file unchanged / rewritten / dropped / new breakdown.
 
 ## The managed Dreams API
 
 Claude's Dreams API is a research preview implementing the same shape natively.
 Worth using when the pile is large enough that a hand pass will not be run.
 
-- Beta header `dreaming-2026-04-21`; available through Managed Agents.
-- Inputs: exactly one memory store, plus 1–100 sessions.
+- **Both** beta headers: `managed-agents-2026-04-01,dreaming-2026-04-21`. The
+  managed-agents header on its own does not grant access to dreams.
+- Inputs: exactly one memory store, plus 1–100 sessions. A `model` is required.
 - Output: a **new, independent** store. The input is never modified — the
   invariant is enforced by the API rather than by you remembering it.
 - `instructions` steers the synthesis, ≤4096 characters. The brief above fits.
+- Asynchronous: `pending → running → completed | failed | canceled`, polled by
+  id, minutes to hours. While `running`, the dream's `session_id` points at the
+  session executing the pipeline, so you can stream its events and watch what it
+  reads and writes.
+
+The sessions are not a secondary input. The store is what gets deduplicated; the
+transcripts are where a pattern nobody wrote down is still visible. `dream.py`
+takes `--sessions` for the same reason, and the brief tells the synthesis to
+read them.
 
 Because the output is a separate store, adoption is still a decision: diff it
 against the input, read what was dropped, and only then point anything at it.
