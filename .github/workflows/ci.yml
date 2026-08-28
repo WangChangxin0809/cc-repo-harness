@@ -184,7 +184,11 @@ jobs:
       # was already clean when introduced; that is the point of adding it before
       # anything is wrong rather than after.
       - name: workflows are valid
-        run: python3 -m actionlint
+        # The console script, not `python3 -m actionlint`: actionlint-py wheels
+        # a Go binary and installs an entry point, there is no importable
+        # module. The `-m` form was written here, verified nowhere, and failed
+        # on the first run of the job it was added in.
+        run: actionlint
 
       # Supply chain. A tag is mutable, so an action referenced by tag is a
       # promise from whoever can move it; the SHA pins are what this enforces.
