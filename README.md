@@ -13,9 +13,12 @@ heard of this plugin.
 ## Install
 
 ```bash
-/plugin marketplace add <this-directory-or-repo>
-/plugin install agent-harness
+/plugin marketplace add WangChangxin0809/agent-harness
+/plugin install agent-harness@agent-harness-marketplace
 ```
+
+From a local clone instead, point the first line at the checkout directory —
+the marketplace manifest is at `.claude-plugin/marketplace.json`.
 
 Then, in the repository you want to set up: *"set this repo up so the rules
 actually get enforced"* — or invoke `bootstrap-repo-harness` directly.
