@@ -28,13 +28,13 @@ before the first command:
 ## Install
 
 ```bash
-/plugin marketplace add WangChangxin0809/agent-harness
+/plugin marketplace add WangChangxin0809/repo-agent-harness
 /plugin install repo-agent-harness@wangchangxin-plugins
 ```
 
-The first line still names the repository, which has not been renamed — renaming
-it would silently redirect everyone who has already added the marketplace, so
-the plugin was renamed first and the repository follows separately.
+If you added the marketplace under the old name `WangChangxin0809/agent-harness`,
+it keeps working — GitHub serves a permanent redirect for both the web URL and
+`git clone`. Nothing needs to be re-added.
 
 From a local clone instead, point the first line at the checkout directory —
 the marketplace manifest is at `.claude-plugin/marketplace.json`.

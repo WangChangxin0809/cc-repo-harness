@@ -57,12 +57,26 @@ in their failure output. A repository scaffolded before this change does not hav
 that file, and a hint pointing at a path that does not exist is worse than a
 vaguer hint. They now point at `docs/decisions/`.
 
-**The repository is not renamed.** `/plugin marketplace add
-WangChangxin0809/agent-harness` still resolves, and anyone who has already run it
-keeps working. Renaming the repository would move every existing install onto a
-GitHub redirect for the benefit of matching a string. If it is renamed later it
-is a separate, announced change; the plugin name is what users type and it is
-correct now.
+**The repository is renamed too**, to `WangChangxin0809/repo-agent-harness`.
+
+This record originally said it would not be, on the grounds that renaming would
+"move every existing install onto a GitHub redirect". That reasoning was wrong,
+and it is left visible here rather than quietly deleted, because the correction
+is the useful part: a GitHub rename issues a permanent redirect for the web URL
+*and* for `git clone` / `git ls-remote`, so an existing
+`/plugin marketplace add WangChangxin0809/agent-harness` keeps resolving. Both
+were checked before the rename was reverted into this document:
+
+```
+old web URL       -> 301 https://github.com/WangChangxin0809/repo-agent-harness
+git ls-remote old -> succeeds
+```
+
+The one real cost is that the redirect is not permanent in the sense that
+matters most: if the old name is ever recreated — by this owner or, after a
+rename away, by anyone — the redirect is dropped and the old URL resolves to
+whatever now occupies it. That is the reason to migrate references rather than
+lean on the redirect, and it is a reason to fix the docs, not to keep the name.
 
 ## Rejected
 
