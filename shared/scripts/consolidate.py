@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Dream: consolidate accumulated agent notes into a reviewable candidate.
+"""Consolidate accumulated agent notes into a candidate you can review.
 
-    python3 dream.py prepare --notes <dir> [--sessions <dir>] [--out <dir>]
-    python3 dream.py diff    [--out <dir>]
+    python3 consolidate.py prepare --notes <dir> [--sessions <dir>] [--out <dir>]
+    python3 consolidate.py diff    [--out <dir>]
 
     0 = done            1 = differences need review (diff only)
     2 = cannot judge (no notes found, snapshot missing)
+
+This was called `dream.py`. It borrowed the name from Claude's Dreams API and
+delivered something much smaller: Dreams is an asynchronous managed job that
+runs a model over a memory store and up to 100 session transcripts and returns a
+new store. This is two commands that freeze the input, hand a brief to whatever
+you point at it, and then tell you what the output lost. Both halves are useful
+and they are not the same thing, so this one is named after what it does. The
+Dreams API itself is covered in the consolidating-notes skill's references.
 
 `prepare` copies the notes into a read-only snapshot and writes a synthesis
 brief. Run the synthesis with a subagent whose write access is limited to the
@@ -24,12 +32,12 @@ commit hash, and path in the snapshot is looked for anywhere in the candidate.
 That is the one check the brief asks for, and asking a human to do it by eye
 across a merged corpus is asking for it not to happen.
 
-Layout under --out (default `.dream/`):
+Layout under --out (default `.consolidation/`):
 
-    .dream/snapshot/    read-only copy of the inputs
-    .dream/sessions/    transcripts, if given: the source of new observations
-    .dream/candidate/   the subagent writes here
-    .dream/BRIEF.md     synthesis instructions
+    .consolidation/snapshot/    read-only copy of the inputs
+    .consolidation/sessions/    transcripts, if given: the source of new observations
+    .consolidation/candidate/   the subagent writes here
+    .consolidation/BRIEF.md     synthesis instructions
 """
 
 from __future__ import annotations
@@ -158,7 +166,7 @@ def prepare(notes, sessions, out):
     print(f"brief      {os.path.join(out, 'BRIEF.md')}")
     print(f"candidate  {os.path.join(out, 'candidate')}  (empty — synthesis writes here)")
     print("\nNext: run the synthesis in a subagent that reads the brief and the\n"
-          "snapshot, and may write ONLY to candidate/. Then: dream.py diff")
+          "snapshot, and may write ONLY to candidate/. Then: consolidate.py diff")
     return 0
 
 
@@ -212,7 +220,7 @@ def routes(directory):
 def diff(out):
     snap, cand = os.path.join(out, "snapshot"), os.path.join(out, "candidate")
     if not os.path.isdir(snap):
-        print("cannot judge: no snapshot — run `dream.py prepare` first",
+        print("cannot judge: no snapshot — run `consolidate.py prepare` first",
               file=sys.stderr)
         return 2
     before = {f for f in os.listdir(snap) if f.endswith(".md")}
@@ -294,7 +302,7 @@ def main():
     ap.add_argument("command", choices=["prepare", "diff"])
     ap.add_argument("--notes", default="")
     ap.add_argument("--sessions", default="")
-    ap.add_argument("--out", default=".dream")
+    ap.add_argument("--out", default=".consolidation")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     if a.command == "prepare":
