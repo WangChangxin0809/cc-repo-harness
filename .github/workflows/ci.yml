@@ -8,18 +8,43 @@ name: ci
 # Exit 2 means "could not judge" and is never a pass. Nothing special is needed
 # to honour that here -- any non-zero exit fails the step -- but it is the
 # reason no step is allowed to swallow a status with `|| true`.
+#
+# Every step is one line invoking a script, and that is the same rule
+# moments.md states for .claude/settings.json rather than a style preference.
+# Judgement written into a CI wiring cannot be run before pushing, cannot be
+# tested, and dies with the provider.
+#
+# No path filters, deliberately. A docs-only change is exactly what breaks the
+# routing table and check_docs_runnable.py, so "skip CI for docs" would skip
+# the checks most likely to catch it.
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  # Superseded pushes to a pull request are cancelled. Pushes to main are not:
+  # main's history is what every later bisect is measured against, and a
+  # cancelled run leaves a commit nobody ever judged sitting in it.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # The whole job is about five seconds. Anything approaching ten minutes has
+    # hung, and the default six-hour ceiling turns a hang into a queue nobody
+    # notices until someone asks why CI is slow.
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +73,14 @@ jobs:
       - name: the repo graph still says what it claims
         run: python3 shared/scripts/index/selftest.py --verbose
 
+      # The trust gate decides whether an unread repository's code executes on
+      # someone's machine. It is the only component here that fails silently
+      # and in the safe-looking direction: a check that wrongly concludes
+      # "trusted" produces no error, no output and no symptom until the
+      # repository it waved through was hostile. It shipped with no test.
+      - name: nothing runs until it is trusted
+        run: python3 hooks/selftest.py --verbose
+
       # The shipped gates, turned on this repository. This is the step that
       # would have caught the defect that motivated writing check_templates_
       # filled.py in the first place: a scaffolder whose own output no gate
@@ -68,6 +101,19 @@ jobs:
       - name: documented commands would run
         run: python3 shared/scripts/gates/check_docs_runnable.py --root .
 
+      # Every step above this line judges the payload -- the files this plugin
+      # copies into somebody else's repository. None of them judge the plugin:
+      # `.claude-plugin/`, `skills/`, `agents/`, `hooks/hooks.json` are what
+      # Claude Code actually loads, and they had no coverage at all. The gap
+      # was not carelessness. Payload is code, and code gets a selftest; a
+      # skill is markdown, and nobody writes a test for a paragraph.
+      #
+      # What was sitting in the gap: ten commands across four skills telling an
+      # agent to run `python3 <plugin>/shared/scripts/scaffold.py`, against a
+      # placeholder this repository invented and nothing resolves.
+      - name: the plugin surface itself holds
+        run: python3 shared/scripts/gates/check_plugin_structure.py --root .
+
       # The other half of drift needs judgement and cannot be a gate. What can
       # be checked is the tool that prepares the judgement: that its git triage
       # points the right way, that `Governs:` matches by segment here too, and
@@ -75,36 +121,28 @@ jobs:
       - name: the drift pass can still tell a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
 
-      # End to end, in a throwaway repository: scaffold, confirm the red names
-      # placeholders rather than anything else, fill them, confirm green. The
-      # acceptance criterion in bootstrap-repo-harness is "ci.sh runs green
-      # from a clean worktree", and it was false for a whole release.
-      - name: scaffold reaches green from a clean worktree
-        run: |
-          set -euo pipefail
-          work="$(mktemp -d)"
-          git -C "$work" init -q .
-          mkdir -p "$work/src" && echo 'def a(): pass' > "$work/src/a.py"
-          git -C "$work" add -A
-          git -C "$work" -c user.email=ci@example.com -c user.name=ci commit -qm init
-          python3 shared/scripts/scaffold.py --root "$work" --tier B > /dev/null
+  acceptance:
+    # The plugin's own acceptance criterion, the one the README states in prose:
+    # scaffold a repository, fill in what the red list names, delete the plugin,
+    # and the repository must still stand on its own.
+    #
+    # Every step in `checks` runs with the plugin sitting right there on disk,
+    # so none of them can tell a repository that stands alone from one quietly
+    # reaching back into the checkout it was scaffolded from. That difference is
+    # invisible to whoever ran the scaffolder and total for the teammate who
+    # clones afterwards.
+    #
+    # Its own job because it is the slow one -- about thirteen seconds of
+    # scaffolding and copying against five for everything else -- and because
+    # "the scaffolder broke" and "a gate broke" deserve two different red
+    # squares.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-          cd "$work"
-          if ./ci.sh --fast > out.txt 2>&1; then
-            echo "expected a fresh scaffold to be red; it was green" >&2
-            exit 1
-          fi
-          grep -q "unfilled placeholder" out.txt || {
-            echo "red, but not for the placeholders it is supposed to name:" >&2
-            cat out.txt >&2
-            exit 1
-          }
-
-          python3 - <<'PY'
-          import pathlib, re
-          for p in pathlib.Path(".").rglob("*.md"):
-              p.write_text(re.sub(r"<[^<>\n]{2,}>", "written by a human", p.read_text()))
-          pathlib.Path("LICENSE").write_text("MIT\n")
-          PY
-
-          ./ci.sh --fast
+      - name: the scaffold reaches green, and outlives the plugin
+        run: python3 shared/scripts/selftest.py --verbose
