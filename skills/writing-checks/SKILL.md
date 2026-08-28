@@ -1,0 +1,166 @@
+---
+name: writing-checks
+description: Build the machinery that enforces a convention instead of documenting it — PreToolUse guards that block an action before it runs, CI gates that judge the worktree, selftests that prove a check can turn red, and structural tests that enforce layering. Use this whenever a rule keeps getting violated despite being written down, whenever adding a lint/check/CI step, whenever asked to enforce architecture boundaries or protect a branch or stop a destructive command, and whenever a check exists but nobody has ever seen it fail.
+---
+
+# Guards and gates
+
+Two mechanisms, one discipline. A **guard** reads one proposed action before it
+runs and may block it. A **gate** reads the worktree at CI time and may fail the
+build. Everything below applies to both, because the failure modes are the same.
+
+| | Guard | Gate |
+|---|---|---|
+| Sees | one tool call, as JSON on stdin | the whole tree |
+| Cost | every matching call | once per run |
+| Use when | the action is irreversible | the state is detectable |
+| Failure | exit 2, stderr goes to the model | non-zero, output goes to a human |
+
+## Write the failure modes before the check
+
+List how the thing you are guarding actually goes wrong — concretely, each one a
+sentence naming an input and a wrong outcome. Then write one criterion per mode.
+
+Doing this first is the single biggest predictor of a check that works. Writing
+the implementation first and the criteria after produces criteria that are a
+mirror of the implementation: they pass on the day you write them and are blind
+to everything the implementation forgot.
+
+A caveat that saves a day: some entries on your list will turn out not to be
+real failure modes. When an injection cannot make a criterion go red, the
+correct move is usually to delete the criterion, not to tighten it.
+
+## Three exit codes, and the third is the one people get wrong
+
+```
+0 = judged, passed
+1 = judged, failed
+2 = could not judge
+```
+
+**Exit 2 is not a pass.** Missing tool, unparseable config, no baseline to
+compare against — every one of those must be loud. A check that returns 0 when
+it could not run is worse than no check, because it manufactures a green that
+someone will trust.
+
+And exit 2 is a *shared* observable: several different failures all exit 2. When
+a selftest asserts only the code, it passes for the wrong reason. Assert the
+reason too — grep the stderr for the specific message.
+
+The same applies one layer up. Shell-level 126 and 127 mean the check never
+started, and they look exactly like a check that ran. In a three-stage chain
+each stage's exit code masks everything downstream, so after fixing one layer,
+rerun — the layer beneath it has been invisible the whole time.
+
+## Silent success, verbose failure
+
+A check that prints on success trains everyone to skim its output, and then the
+one run that printed a warning goes unread. Print nothing when passing. When
+failing, print what was expected, what was found, and the command that fixes it,
+with a path to the document that explains why the rule exists.
+
+That failure message is the highest-value prose in the repository: it is the
+only text guaranteed to be read at the moment it is relevant, by a reader who
+has already made the mistake.
+
+## Prove it can turn red
+
+A check nobody has watched fail is a file, not a check.
+
+```bash
+cp target.py target.py.bak          # never `git checkout --` to restore:
+                                    # it discards unrelated uncommitted work
+                                    # and does not restore untracked files
+# inject a defect the check must catch
+python3 scripts/guards/selftest.py  # must report exactly one failure, by name
+cp target.py.bak target.py && rm target.py.bak
+```
+
+Make the injection **silent**, not a crash. An injection that raises is the easy
+case — it would be caught by anything. The injection that matters makes the
+check return "clean" while the defect is present.
+
+Every guard module ships a `CASES` list with at least one blocking and one
+non-blocking case. The non-blocking one is not optional: it is what proves the
+check has not become a wall that people learn to bypass.
+
+## Where checks go blind
+
+**A criterion can pass vacuously.** If the preconditions were never established
+— the entities do not exist yet, the counter was captured by value, the signal
+carries an argument the matcher does not accept — then every negative assertion
+is true of nothing. Vacuous passes look identical to real ones. The defence is
+one positive assertion per group: something that must be non-empty, non-zero,
+present. `text != ""` catches what "does not contain X" and "is tall enough"
+both let through.
+
+**Redundant mechanisms mask each other.** When two things independently
+guarantee a property, breaking one leaves the other holding it, and neither
+check goes red. Give each mechanism an observable that belongs only to it.
+
+**Superset matching hides a broken set operation.** Asserting that the report
+"contains b.md" stays green when the code puts *everything* in the report.
+Assert a count, or keep a control set that must always come back empty.
+
+**A parsing check that normalizes away an operator reads the answer backwards.**
+Stripping a `!`, or exempting matches inside string literals, is how a check
+starts approving what it exists to forbid. When a false positive tempts you to
+open an exemption channel, narrow the pattern instead.
+
+## Structural tests for layering
+
+The most durable convention is one a machine can check. Declare the layers —
+`types → config → repo → service → runtime → ui` or whatever this codebase has —
+and gate the direction of imports.
+
+```bash
+python3 scripts/gates/check_layering.py
+```
+
+A starter ships in this plugin under `shared/scripts/gates/`. It reads the layer
+order from `.claude/guards.json`, walks imports, and reports each edge that
+points the wrong way with both file paths. Prose describing a layering is
+followed for about a month; a gate is followed indefinitely.
+
+Two things this gate must not do: judge on a maximum (variance across identical
+runs is real, and the maximum is the noisiest statistic available), and live in
+only the packages it validates. Cross-package rules belong in a third place that
+always runs — otherwise testing only the packages you changed never sees it.
+
+## Run gates in a clean worktree
+
+A working tree contains local files and, sometimes, another session's
+half-finished work. Green measured there is not green. Use a fresh checkout, or
+a `git worktree`, whenever the result will be reported as a fact.
+
+Record every measured number with the commit it was measured on. Readings without
+a commit expire silently, and the person who inherits the investigation restarts
+from a number that stopped being true weeks ago.
+
+## Wiring
+
+```json
+{"hooks": {"PreToolUse": [{"matcher": "Bash",
+  "hooks": [{"type": "command", "command": "python3 scripts/guards/dispatch.py"}]}]}}
+```
+
+One line, one script. `.claude/` holds wiring; the judgment lives in `scripts/`
+where it is reviewable, testable, and portable. The dispatcher discovers every
+`*.py` in its directory, so adding a rule is adding a file.
+
+A broken guard **fails open** — deliberately. One syntax error in one module
+must not become a wall nobody can get past, in a mechanism that runs before
+every command. The selftest is what catches the broken module; the dispatcher's
+job is to keep working.
+
+## References
+
+| File | Read when |
+|---|---|
+| `references/guard-contract.md` | The exact stdin/stdout/exit contract per hook event |
+
+Each shipped guard documents what it matches, and what it deliberately does not,
+in its own docstring — which travels into the repository with the file.
+
+Related skills: `writing-docs` (where the failure message should point),
+`bootstrap-repo-harness` (installing the dispatcher and `ci.sh`).

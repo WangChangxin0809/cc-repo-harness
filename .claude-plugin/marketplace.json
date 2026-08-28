@@ -1,0 +1,11 @@
+{
+  "name": "agent-harness-marketplace",
+  "owner": { "name": "WangChangxin0809" },
+  "plugins": [
+    {
+      "name": "agent-harness",
+      "source": "./",
+      "description": "Lay the foundation that makes a repository teach coding agents how to work in it, then get out of the way."
+    }
+  ]
+}

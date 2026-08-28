@@ -1,0 +1,7 @@
+{
+  "name": "agent-harness",
+  "version": "0.1.0",
+  "description": "Lay the foundation that makes a repository teach coding agents how to work in it: delivery moments wired to hooks, a layered docs truth source, CI gates plus tool-call guards, a rebuildable repo graph, and a consolidation pass. Bootstraps once, then the repo stands on its own.",
+  "author": { "name": "WangChangxin0809" },
+  "keywords": ["harness", "CLAUDE.md", "AGENTS.md", "hooks", "guards", "gates", "docs", "retrieval", "onboarding"]
+}

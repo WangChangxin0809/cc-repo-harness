@@ -1,0 +1,25 @@
+name: New guard or gate
+description: Propose a check that enforces a rule instead of documenting it
+labels: [check]
+body:
+  - type: textarea
+    id: modes
+    attributes:
+      label: How does this actually go wrong?
+      description: One sentence per failure mode, each naming an input and a wrong outcome. Writing these before the check is the single biggest predictor of a check that works.
+    validations:
+      required: true
+  - type: textarea
+    id: silent
+    attributes:
+      label: Why is it not caught today?
+      description: If review or an existing test would catch it, a check may not be worth its cost. The ones that earn their place fail silently.
+    validations:
+      required: true
+  - type: input
+    id: near_miss
+    attributes:
+      label: A near miss that must still be allowed
+      description: Required. A check with only blocking cases becomes a wall that people learn to route around.
+    validations:
+      required: true

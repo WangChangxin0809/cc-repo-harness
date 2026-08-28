@@ -1,0 +1,39 @@
+name: Bug report
+description: Something behaves differently from what it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. python3 shared/scripts/...
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Exact output
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: Repository shape
+      description: Roughly how many tracked files, and which languages. Index problems are almost always shape-dependent.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS and Python version
+    validations:
+      required: true
