@@ -148,7 +148,9 @@ def main():
                          "the default on a large repository")
     ap.add_argument("--hops", type=int, default=0,
                     help="reflex tier: N-hop neighbourhood instead of PageRank. "
-                         "One pass over the edges rather than thirty.")
+                         "One pass over the edges rather than thirty. Use 1: "
+                         "two hops measured WORSE than no graph at all "
+                         "(arXiv:2410.14684).")
     ap.add_argument("--stats", action="store_true")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
@@ -177,6 +179,16 @@ def main():
         print("cannot judge: no seed matched anything in the graph",
               file=sys.stderr)
         return 2
+
+    if a.hops > 1:
+        # The one published ablation of this exact choice found 2-hop flattened
+        # retrieval scoring BELOW its no-graph baseline (26.00 vs 27.33 on
+        # SWE-bench Lite), while 1-hop was the best of everything tried. The
+        # weighting and budget here may or may not repair that; nobody has
+        # measured it. Say so rather than let the flag read as a dial.
+        print(f"# --hops {a.hops}: beyond one hop the neighbourhood grew faster "
+              f"than its usefulness in the one published ablation "
+              f"(arXiv:2410.14684). Unmeasured here.", file=sys.stderr)
 
     if a.hops:
         rank = neighbourhood(g, seeds, a.hops)

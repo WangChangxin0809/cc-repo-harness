@@ -81,6 +81,35 @@ on every turn, and being unreliable is acceptable because nothing depends on it
 alone. This is where the earlier generation of RAG belongs, scoped down to what
 it is actually good at.
 
+**Use `--hops 1`.** RepoGraph ([arXiv:2410.14684](https://arxiv.org/abs/2410.14684))
+ablated exactly this on SWE-bench Lite and the result is the most useful number
+anyone has published about repository graphs:
+
+| Retrieval | Resolve rate |
+|---|---|
+| no graph (baseline) | 27.33% |
+| **1-hop, flattened** | **29.67%** |
+| 2-hop, summarized by an LLM | 28.67% |
+| 1-hop, summarized | 28.33% |
+| 2-hop, flattened | **26.00%** — *below the baseline* |
+
+Two hops averaged 54.5 nodes against one hop's 11.6, and the extra context was
+worse than no context at all. Feeding an agent more of the neighbourhood is not
+a free improvement with a diminishing return; past one hop it is a net loss that
+an LLM summarisation pass only partly repairs.
+
+What transfers and what does not, stated honestly: their graph is unweighted,
+successors-only, and unranked, while this one weights edges, walks both
+directions, decays by `w/(depth+1)²`, and truncates to a token budget — all of
+which are plausibly the mitigations their 2-hop result calls for, and **none of
+which have been measured here**. What does transfer is the direction. Treat
+`--hops 2` as an experiment you are running, not a better setting.
+
+They did **not** test PageRank; they inherited it from Aider and dropped it
+without a comparison. So nothing above argues for or against the default here —
+it is an open question, and the honest position is that this ranking has never
+been measured against the cheaper thing it replaced.
+
 **Deliberate** — the `repo-explorer` subagent (`<plugin>/agents/repo-explorer.md`).
 Given a question, it queries the graph, reads what the graph pointed at,
 follows edges the graph got wrong, and returns a conclusion with citations. It
