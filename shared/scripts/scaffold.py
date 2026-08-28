@@ -123,7 +123,7 @@ INDEX_MD = """\
 | I want to | Read first | Then edit |
 |---|---|---|
 | Understand the system | [ARCHITECTURE.md](../ARCHITECTURE.md) | — |
-| Know why the repo is shaped this way | [0001](decisions/0001-agent-harness.md) | — |
+| Know why the repo is shaped this way | [0001](decisions/0001-agent-conventions.md) | — |
 | See what is in flight | [tech debt](exec-plans/tech-debt-tracker.md) | — |
 """
 
@@ -434,7 +434,7 @@ PLAN = [
     ("SECURITY.md", SECURITY_MD, 0o644, "B"),
     ("README.md", README_MD, 0o644, "B"),
     ("CONTRIBUTING.md", CONTRIBUTING_MD, 0o644, "B"),
-    ("docs/decisions/0001-agent-harness.md", DECISION_0001, 0o644, "B"),
+    ("docs/decisions/0001-agent-conventions.md", DECISION_0001, 0o644, "B"),
     ("docs/exec-plans/tech-debt-tracker.md", TECH_DEBT, 0o644, "B"),
     ("ci.sh", CI_SH, 0o755, "B"),
 ]

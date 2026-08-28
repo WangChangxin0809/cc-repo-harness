@@ -73,7 +73,7 @@ def main():
             f"    - a state a script can detect    -> scripts/gates/\n"
             f"    - true only inside one directory -> that directory's CLAUDE.md\n"
             f"    - a procedure with a trigger     -> a skill\n"
-            f"  See docs/decisions/0001-agent-harness.md")
+            f"  See docs/decisions/")
 
     # An empty CLAUDE.md passes every length check ever written. One positive
     # assertion is what catches it.
