@@ -45,7 +45,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: benchmark
+  group: ${{ github.workflow }}
   cancel-in-progress: false
 
 defaults:
@@ -75,24 +75,36 @@ jobs:
             ref: 73ce26c3e822cdc2ccf99625619a50c91f163f8d  # 2025-03-29
             commits: 150
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
 
+      # Matrix values reach the shell through the environment, never through
+      # template expansion into the command text. These particular values are
+      # literals a dozen lines up, so nothing is exploitable today -- but the
+      # habit is what matters: the day one of them comes from an input or an
+      # API response, the expanded form is a shell injection and the env form
+      # is still just a string. zizmor flags the expanded form for that reason.
       - name: fetch the corpus at its pinned commit
+        env:
+          REPO: ${{ matrix.repo }}
+          REF: ${{ matrix.ref }}
         run: |
           set -euo pipefail
           # Blobless rather than shallow: the benchmark reads which files each
           # commit touched, so the history is the input. --filter=blob:none
           # keeps the file *contents* out of the clone, which is the part that
           # is large and the part nothing here needs.
-          git clone --quiet --filter=blob:none \
-            "https://github.com/${{ matrix.repo }}" corpus
-          git -C corpus checkout -q "${{ matrix.ref }}"
+          git clone --quiet --filter=blob:none "https://github.com/$REPO" corpus
+          git -C corpus checkout -q "$REF"
 
       - name: build the graph and measure recall@10
+        env:
+          COMMITS: ${{ matrix.commits }}
         run: |
           set -euo pipefail
           python3 shared/scripts/index/build.py --root corpus > /dev/null
@@ -104,23 +116,26 @@ jobs:
           # were not, the archived JSON and the reported table would be two
           # different measurements presented as one.
           python3 shared/scripts/index/benchmark.py \
-            --root corpus --k 10 --commits ${{ matrix.commits }} \
+            --root corpus --k 10 --commits "$COMMITS" \
             | tee result.txt
           python3 shared/scripts/index/benchmark.py \
-            --root corpus --k 10 --commits ${{ matrix.commits }} --json \
+            --root corpus --k 10 --commits "$COMMITS" --json \
             > result.json
 
       - name: put the table where it will actually be read
+        env:
+          NAME: ${{ matrix.name }}
+          REF: ${{ matrix.ref }}
         run: |
           {
-            echo "## ${{ matrix.name }} @ \`${{ matrix.ref }}\`"
+            echo "## $NAME @ \`$REF\`"
             echo
             echo '```'
             cat result.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: recall-${{ matrix.name }}
           path: result.json

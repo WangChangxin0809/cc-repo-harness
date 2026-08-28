@@ -1,24 +1,37 @@
 version: 2
 
-# The repository has no dependencies by design -- Python standard library only,
-# and that claim is enforced by running on 3.9 and 3.13 with nothing installed.
-# So there is exactly one thing here that can rot: the actions the workflows
-# call, which are third-party code running with a token in a repository whose
-# whole subject is not executing code you have not read.
-#
-# `actions/checkout@v4` is a moving tag. Dependabot turns each move into a pull
-# request with a diff and a changelog, which is the reviewable form of the same
-# decision the trust gate asks a human to make locally.
+# This repository ships no runtime dependencies, and that claim is enforced by
+# running the whole suite on 3.9 and 3.13 with an empty environment. So there
+# are exactly two things here that can rot, and both are third-party code that
+# runs with access to the repository.
 
 updates:
+  # Actions are pinned to commit SHAs, which is what makes them immutable and
+  # also what makes them invisible: a SHA carries no version, so nothing about
+  # a pin going stale is apparent from reading it. Dependabot is what turns each
+  # move into a pull request with a diff and a changelog — the reviewable form
+  # of the same decision the trust gate asks a human to make locally.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     # Grouped, because four separate "bump a patch version" pull requests a
-    # month is how people learn to merge them without looking -- which is the
+    # month is how people learn to merge them without looking, which is the
     # supply-chain failure this file was added to prevent.
     groups:
       actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  # The linters, pinned in .github/requirements-dev.txt. Pinned so that somebody
+  # else's release cannot turn a build red on a commit that changed nothing —
+  # and watched here so that the pin does not become a version CI proves against
+  # that nobody runs.
+  - package-ecosystem: pip
+    directory: /.github
+    schedule:
+      interval: weekly
+    groups:
+      linters:
         patterns: ["*"]
     open-pull-requests-limit: 3
