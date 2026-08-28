@@ -31,7 +31,7 @@ concurrency:
   # Superseded pushes to a pull request are cancelled. Pushes to main are not:
   # main's history is what every later bisect is measured against, and a
   # cancelled run leaves a commit nobody ever judged sitting in it.
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -53,9 +53,14 @@ jobs:
         # the ceiling, and let the matrix be the thing that keeps it true.
         python: ["3.9", "3.13"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not to,
+          # where every later step -- and anything a later step runs -- can read
+          # it. zizmor calls this `artipacked`. Nothing here needs to push.
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python }}
 
@@ -139,10 +144,87 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
 
       - name: the scaffold reaches green, and outlives the plugin
         run: python3 shared/scripts/selftest.py --verbose
+
+  hygiene:
+    # Three linters, and the reason they are here rather than in a contributing
+    # note is the repository's own rule: what cannot tolerate a miss does not go
+    # through a paragraph hoping to be read.
+    #
+    # zizmor is the one that earned its place immediately. Run against this file
+    # before it existed, it found ten: seven unpinned actions, and three
+    # checkouts leaving the job's token in .git/config. Both were written by
+    # somebody who had read the security section of this repository's own README
+    # that morning, which is the whole argument for a check over a convention.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      # Pinned in a requirements file rather than inline, so Dependabot can see
+      # them. A version written into YAML is one nothing updates.
+      - name: install the linters
+        run: python3 -m pip install --require-hashes=false -r .github/requirements-dev.txt
+
+      # Syntax, expression typing, and shellcheck over every `run:` block. It
+      # was already clean when introduced; that is the point of adding it before
+      # anything is wrong rather than after.
+      - name: workflows are valid
+        run: python3 -m actionlint
+
+      # Supply chain. A tag is mutable, so an action referenced by tag is a
+      # promise from whoever can move it; the SHA pins are what this enforces.
+      - name: workflows are not a supply-chain hole
+        run: zizmor --no-progress .github/workflows/
+
+  release-hygiene:
+    # Only on a pull request: there is nothing to diff a push to main against,
+    # and a check that quietly does nothing on half its triggers is worse than
+    # one that is absent, because the green square says it ran.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          # The check diffs against the merge base. A shallow clone has none,
+          # and the script exits 2 rather than guessing.
+          fetch-depth: 0
+
+      # First, deliberately. A validator that has stopped detecting its target
+      # reports a clean build forever, and that is precisely the failure this
+      # repository was built to talk about.
+      - name: the version check can still turn red
+        run: python3 .github/scripts/check_version_bumped.py --self-test --verbose
+
+      - name: a change that ships something raises the version
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          # A pull request labelled `no-version-bump` is an explicit statement
+          # that this ships nothing, made in public on the pull request. That is
+          # a different thing from forgetting, which is what this catches.
+          EXEMPT: >-
+            ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump')
+                || github.event.pull_request.user.login == 'dependabot[bot]' }}
+        run: |
+          set -euo pipefail
+          if [ "$EXEMPT" = "true" ]; then
+            echo "exempt: labelled no-version-bump, or opened by Dependabot"
+            exit 0
+          fi
+          python3 .github/scripts/check_version_bumped.py --base-ref "$BASE"

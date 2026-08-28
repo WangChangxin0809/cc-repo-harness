@@ -1,0 +1,11 @@
+# Development tooling. Not a runtime dependency: nothing here is imported by
+# anything this plugin installs into a repository, and the zero-dependency
+# claim in the README is about that, not about CI.
+#
+# Pinned, and in a file rather than inline in a workflow, for one reason: an
+# unpinned tool turns somebody else's release into a red build on a commit that
+# changed nothing, and a version written into YAML is invisible to Dependabot
+# and sits stale forever. Here it is watched -- see .github/dependabot.yml.
+
+actionlint-py==1.7.12.24   # GitHub Actions linter: syntax, expressions, shellcheck on run:
+zizmor==1.29.0             # Actions security audit, by Trail of Bits.
