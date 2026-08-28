@@ -1,9 +1,23 @@
 # Collaboration harness
 
-Goal: two people on one large repository, and each one's agent knows what the
-other moved underneath it — before it acts, without being asked — and that
-knowing changes the outcome, measured by `claude plugin eval --ablation
-with-without` rather than asserted.
+Goal, two halves. Both on one large repository with several people on it, and
+both measured by `claude plugin eval --ablation with-without` rather than
+asserted.
+
+**Awareness** — each person's agent knows what the others moved underneath it,
+before it acts, without being asked, and that knowing changes the outcome.
+
+**Convergence** — two people adding the same kind of thing independently produce
+the same shape, and where they do not, a check says so before merge. The metric
+here is *variance between runs*, not score: guidance that standardises makes
+independent runs resemble each other, and that is visible in a way "was the
+answer good" is not.
+
+The second half is what makes this normative for a large project rather than
+merely helpful to one person. It is also the half that decays with headcount:
+guidance fires when it is triggered, so one person who does not trigger it
+diverges, and the leak rate grows with the number of people. Which is why every
+row of phase F has to name the check that holds it, or say that it has none.
 
 Abort if: the with/without delta is indistinguishable on a real
 multi-contributor repository. Then push has no measured value at any moment,
@@ -13,15 +27,21 @@ for the same reason.
 
 ## Why this order
 
-The falsifying step is second, not last. Steps 4–13 all rest on one unproven
-claim: that context delivered when nobody asked for it changes what an agent
-does. Three papers measured the opposite arrangement — agent-initiated pull —
-and pull won every time it was compared to a precomputed index (see 0004). None
-of them measured push, so the claim is open rather than refuted; but building
-five phases on an open claim and testing it at the end is how a year gets spent.
+The falsifying step is second, not last. Phases C, D and E all rest on one
+unproven claim: that context delivered when nobody asked for it changes what an
+agent does. Three papers measured the opposite arrangement — agent-initiated
+pull — and pull won every time it was compared to a precomputed index (see
+0004). None of them measured push, so the claim is open rather than refuted; but
+building four phases on an open claim and testing it at the end is how a year
+gets spent.
 
 So: build the instrument, build the thinnest possible push, measure, and only
 then continue.
+
+Phase F is the exception and is listed last only because it is longest. It does
+not depend on the claim, so it survives the abort branch intact — which is worth
+knowing before the measurement comes back, because it means a negative result
+costs us four phases rather than everything.
 
 ## Steps
 
@@ -107,6 +127,57 @@ then continue.
               already-scaffolded repository has only the trust gate to justify
               itself.
 
+**F · Authoring guidance — the teaching half, and the only phase the abort
+branch does not touch**
+
+The plugin persists for three reasons: it protects a person from a repository
+(the trust gate), it teaches a person, and it can upgrade what it installed.
+This phase is the second one, and it is uneven — four artefact kinds have
+authoring guidance and three do not. It is deliberately *not* gated behind step
+B's decision point, because guidance is worth the same whether or not push turns
+out to change anything.
+
+- [ ] todo    CI/CD workflow design. Nothing covers it, and this repository's
+              own `ci.yml` now carries a pile of hard-won judgement in comments:
+              why concurrency cancels pull requests but never `main`, why there
+              are no path filters, why actions are pinned to SHAs, why
+              acceptance is a separate job from checks, why `release-hygiene`
+              runs only on pull requests. That knowledge exists in one file, as
+              comments, and is teachable to nobody. Knowledge stuck in an
+              artefact is the nursery rule running backwards.
+- [ ] todo    Script kinds, in one table: guard, gate, selftest, context script,
+              our-tools-only. Shape, exit-code contract, and where each is
+              installed. It is currently split across `writing-checks` and
+              `moments.md`, so the question "what kind of script is this" has no
+              single answer to read.
+- [ ] todo    Hooks reachable outside bootstrap. `moments.md` holds the contract
+              but sits under `bootstrap-repo-harness`, so it fires when someone
+              is installing a harness and not when someone is adding a hook to
+              one that exists — which is every time after the first.
+- [ ] todo    Gate: every artefact kind the scaffolder creates has guidance that
+              names it, and every kind the guidance names is still something the
+              scaffolder creates. Both directions, because guidance for a kind
+              that no longer exists reads as authoritative, and a kind with no
+              guidance is where everyone invents their own convention. This is
+              the nursery discipline applied to the teaching half: the third
+              time we notice the two have drifted, it stops being noticing and
+              becomes a check.
+- [ ] todo    Every piece of authoring guidance names the check that holds it,
+              or states that it has none and why. Teaching alone does not
+              standardise: a skill fires when triggered, so the one person who
+              does not trigger it diverges, and on a large project that leak
+              rate scales with headcount. The pairing is the repository's own
+              rule — what cannot tolerate a miss does not go through retrieval —
+              applied to conventions rather than to rules.
+- [ ] todo    Say how a convention chooses its scope. Most conventions in a
+              large repository are true of one area, not of everything, and the
+              mechanism for that is moment 4 — a subtree `CLAUDE.md`, paid only
+              by whoever opens the directory. A project-wide convention that was
+              really an area convention is how `CLAUDE.md` reaches its cap and
+              how everyone learns to skim it.
+- [ ] todo    Retire `repo-index` with the code it documents (phase D). A skill
+              teaching a component that was deleted is worse than no skill.
+
 ## Not doing, and why
 
 Each of these was proposed and rejected; they are here so the rejection can be
@@ -130,4 +201,5 @@ established and which were judgement.
 | Precomputed retrieval loses to agentic pull | **Counter-evidence against us**: three papers, plus our own benchmark losing to a most-churned baseline |
 | "When" outweighs "what is stored" | Supporting, indirect: ProactAgent's ablation, on simulated embodied tasks, not code |
 | Push changes what an agent does | **Untested.** Nothing here or in the literature has measured it |
+| Guidance reduces variance between independent runs | **Untested**, and it is the convergence half of the goal — worth measuring separately from score, because a plugin can raise quality without standardising anything |
 | Declared relations cost less than derived ones | Ours, observed: `Governs:` needs no build, no rebuild, no staleness detection; the graph needed all three and a PR to add the third |
