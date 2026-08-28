@@ -58,6 +58,9 @@ jobs:
       - name: public face intact
         run: python3 shared/scripts/gates/check_community_health.py --root .
 
+      - name: docs routing table resolves
+        run: python3 shared/scripts/gates/check_docs_index.py --root .
+
       # End to end, in a throwaway repository: scaffold, confirm the red names
       # placeholders rather than anything else, fill them, confirm green. The
       # acceptance criterion in bootstrap-repo-harness is "ci.sh runs green

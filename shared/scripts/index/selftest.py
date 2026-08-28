@@ -183,6 +183,60 @@ def case_seed_by_symbol_name(t):
     return None
 
 
+def case_benchmark_separates_signal_from_noise(t):
+    """The measuring instrument must itself be measured.
+
+    A corpus is planted where the answer is known: four clusters of three files,
+    each cluster importing within itself, and every commit touching exactly one
+    cluster. A graph that works recalls the other two cluster members; uniform
+    sampling cannot. If `random` ever comes out level with the graph here, the
+    benchmark is reporting an artefact and every number it produces elsewhere is
+    worthless -- which is the failure mode a benchmark has and a test does not."""
+    files = {}
+    for c in range(4):
+        names = [f"pkg{c}/mod{i}.py" for i in range(3)]
+        for i, rel in enumerate(names):
+            peers = [n for j, n in enumerate(names) if j != i]
+            imports = "".join(
+                f"from {p[:-3].replace('/', '.')} import f{c}_{k}\n"
+                for k, p in enumerate(peers))
+            files[rel] = f"{imports}\n\ndef f{c}_{i}():\n    return {c}\n"
+    make_repo(t, files)
+    sh(["git", "-c", "user.email=s@e.x", "-c", "user.name=s",
+        "commit", "-qm", "init"], t)
+    # One commit per cluster: the ground truth this benchmark is meant to find.
+    for c in range(4):
+        for i in range(3):
+            rel = f"pkg{c}/mod{i}.py"
+            with open(os.path.join(t, rel), "a", encoding="utf-8") as fh:
+                fh.write(f"\n# touch {c}\n")
+        sh(["git", "add", "-A"], t)
+        sh(["git", "-c", "user.email=s@e.x", "-c", "user.name=s",
+            "commit", "-qm", f"cluster {c}"], t)
+
+    g, err = build(t)
+    if g is None:
+        return f"build failed: {err.strip()[:200]}"
+    r = sh([sys.executable, os.path.join(HERE, "benchmark.py"),
+            "--root", t, "--graph", os.path.join(t, ".index", "graph.json"),
+            "--k", "4", "--min-trials", "10",
+            # No changelog here, and every file appears in 40% of five commits:
+            # the ubiquity heuristic is meaningless on a corpus this small and
+            # would exclude the entire repository.
+            "--exclude-ubiquitous", "1.0", "--json"], t)
+    if r.returncode != 0:
+        return f"benchmark exit {r.returncode}: {r.stderr.strip()[:300]}"
+    recall = json.loads(r.stdout)["recall"]
+    best = max(recall["pagerank"], recall["hops1"])
+    if best < 0.9:
+        return (f"graph recalled {best:.2f} of a planted cluster it has explicit "
+                f"import edges for; the benchmark or the graph is broken")
+    if best <= recall["random"]:
+        return (f"graph {best:.2f} did not beat random {recall['random']:.2f} "
+                f"on a corpus built so that it must")
+    return None
+
+
 CASES = [
     ("symbol names are not merged into one hub", case_no_symbol_hub),
     ("a reference resolves to a later-scanned definition", case_forward_reference),
@@ -190,6 +244,8 @@ CASES = [
     ("an unresolvable Governs: target is reported", case_dangling_governs_is_reported),
     ("an unmatched seed cannot judge", case_unmatched_seed_cannot_judge),
     ("a bare symbol name still resolves as a seed", case_seed_by_symbol_name),
+    ("the benchmark separates signal from noise",
+     case_benchmark_separates_signal_from_noise),
 ]
 
 

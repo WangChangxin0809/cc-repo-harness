@@ -1,7 +1,8 @@
-# agent-harness
+# repo-agent-harness
 
-A plugin that lays the foundation which makes a repository teach coding agents
-how to work in it — and then becomes unnecessary.
+**A repository-side harness for coding agents.** It lays the foundation which
+makes a repository teach coding agents how to work in it — and then becomes
+unnecessary.
 
 The acceptance test is literal: install it, run the bootstrap, **uninstall the
 plugin**, hand a fresh agent a real task, and the repository must still teach it
@@ -10,12 +11,30 @@ the conventions. Everything the plugin installs lives in the target repository �
 control, reviewable in a pull request, and working for teammates who have never
 heard of this plugin.
 
+### Scope, stated so the name cannot overclaim
+
+*Harness* is an overloaded word, and the two meanings are worth separating
+before the first command:
+
+- **This is not the agent's execution loop.** In the Claude Agent SDK, "harness"
+  names the runtime that drives a model through tool calls. Nothing here touches
+  that. This is the *other* side: the repository the loop is pointed at.
+- **What it is:** conventions, guards, gates, and retrieval, placed in the
+  repository at the moments an agent actually reads them. It changes what the
+  repository tells an agent, never how the agent runs.
+- **What it is not:** an evaluation framework, a model router, a memory system,
+  or anything that persists outside version control.
+
 ## Install
 
 ```bash
 /plugin marketplace add WangChangxin0809/agent-harness
-/plugin install agent-harness@agent-harness-marketplace
+/plugin install repo-agent-harness@wangchangxin-plugins
 ```
+
+The first line still names the repository, which has not been renamed — renaming
+it would silently redirect everyone who has already added the marketplace, so
+the plugin was renamed first and the repository follows separately.
 
 From a local clone instead, point the first line at the checkout directory —
 the marketplace manifest is at `.claude-plugin/marketplace.json`.
@@ -79,7 +98,7 @@ python3 hooks/run_repo_guards.py --forget
 ```
 
 Editing any guard revokes trust until you look again. Trust is per-machine
-state, not knowledge, so it lives in `~/.claude/agent-harness/` — a repository
+state, not knowledge, so it lives in `~/.claude/repo-agent-harness/` — a repository
 that could grant itself trust in a pull request would not be granting anything.
 
 The better answer is to skip this hook entirely: once `scripts/guards/dispatch.py`

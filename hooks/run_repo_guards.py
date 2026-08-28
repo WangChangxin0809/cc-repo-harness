@@ -34,7 +34,7 @@ command you type.
     python3 run_repo_guards.py --forget
 
 Trust is per-machine state, not knowledge, so it lives outside the repository —
-in `$CLAUDE_CONFIG_DIR/agent-harness/trusted-guards.json` (default `~/.claude`).
+in `$CLAUDE_CONFIG_DIR/repo-agent-harness/trusted-guards.json` (default `~/.claude`).
 That is not a violation of "knowledge lives in the repository": a statement that
 *this* machine's user has read *that* code is not a fact about the project, and
 committing it would let a pull request grant itself trust.
@@ -145,7 +145,7 @@ def digest(root):
 def store_path():
     cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(
         os.path.expanduser("~"), ".claude")
-    return os.path.join(cfg, "agent-harness", "trusted-guards.json")
+    return os.path.join(cfg, "repo-agent-harness", "trusted-guards.json")
 
 
 def load_store():
@@ -181,7 +181,7 @@ def save_store(data):
 # --------------------------------------------------------------------------
 
 NOT_TRUSTED = """\
-agent-harness: {root} has guards in scripts/guards/ that are NOT running.
+repo-agent-harness: {root} has guards in scripts/guards/ that are NOT running.
 
 {what}
 
@@ -239,7 +239,7 @@ def hook(raw, root):
         proc = subprocess.run([sys.executable, dispatch], input=raw, text=True,
                               capture_output=True, cwd=root, timeout=10)
     except (OSError, subprocess.SubprocessError) as exc:
-        print(f"agent-harness: could not run repo guards: {exc}", file=sys.stderr)
+        print(f"repo-agent-harness: could not run repo guards: {exc}", file=sys.stderr)
         return 0
 
     if proc.returncode == 2:

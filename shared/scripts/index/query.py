@@ -74,7 +74,24 @@ def resolve_seeds(g, seeds):
     return hits, missed
 
 
-def neighbourhood(g, seeds, hops):
+def build_adjacency(g, only_known=False):
+    """node -> [(neighbour, weight)], forward and reverse.
+
+    Extracted so a caller running thousands of queries against one graph pays
+    for it once. A single query does not care; benchmark.py runs one per trial
+    and rebuilding this per call is the difference between two minutes and two
+    hours -- which is the difference between a measurement that gets taken and
+    one that does not."""
+    adj = defaultdict(list)
+    for a, b, _kind, w in g["edges"]:
+        if only_known and not (a in g["nodes"] and b in g["nodes"]):
+            continue
+        adj[a].append((b, w))
+        adj[b].append((a, w * REVERSE))
+    return adj
+
+
+def neighbourhood(g, seeds, hops, adj=None):
     """Breadth-first expansion from the seeds, scored by 1/distance.
 
     This is the reflex tier. It costs one pass over the edge list rather than
@@ -84,10 +101,8 @@ def neighbourhood(g, seeds, hops):
     ("what matters given where I am"), and that is the correct trade when the
     output is a hint the agent is free to ignore.
     """
-    adj = defaultdict(list)
-    for a, b, _kind, w in g["edges"]:
-        adj[a].append((b, w))
-        adj[b].append((a, w * REVERSE))
+    if adj is None:
+        adj = build_adjacency(g)
 
     score = dict(seeds)
     frontier = set(seeds)
@@ -103,12 +118,8 @@ def neighbourhood(g, seeds, hops):
     return score
 
 
-def pagerank(g, seeds, iterations=ITERATIONS):
-    out = defaultdict(list)
-    for a, b, _kind, w in g["edges"]:
-        if a in g["nodes"] and b in g["nodes"]:
-            out[a].append((b, w))
-            out[b].append((a, w * REVERSE))
+def pagerank(g, seeds, iterations=ITERATIONS, adj=None):
+    out = build_adjacency(g, only_known=True) if adj is None else adj
 
     total = sum(seeds.values()) or 1.0
     personal = {n: v / total for n, v in seeds.items()}
@@ -193,7 +204,7 @@ def main():
     if a.hops:
         rank = neighbourhood(g, seeds, a.hops)
     else:
-        rank = pagerank(g, seeds, a.iterations)
+        rank = pagerank(g, seeds, iterations=a.iterations)
     ranked = sorted(rank.items(), key=lambda kv: (-kv[1], kv[0]))
 
     # A symbol node carries the path that defines it, because its id is keyed
