@@ -32,7 +32,9 @@ actually get enforced"* — or invoke `bootstrap-repo-harness` directly.
 | `consolidating-notes` | Notes have accumulated, drifted, or contradicted |
 
 Plus one subagent (`repo-explorer`, small model, own context) and one hook that
-runs a repository's own guards during the window before it has wired them.
+runs a repository's own guards during the window before it has wired them — see
+[Trust](#trust), because that hook executes code from the repository and
+therefore asks first.
 
 ## The argument
 
@@ -49,16 +51,65 @@ Two rules follow, and everything else is detail:
   best-effort by construction. Rules whose violation is irreversible or silent
   become a guard that blocks the action or a gate that fails the build.
 
+And the correction that keeps the second rule honest: **a guard is a speed bump,
+not a boundary.** It matches command text and it fails open by design, so
+`B=push; git $B origin main` walks straight past it. For a rule that genuinely
+cannot tolerate a miss, the guard is the third line — after `permissions.deny`
+and after server-side branch protection. What it adds is the paragraph
+explaining why, delivered at the moment of the attempt, which is the one place
+prose is guaranteed to be read.
+
+## Trust
+
+The plugin's `PreToolUse` hook runs `scripts/guards/dispatch.py` from whatever
+repository you are in, and that dispatcher imports every `.py` beside it. Left
+ungated, cloning an unread repository and typing one command would execute its
+code — laundered through an approval you gave to *this* plugin, bypassing the
+prompt Claude Code shows for a project's own hooks.
+
+So nothing runs until you trust it, by path and by content:
+
+```bash
+python3 hooks/run_repo_guards.py --status   # what is trusted here, and why not
+python3 hooks/run_repo_guards.py --trust    # after reading the files it lists
+python3 hooks/run_repo_guards.py --forget
+```
+
+Editing any guard revokes trust until you look again. Trust is per-machine
+state, not knowledge, so it lives in `~/.claude/agent-harness/` — a repository
+that could grant itself trust in a pull request would not be granting anything.
+
+The better answer is to skip this hook entirely: once `scripts/guards/dispatch.py`
+is wired in the repository's own `.claude/settings.json` — which `scaffold.py`
+does for you — the repo owns its guards, the normal project-trust prompt
+applies, and this hook exits silently. It exists only for the window in between.
+
+**Cost**: an interpreter start (~45 ms) before every Bash call in every
+repository the plugin is enabled for, doubled in the trusted-but-unwired window.
+Wiring the dispatcher into the repo removes the second one. The first is the
+price of a plugin hook and cannot be optimised away from inside it.
+
 ## Verifying the plugin itself
 
 ```bash
 python3 shared/scripts/guards/selftest.py
 python3 shared/scripts/gates/selftest.py --verbose
+
+# and the gates that ship, turned on this repository
+python3 shared/scripts/gates/check_templates_filled.py --root .
+python3 shared/scripts/gates/check_community_health.py --root .
 ```
 
-Both build throwaway repositories, plant a defect each check must catch, and
-assert the check turns red **and names the defect** — then that it turns green
-without it. A check nobody has watched fail is a file, not a check.
+The selftests build throwaway repositories, plant a defect each check must
+catch, and assert the check turns red **and names the defect** — then that it
+turns green without it. A check nobody has watched fail is a file, not a check.
+
+The second pair matters for a different reason. `check_templates_filled.py`
+exists because the version of this plugin that shipped before it could not
+detect its own scaffolder's output: a `CLAUDE.md` of twenty `<placeholder>`
+lines passed every gate here, including the one whose stated job was to catch
+it. Pointing the shipped gates at this repository is the cheapest way to keep
+finding out that the thing was built for a repository nobody actually has.
 
 ## Requirements
 

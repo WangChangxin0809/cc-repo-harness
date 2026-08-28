@@ -26,6 +26,14 @@ best-effort by construction. Rules whose violation is irreversible or silent go
 into a guard that blocks the action, or into a gate that fails the build — never
 into a paragraph hoping to be read.
 
+With one honest correction, because the rule above is where harnesses oversell
+themselves: a guard is also best-effort. It matches command text and it fails
+open by design, so `B=push; git $B origin main` walks past it. For a rule that
+genuinely cannot tolerate a miss, the guard is the third line — after
+`permissions.deny` in `.claude/settings.json`, and after server-side branch
+protection. What the guard adds is the paragraph explaining why, delivered at
+the moment of the attempt. See `writing-checks`.
+
 ## The seven delivery moments
 
 Every piece of knowledge you place is answering: *at which moment does this
@@ -106,8 +114,16 @@ merged after a `.bak`. It also creates empty directories — `docs/how-to/`,
 `docs/decisions/`, `scripts/selftests/`, `scripts/baselines/`. That is
 deliberate: **a directory is itself a trigger.** An agent that sees
 `docs/exec-plans/` writes a plan there; an agent that sees nothing invents a
-location. **Criterion**: `git status` shows the tree, and every template still
-carrying its placeholder text is on your list to fill.
+location.
+
+`./ci.sh --fast` is **red** immediately after this, and it is supposed to be:
+`check_templates_filled.py` names every placeholder still sitting in a scaffolded
+file. That red list *is* the fill-in list, and it is the only form of to-do list
+that cannot be forgotten. Do not go looking for a way to make it green early —
+green here would mean the gate cannot see the thing it exists to see.
+
+**Criterion**: `git status` shows the tree, and `./ci.sh --fast` is red naming
+placeholders rather than red for any other reason.
 
 ### 4. Fill the two files that cannot be generated
 
@@ -124,7 +140,7 @@ one describes the intent. It is read on demand, so it may be long.
 **Criterion**: neither file contains a sentence that was true of a generic
 repository.
 
-### 5. Install guards, then watch one block
+### 5. Read the guards, then watch one block
 
 ```bash
 python3 scripts/guards/selftest.py
@@ -132,6 +148,18 @@ python3 scripts/guards/selftest.py
 
 Three starters ship: destructive restore, piped outbound commands, protected
 branch pushes. Adding a rule means adding a file — the dispatcher discovers it.
+
+**Read them first.** Step 3 wired `scripts/guards/dispatch.py` as a `PreToolUse`
+hook, which means every `.py` in that directory now executes before every Bash
+call in this repository — including files a teammate adds in a later pull
+request, and files that were already there when you cloned. That is a code path
+worth one careful look, and a diff worth reviewing like any other. It is also
+why this plugin's own hook will not run a repository's guards until you have
+explicitly trusted them:
+
+```bash
+python3 <plugin>/hooks/run_repo_guards.py --status
+```
 
 Then **break one on purpose** and confirm the selftest goes red. A guard you
 have never seen fail is a file, not a check. See `writing-checks` for the
@@ -164,9 +192,12 @@ rejected, with the reason.
 2. At least one rule moved out of `CLAUDE.md`.
 3. A guard has been seen blocking, and its selftest has been seen red.
 4. A fresh session's first screen states something no file could have contained.
-5. `ci.sh` runs green from a clean worktree, and disconnecting a hook on purpose
+5. No scaffolded template still carries a placeholder — `check_templates_filled`
+   is green because the files were written, not because it was exempted.
+6. `ci.sh` runs green from a clean worktree, and disconnecting a hook on purpose
    turns it red. A suite that survives that is measuring nothing.
-6. Uninstall the plugin. The repository still teaches.
+7. Uninstall the plugin. The repository still teaches — same guards, same gates,
+   same `ci.sh`, nothing missing but the trust prompt.
 
 ## References
 

@@ -16,6 +16,45 @@ build. Everything below applies to both, because the failure modes are the same.
 | Use when | the action is irreversible | the state is detectable |
 | Failure | exit 2, stderr goes to the model | non-zero, output goes to a human |
 
+## A guard is a speed bump, not a boundary
+
+Say this out loud before writing one, because the rest of this skill reads like
+a promise it cannot keep. A guard matches the *text* of a proposed command:
+
+```
+git push origin main | tail -5          BLOCKED
+B=push; git $B origin main | tail -5    allowed
+```
+
+It also fails open on purpose — a broken guard must not become an unbypassable
+wall — so its coverage is best-effort in two independent directions. That is the
+right trade for what a guard is actually for: catching the thing you were about
+to do out of habit, and explaining why, at the moment you were doing it.
+
+It is the wrong trade for anything adversarial, and for anything where a single
+miss is unacceptable. Those get **three** layers, in this order:
+
+| | Mechanism | Why it is stronger |
+|---|---|---|
+| 1 | `permissions.deny` in `.claude/settings.json` | Evaluated by the harness, not by a regex you maintain |
+| 2 | Server-side branch protection, required CI | Survives the laptop, the config, and the plugin entirely |
+| 3 | A guard here | Explains *why*, in prose, at the moment of the attempt |
+
+Prefer a deny rule for anything a deny rule can express:
+
+```json
+"deny": ["Bash(git push --force:*)", "Bash(git push -f:*)"]
+```
+
+Write a guard when the rule is conditional in a way a deny pattern cannot state
+— `no_protected_branch_push.py` is the worked example: the rule depends on the
+refspec, so `Bash(git push:*)` would block the branch you are allowed to push.
+And write a guard when the prose is the product, which is more often than it
+sounds. The paragraph on stderr is the highest-value text in the repository.
+
+What a guard must never be is the *only* thing standing between an agent and an
+irreversible action.
+
 ## Write the failure modes before the check
 
 List how the thing you are guarding actually goes wrong — concretely, each one a

@@ -75,8 +75,14 @@ def main():
             f"    - a procedure with a trigger     -> a skill\n"
             f"  See docs/decisions/0001-agent-harness.md")
 
-    # An empty or placeholder CLAUDE.md passes every length check ever written.
-    # One positive assertion is what catches it.
+    # An empty CLAUDE.md passes every length check ever written. One positive
+    # assertion is what catches it.
+    #
+    # This catches empty and nothing else -- a scaffolded CLAUDE.md that is
+    # twenty lines of `<placeholder>` has plenty of "content" and sails past.
+    # That case is check_templates_filled.py's, and it is deliberately a
+    # separate gate: this one judges cost, that one judges truthfulness, and a
+    # check that judges two things reports the wrong one half the time.
     if len(body) < 5:
         failures.append("CLAUDE.md has almost no content — a template left "
                         "unfilled is worse than no file, because it reads as "

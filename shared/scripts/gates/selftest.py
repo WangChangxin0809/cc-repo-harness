@@ -137,6 +137,53 @@ CASES = [
                               "(../../security/advisories/new).\n"),
     ),
     dict(
+        gate="check_templates_filled.py",
+        why="a scaffolded CLAUDE.md left full of placeholders",
+        needle="unfilled placeholder",
+        plant=lambda t: write(t, "CLAUDE.md",
+                              "# <project>\n\n<One paragraph: what this is.>\n\n"
+                              "## Hard rules\n\n1. <rule> -> <docs/path.md>\n"),
+    ),
+    dict(
+        gate="check_templates_filled.py",
+        why="a placeholder inside a decision record",
+        needle="0002-thing.md",
+        plant=lambda t: write(t, "docs/decisions/0002-thing.md",
+                              "# 0002 — Thing\n\nDate: <YYYY-MM-DD>\n\n"
+                              "We chose the thing.\n"),
+    ),
+    dict(
+        gate="check_templates_filled.py",
+        why="an unwritten quick start inside a fenced block",
+        needle="a fresh clone",
+        plant=lambda t: write(t, "README.md",
+                              "# demo\n\nA demonstration repository that exists so the "
+                              "gates in this directory have something real to judge, "
+                              "rather than being asserted against a mock.\n\n"
+                              "## Quick start\n\n```bash\n<the shortest sequence from "
+                              "a fresh clone to something working>\n```\n\n"
+                              "## Requirements\n\n- python 3.9\n\n"
+                              "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
+                              "## License\n\nMIT.\n"),
+    ),
+    dict(
+        gate="check_templates_filled.py",
+        why="generics and one-word stand-ins in code, which must NOT be reported",
+        needle=None,
+        plant=lambda t: write(t, "README.md",
+                              "# demo\n\nA demonstration repository that exists so the "
+                              "gates in this directory have something real to judge, "
+                              "rather than being asserted against a mock.\n\n"
+                              "## Quick start\n\n```rust\nlet v: Vec<String> = "
+                              "Vec::new();\nlet m: Map<String, Int> = Map::new();\n```\n\n"
+                              "Pass `-H \"Authorization: Bearer <token>\"` to "
+                              "authenticate. An indented block is code too:\n\n"
+                              "    let e: Result<Box<dyn Error>> = run(<REPO>);\n\n"
+                              "## Requirements\n\n- python 3.9\n\n"
+                              "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
+                              "## License\n\nMIT.\n"),
+    ),
+    dict(
         gate="check_docs_index.py",
         why="a document nothing routes to",
         needle="does not route to",

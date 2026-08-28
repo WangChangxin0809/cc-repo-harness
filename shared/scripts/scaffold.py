@@ -232,6 +232,78 @@ alternatives and it will be revisited. Link it here once written:
 | No secrets piped to an outbound command | `scripts/guards/no_piped_outbound.py` |
 """
 
+README_MD = """\
+# <project>
+
+<One paragraph, for someone who has never heard of this. What problem it solves,
+for whom, and the one thing that is surprising about it. Not what it is built
+with -- that answers a question nobody arrived with.>
+
+- **Covers**: what this is, how to run it, and where to go next.
+- **Does not cover**: how to work *on* it (CONTRIBUTING.md), how the pieces fit
+  (ARCHITECTURE.md), how to perform a task (docs/how-to/).
+
+## Quick start
+
+```bash
+<the shortest sequence from a fresh clone to something observably working>
+```
+
+<What you should see if it worked. A quick start with no success criterion
+cannot be distinguished from a quick start that silently did nothing.>
+
+## Requirements
+
+- <runtime and version>
+
+## Documentation
+
+- Bird's eye view and invariants: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Everything else, routed: [docs/index.md](docs/index.md)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues go to
+[SECURITY.md](SECURITY.md), not the issue tracker.
+
+## License
+
+<SPDX name> — see [LICENSE](LICENSE).
+"""
+
+CONTRIBUTING_MD = """\
+# Contributing
+
+- **Covers**: how to get a change accepted here — setup, the checks, and what a
+  reviewer will look for.
+- **Does not cover**: what the project is (README.md), how it works
+  (ARCHITECTURE.md), why it is shaped this way (docs/decisions/).
+
+## Before you open a pull request
+
+```bash
+./ci.sh --fast     # seconds; run this while working
+./ci.sh            # everything; run this before pushing
+```
+
+Exit 2 is not a pass. It means a check could not judge — a missing tool, an
+unparseable config — and it must be fixed rather than retried.
+
+## What a reviewer checks
+
+1. <the thing that actually gets changes sent back here>
+2. Any new rule is enforced, not documented: an action a script can block goes
+   to `scripts/guards/`, a state a script can detect goes to `scripts/gates/`.
+3. A new check has been watched failing. `scripts/gates/selftest.py` proves it
+   can turn red; a check nobody has seen fail is a file, not a check.
+
+## Setup
+
+```bash
+<clone, dependencies, and the one environment thing people get wrong>
+```
+"""
+
 CI_SH = """\
 #!/usr/bin/env bash
 # The single acceptance entry point. One roster, three lanes.
@@ -271,6 +343,7 @@ run() {  # run <lane-floor> <name> <command...>
 run fast "guards can still turn red" python3 scripts/guards/selftest.py
 run fast "gates can still turn red"  python3 scripts/gates/selftest.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
+run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
 
@@ -359,6 +432,8 @@ PLAN = [
     ("scripts/context/session_brief.py", SESSION_BRIEF, 0o755, "A"),
     ("ARCHITECTURE.md", ARCHITECTURE_MD, 0o644, "B"),
     ("SECURITY.md", SECURITY_MD, 0o644, "B"),
+    ("README.md", README_MD, 0o644, "B"),
+    ("CONTRIBUTING.md", CONTRIBUTING_MD, 0o644, "B"),
     ("docs/decisions/0001-agent-harness.md", DECISION_0001, 0o644, "B"),
     ("docs/exec-plans/tech-debt-tracker.md", TECH_DEBT, 0o644, "B"),
     ("ci.sh", CI_SH, 0o755, "B"),
@@ -388,6 +463,24 @@ TIER_ORDER = {"A": 0, "B": 1, "C": 2}
 
 def at_least(tier, floor):
     return TIER_ORDER[tier] >= TIER_ORDER[floor]
+
+
+def suggested_tier(root):
+    """What probe_repo.py would have said. Returns None if it cannot be asked.
+
+    Worth the import: the one failure mode a scaffolder cannot see is installing
+    above tier, because the result looks like a more thorough job on the day it
+    runs and like abandoned machinery six months later."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "probe_repo", os.path.join(HERE, "probe_repo.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        r = mod.probe(root)
+        return r["tier"] if r else None
+    except Exception:
+        return None
 
 
 def write(path, body, made, root, mode=0o644):
@@ -451,6 +544,13 @@ def main():
                       capture_output=True).returncode != 0:
         print("cannot judge: not a git repository", file=sys.stderr)
         return 2
+
+    want = suggested_tier(root)
+    if want and TIER_ORDER[a.tier] > TIER_ORDER[want]:
+        print(f"note: this repository probes as tier {want}; you asked for "
+              f"{a.tier}.\n      Machinery above tier is not neutral — it rots, "
+              f"and its rot teaches\n      everyone that the harness is "
+              f"decorative. Continuing.\n", file=sys.stderr)
 
     plan = [(rel, body, mode) for rel, body, mode, floor in PLAN
             if at_least(a.tier, floor)]
@@ -516,15 +616,24 @@ def main():
     for state, path, note in made:
         print(f"  {state:<6} {path:<{width}}  {note}")
 
+    print("\n./ci.sh --fast is RED right now, and that is the point: every")
+    print("template above still holds its placeholders, and")
+    print("scripts/gates/check_templates_filled.py names each one. The red is")
+    print("your to-do list, and it goes green when the list is done. LICENSE is")
+    print("the one file not scaffolded — it is a legal choice, not a template.")
+
     print("\nNext, in order. Each step has one thing to check:")
     print("  1. python3 scripts/guards/selftest.py && python3 scripts/gates/selftest.py")
     print("     Both must pass before you trust either.")
     print("  2. Break one check on purpose; confirm its selftest goes red.")
     print("     Until you have seen it fail, you have a file, not a check.")
-    print("  3. Fill CLAUDE.md, ARCHITECTURE.md, docs/index.md, and 0001.")
-    print("     An unfilled template is worse than no file — it reads as though")
-    print("     the conventions were written down.")
-    print("  4. ./ci.sh --fast  must be green from a clean worktree.")
+    print("  3. Read scripts/guards/*.py. The merge above wired them, so they now")
+    print("     run before every Bash call in this repo — that is code you are")
+    print("     handing the keys to, and it arrived from a scaffolder.")
+    print("  4. Work the red list down: ./ci.sh --fast, fill what it names,")
+    print("     repeat. Add a LICENSE. Then it is green from a clean worktree.")
+    print("  5. Disconnect a hook on purpose and confirm ci.sh turns red.")
+    print("     A suite that survives that is measuring nothing.")
     return 0
 
 
