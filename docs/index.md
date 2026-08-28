@@ -9,4 +9,8 @@
 | Know whether the retrieval layer is worth its cost | [0001](decisions/0001-retrieval-is-measured-not-argued.md) |
 | Know what this plugin is and is not, and why it is named that | [0002](decisions/0002-the-name-states-the-scope.md) |
 | Know how the index extracts symbols, and what it used to claim | [0003](decisions/0003-the-extractor-is-regexes-and-says-so.md) |
-| See what is in flight | [collaboration harness](exec-plans/collaboration-harness.md) |
+| See what is in flight | [collaboration harness](exec-plans/collaboration-harness/README.md) |
+
+An exec-plan is a folder: its `README.md` owns the plan's state, and the steps it
+links own the substance. One row here covers the whole folder — the README is
+what routes the rest, so a step file it does not link is reported unrouted.

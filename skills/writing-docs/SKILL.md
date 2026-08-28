@@ -80,16 +80,36 @@ the repository is shaped this way.
 ## Exec plans
 
 Multi-session work needs a file, because context does not survive the session
-and the plan is the only thing that does.
+and the plan is the only thing that does. Past a few steps it needs a folder —
+`docs/exec-plans/<name>/` with a `README.md` and a `steps/` directory — because
+the plan's state must be readable at a glance while one step may carry pages of
+decisions.
 
-- `docs/exec-plans/<name>.md` while active: goal, steps each marked
-  `todo | doing | done | dropped`, and the condition that would abort the whole
-  plan.
+- **`README.md` owns state**: goal, steps each marked `todo | doing | done |
+  dropped`, and the condition that would abort the whole plan. Step files never
+  restate status; nobody reopens a finished step to change `doing` to `done`.
+- **A step earns a file** when it has decisions to record or is worth handing to
+  a subagent — otherwise it is a line in the README, and the numbering gap
+  (`01, 03`) is how "no file needed" stays distinguishable from "file missing".
+- **A step file is written when the step is entered**, not upfront. Written in
+  advance it is fiction, and fiction in a plan is indistinguishable from a
+  decision that was actually made.
+- **Every step file carries `## Consulted`** — existing skills (`find-skill`),
+  prior art in other people's code, research. It may say "none, because this
+  step only executes what 01 decided"; it may not be absent. Same shape as
+  `<!-- unrouted: reason -->`: an exemption states its reason or becomes
+  blanket. Prior art means their **code**, not their documentation, and a
+  decision a paper drives is checked against that paper's implementation.
 - `docs/exec-plans/tech-debt-tracker.md` is permanent. Anything found in passing
   goes here with the reading that revealed it and the blast radius — never fixed
   inline, because a batch that grows while you work is a batch that never lands.
-- On completion the plan is deleted and a decision record replaces it, if
-  anything was decided. Finished plans left in place are read as active work.
+- On completion the folder is deleted and a decision record replaces it, if
+  anything was decided. Finished plans left in place are read as active work,
+  and deleting the folder takes the step files with it — so anything worth
+  keeping is promoted into the record, not left in `steps/`.
+
+`docs/index.md` routes the `README.md` only; `check_docs_index.py` reaches the
+steps through the links the README already has.
 
 ## Reference and generated
 

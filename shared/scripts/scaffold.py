@@ -115,8 +115,15 @@ INDEX_MD = """\
 | `reference/` | I need to look up a fact | Tables and rules, keyed for lookup |
 | `troubleshooting/` | I hit a symptom | Symptom → cause → action |
 | `decisions/` | Why is it like this? | Numbered, immutable, superseded not edited |
-| `exec-plans/` | What are we in the middle of? | Goal, steps with state, abort condition |
+| `exec-plans/` | What are we in the middle of? | One folder per plan: `README.md` owns state, `steps/` owns substance |
 | `generated/` | What is it right now? | Written from a truth source, never by hand |
+
+A plan past a few steps is a folder, not a file. `README.md` carries the goal,
+the abort condition, and every step's state; a step earns its own file under
+`steps/` only when it has decisions to record. Step files never restate status —
+nobody reopens a finished one to change `doing` to `done` — and each opens with
+`## Consulted` saying what was searched before the work started, or why nothing
+was. The routing table below points at the `README.md` only.
 
 ## I want to X -> read Y -> then edit Z
 

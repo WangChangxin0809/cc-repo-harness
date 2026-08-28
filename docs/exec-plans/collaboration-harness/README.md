@@ -13,71 +13,68 @@ here is *variance between runs*, not score: guidance that standardises makes
 independent runs resemble each other, and that is visible in a way "was the
 answer good" is not.
 
-The second half is what makes this normative for a large project rather than
-merely helpful to one person. It is also the half that decays with headcount:
-guidance fires when it is triggered, so one person who does not trigger it
-diverges, and the leak rate grows with the number of people. Which is why every
-row of phase F has to name the check that holds it, or say that it has none.
-
 Abort if: the with/without delta is indistinguishable on a real
 multi-contributor repository. Then push has no measured value at any moment,
 what survives is guards, gates and declared relations, and the rest gets a
 decision record and a deletion — the same treatment `index/` is getting below
 for the same reason.
 
+## How this folder works
+
+**This file owns state. Step files own substance, and never restate status.**
+The rule is not tidiness: nobody reopens a finished step file to change `doing`
+to `done`, because by then they are on the next step. State duplicated into the
+steps would drift in one predictable direction, and the drift would be silent.
+
+**A step earns a file when it has decisions to record or is worth handing to a
+subagent.** Otherwise it is a line here. The failure this shape invites is
+trading "one file too long" for "twenty files too many", and the numbering gaps
+below are how you see which steps deliberately have none.
+
+**A step file is written when the step is entered, not upfront.** Written in
+advance it is fiction, and fiction in a plan is indistinguishable from a
+decision that was actually made. A file opened early holds the questions the
+step has to answer; the answers land as they are made.
+
+**Every step file carries `## Consulted`, and it may say "none, because".** What
+it may not do is be absent. Above, four of the five say some part of the search
+has not been run — which is the field working: an empty one is a visible debt,
+where no field at all is a step that reads as grounded because nobody asked.
+
 ## Why this order
 
 The falsifying step is second, not last. Phases C, D and E all rest on one
 unproven claim: that context delivered when nobody asked for it changes what an
 agent does. Three papers measured the opposite arrangement — agent-initiated
-pull — and pull won every time it was compared to a precomputed index (see
-0004). None of them measured push, so the claim is open rather than refuted; but
-building four phases on an open claim and testing it at the end is how a year
-gets spent.
-
-So: build the instrument, build the thinnest possible push, measure, and only
-then continue.
+pull — and pull won every time it was compared to a precomputed index. (That
+reading is owed a decision record and does not have one; until it does, the
+claim above is only as checkable as this paragraph.) None of them measured push,
+so the claim is open rather than refuted; but building four phases on an open
+claim and testing it at the end is how a year gets spent.
 
 Phase F is the exception and is listed last only because it is longest. It does
-not depend on the claim, so it survives the abort branch intact — which is worth
-knowing before the measurement comes back, because it means a negative result
-costs us four phases rather than everything.
+not depend on the claim, so it survives the abort branch intact — which means a
+negative result costs four phases rather than everything.
 
 ## Steps
 
-- [x] done    This file. The exec-plan mechanism's first instance is the plan
-              for building it — if the format cannot carry its own construction
-              it will not carry a migration.
+- [x] done    This plan, in the shape it describes. If the format cannot carry
+              its own construction it will not carry a migration.
 
 **A · Instrument first — nothing below is judgeable without it**
 
-- [ ] todo    `evals/` skeleton and one case. `claude plugin eval --ablation
-              with-without` runs a no-plugin baseline arm and reports the score
-              delta; graders marked `with-only` register that the plugin fired
-              at all, separately from whether it helped.
-- [ ] todo    A real multi-contributor repository as the subject, cloned and
-              pinned — `benchmark.py` already clones `requests` and `flask`.
-              Not a fixture: this repository has one author and cannot exercise
-              "someone else changed it", and a synthetic two-author history
-              tests the generator, not the mechanism.
+- [ ] todo    [A1 · The eval harness](steps/A1-eval-harness.md)
+- [ ] todo    [A2 · A real multi-contributor subject](steps/A2-subject-repository.md)
 - [ ] todo    Record the no-plugin baseline before writing any new mechanism.
               A baseline measured after the fact is a number chosen to be beaten.
 
 **B · The thinnest push, then the decision**
 
-- [ ] todo    SessionStart delta: what landed since you were last here, filtered
-              to paths you have touched. Personalisation comes from your own
-              commit history, so there is no index, no rebuild, and nothing to
-              go stale. This is moment 2's real content in a shared repository —
-              "true right now and no file can hold it".
-- [ ] todo    **Decision point.** Measure it with A. If the delta is
-              indistinguishable, stop and take the abort branch above. Do not
-              proceed to C on the grounds that C is different — it is the same
-              claim.
+- [ ] todo    [B1 · SessionStart delta, and the decision point](steps/B1-session-delta.md)
 
 **C · Declared records — only past the decision point**
 
-- [ ] todo    exec-plan lifecycle: active → closed → what happens to the file.
+- [ ] todo    exec-plan lifecycle: active → closed → what happens to the folder.
               Unbounded accumulation degrades retrieval (ProactAgent says so of
               its own experience base); `consolidating-notes` is where closed
               plans go.
@@ -91,9 +88,8 @@ costs us four phases rather than everything.
               and review is where the other person is actually present.
               `drift.py` already detects it and is wired to nothing.
 - [ ] todo    Gate: closing an exec-plan whose touched paths have governing
-              documents that did not change is red. This is drift in the
-              forward direction, and it is checkable, so it is a gate and not
-              a reminder.
+              documents that did not change is red. Drift in the forward
+              direction, and checkable, so a gate and not a reminder.
 - [ ] todo    Fast-lane budget: `ci.sh --fast` declares a target (90 s) and
               **reports** overrun. Not a failure — a slow machine would go red
               for a reason that is not the code, and a check that cries wolf is
@@ -101,10 +97,7 @@ costs us four phases rather than everything.
 
 **D · Shrink**
 
-- [ ] todo    Dispose of `index/`. Under this goal it has no consumer: the
-              `Governs:` lookup runs inline in `after_edit.py` without a graph,
-              and the delta comes from git. Deleting beats demoting — left in
-              the tree it reads as though it had been validated.
+- [ ] todo    [D1 · Dispose of `index/`](steps/D1-dispose-of-index.md)
 - [ ] todo    One implementation of `Governs:`. Three exist (`index/build.py`,
               `context/after_edit.py`, `drift.py`), pinned by a selftest, and
               the one defect that escaped was a disagreement between two of them.
@@ -127,54 +120,40 @@ costs us four phases rather than everything.
               already-scaffolded repository has only the trust gate to justify
               itself.
 
-**F · Authoring guidance — the teaching half, and the only phase the abort
-branch does not touch**
+**F · Authoring guidance — the teaching half, which the abort branch does not touch**
 
 The plugin persists for three reasons: it protects a person from a repository
 (the trust gate), it teaches a person, and it can upgrade what it installed.
-This phase is the second one, and it is uneven — four artefact kinds have
-authoring guidance and three do not. It is deliberately *not* gated behind step
-B's decision point, because guidance is worth the same whether or not push turns
-out to change anything.
+This phase is the second, and it is uneven — four artefact kinds have authoring
+guidance and three do not.
 
 - [ ] todo    CI/CD workflow design. Nothing covers it, and this repository's
               own `ci.yml` now carries a pile of hard-won judgement in comments:
               why concurrency cancels pull requests but never `main`, why there
               are no path filters, why actions are pinned to SHAs, why
-              acceptance is a separate job from checks, why `release-hygiene`
-              runs only on pull requests. That knowledge exists in one file, as
-              comments, and is teachable to nobody. Knowledge stuck in an
-              artefact is the nursery rule running backwards.
+              acceptance is a separate job, why `release-hygiene` runs only on
+              pull requests. That knowledge exists in one file, as comments, and
+              is teachable to nobody — the nursery rule running backwards.
 - [ ] todo    Script kinds, in one table: guard, gate, selftest, context script,
-              our-tools-only. Shape, exit-code contract, and where each is
-              installed. It is currently split across `writing-checks` and
-              `moments.md`, so the question "what kind of script is this" has no
-              single answer to read.
+              our-tools-only. Shape, exit-code contract, where each is installed.
+              Currently split across `writing-checks` and `moments.md`, so
+              "what kind of script is this" has no single answer to read.
 - [ ] todo    Hooks reachable outside bootstrap. `moments.md` holds the contract
               but sits under `bootstrap-repo-harness`, so it fires when someone
               is installing a harness and not when someone is adding a hook to
               one that exists — which is every time after the first.
-- [ ] todo    Gate: every artefact kind the scaffolder creates has guidance that
-              names it, and every kind the guidance names is still something the
-              scaffolder creates. Both directions, because guidance for a kind
-              that no longer exists reads as authoritative, and a kind with no
-              guidance is where everyone invents their own convention. This is
-              the nursery discipline applied to the teaching half: the third
-              time we notice the two have drifted, it stops being noticing and
-              becomes a check.
+- [ ] todo    [F4 · The guidance coverage gate](steps/F4-guidance-coverage.md)
 - [ ] todo    Every piece of authoring guidance names the check that holds it,
               or states that it has none and why. Teaching alone does not
               standardise: a skill fires when triggered, so the one person who
-              does not trigger it diverges, and on a large project that leak
-              rate scales with headcount. The pairing is the repository's own
-              rule — what cannot tolerate a miss does not go through retrieval —
-              applied to conventions rather than to rules.
+              does not trigger it diverges, at a leak rate that grows with
+              headcount.
 - [ ] todo    Say how a convention chooses its scope. Most conventions in a
-              large repository are true of one area, not of everything, and the
-              mechanism for that is moment 4 — a subtree `CLAUDE.md`, paid only
-              by whoever opens the directory. A project-wide convention that was
-              really an area convention is how `CLAUDE.md` reaches its cap and
-              how everyone learns to skim it.
+              large repository are true of one area, and the mechanism is moment
+              4 — a subtree `CLAUDE.md`, paid only by whoever opens the
+              directory. A project-wide convention that was really an area
+              convention is how `CLAUDE.md` reaches its cap and everyone learns
+              to skim it.
 - [ ] todo    Retire `repo-index` with the code it documents (phase D). A skill
               teaching a component that was deleted is worse than no skill.
 
