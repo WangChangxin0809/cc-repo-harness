@@ -51,6 +51,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
 
 # --- language table ----------------------------------------------------------
@@ -149,6 +150,42 @@ def governed_by(target, tracked):
     if t.endswith("/"):
         return sorted(f for f in tracked if f.startswith(t))
     return sorted(f for f in tracked if f == t or f.startswith(t + "/"))
+
+
+def stamp(root, files):
+    """What this graph was built from, so a reader can tell how far the tree
+    has moved since.
+
+    The docstring at the top of this file argues that an incremental index
+    develops a silent divergence from the tree, and that a silent divergence
+    produces confidently wrong answers because nobody goes and checks. All true
+    -- and it was written above a graph that nothing ever rebuilt. No hook, no
+    session start, nothing. A full rebuild being cheap is not the same as a
+    rebuild happening, and the divergence the docstring warns about arrived
+    anyway, by the slower road.
+
+    Detection has to come before any rebuild policy: until the staleness is
+    visible there is no way to say how stale things actually get, and a rebuild
+    trigger picked without that number is a guess.
+
+    Per-file `(mtime_ns, size)` rather than a content hash. An agent's normal
+    state is a worktree full of uncommitted edits, so a `HEAD` comparison alone
+    would call the graph current through an entire session of them. `HEAD` is
+    recorded too, for a human reading the file."""
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                          capture_output=True, text=True)
+    seen = {}
+    for rel in files:
+        try:
+            st = os.stat(os.path.join(root, rel))
+        except OSError:
+            continue
+        seen[rel] = [st.st_mtime_ns, st.st_size]
+    return dict(
+        built_at=int(time.time()),
+        head=head.stdout.strip() if head.returncode == 0 else None,
+        files=seen,
+    )
 
 
 def read_lines(path):
@@ -291,6 +328,7 @@ def scan(root, files, excluded=0):
             unresolved_imports.append(f"{src} -> {target}")
 
     g["meta"] = dict(
+        stamp=stamp(root, files),
         files=len([n for n in g["nodes"].values() if n["kind"] == "file"]),
         docs=len([n for n in g["nodes"].values() if n["kind"] == "doc"]),
         symbols=len([n for n in g["nodes"].values() if n["kind"] == "symbol"]),
@@ -382,7 +420,11 @@ def write_report(root, g):
         dangling="\n".join(f"- `{x}`" for x in b["dangling_governs"]) or "_none_",
         ambiguous="\n".join(f"- `{n}` — {c} files"
                             for n, c in b["ambiguous_symbols"].items()) or "_none_",
-        **{k: v for k, v in g["meta"].items() if k != "blind"},
+        # `stamp` is excluded, not merely unused: it carries a build timestamp,
+        # and this file's own header says regenerating it must leave an empty
+        # `git diff`. A clock in a generated document makes every regeneration
+        # a diff, which trains people to ignore the diff.
+        **{k: v for k, v in g["meta"].items() if k not in ("blind", "stamp")},
         **{k: v for k, v in b.items() if isinstance(v, int)},
     )
     out = os.path.join(root, "docs", "generated", "index-report.md")

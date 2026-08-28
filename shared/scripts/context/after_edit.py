@@ -116,20 +116,31 @@ def governing_docs(root, rel):
 
 
 def neighbours(root, rel, limit=4):
+    """(paths, stale) — adjacent files, and whether the graph is out of date.
+
+    `stale` is not decoration. Nothing in this repository rebuilds the graph,
+    so by the time an agent is editing, the neighbour list can describe a tree
+    that no longer exists. query.py reports that on stderr; this used to
+    capture stderr and discard it, which meant the detection existed and the
+    only consumer of the answer never saw it. A stale hint presented as a
+    current one is the failure build.py's own docstring warns about, delivered
+    through the one moment that fires automatically."""
     query = os.path.join(root, "scripts", "index", "query.py")
     graph = os.path.join(root, ".index", "graph.json")
     if not (os.path.exists(query) and os.path.exists(graph)):
-        return []
+        return [], False
     try:
         proc = subprocess.run(
             [sys.executable, query, "--root", root, "--seed", rel,
              "--hops", "1", "--paths-only", "--budget", "200"],
             capture_output=True, text=True, timeout=15, cwd=root)
     except (OSError, subprocess.SubprocessError):
-        return []
+        return [], False
     if proc.returncode != 0:
-        return []
-    return [l for l in proc.stdout.splitlines() if l and l != rel][:limit]
+        return [], False
+    stale = "graph is stale" in proc.stderr
+    return ([l for l in proc.stdout.splitlines() if l and l != rel][:limit],
+            stale)
 
 
 def main():
@@ -148,9 +159,12 @@ def main():
     for doc in governing_docs(root, rel)[:2]:
         lines.append(f"{doc} governs {rel} — read it before assuming how this "
                      f"is supposed to work")
-    near = neighbours(root, rel)
+    near, stale = neighbours(root, rel)
     if near:
-        lines.append("adjacent in the repo graph: " + ", ".join(near))
+        lines.append("adjacent in the repo graph: " + ", ".join(near)
+                     + (" (graph is out of date — rebuild with "
+                        "scripts/index/build.py before trusting this)"
+                        if stale else ""))
 
     if lines:
         print("\n".join(lines[:MAX_LINES]))

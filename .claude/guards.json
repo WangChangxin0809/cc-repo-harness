@@ -1,0 +1,9 @@
+{
+  "protected_branches": [
+    "main",
+    "master"
+  ],
+  "_layers": "Declare the stack lowest-first to switch on check_layering.py",
+  "layers": [],
+  "layering_allow": []
+}

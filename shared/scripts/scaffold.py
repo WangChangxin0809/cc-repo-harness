@@ -578,7 +578,12 @@ def main():
             n = len([f for f in os.listdir(os.path.join(HERE, src))
                      if f.endswith(".py")])
             print(f"  {'COPY':<14} {dst}/  ({n} files)")
-        print(f"  {'NEW':<14} scripts/context/after_edit.py")
+        # Gated exactly as the real run below is. It was not, and printed this
+        # line at every tier -- so a tier A `--dry-run` promised a file the
+        # actual run never wrote. A preview whose only job is to be trusted
+        # before you approve it must not describe a different run.
+        if at_least(a.tier, "B"):
+            print(f"  {'NEW':<14} scripts/context/after_edit.py")
         print(f"  {'MERGE':<14} .claude/settings.json  (+{', '.join(events)})")
         return 0
 
@@ -624,24 +629,48 @@ def main():
     for state, path, note in made:
         print(f"  {state:<6} {path:<{width}}  {note}")
 
-    print("\n./ci.sh --fast is RED right now, and that is the point: every")
-    print("template above still holds its placeholders, and")
-    print("scripts/gates/check_templates_filled.py names each one. The red is")
-    print("your to-do list, and it goes green when the list is done. LICENSE is")
-    print("the one file not scaffolded — it is a legal choice, not a template.")
+    # Everything below used to be printed at every tier while describing a
+    # tier B install. A tier A user was handed five numbered steps of which
+    # three named files that tier does not install -- `scripts/gates/`,
+    # `ci.sh` -- as the very first thing they read. Instructions that do not
+    # resolve teach the reader that the instructions are decorative, and that
+    # lesson is learned in the first minute and applies to everything after.
+    gated = at_least(a.tier, "B")
+
+    if gated:
+        print("\n./ci.sh --fast is RED right now, and that is the point: every")
+        print("template above still holds its placeholders, and")
+        print("scripts/gates/check_templates_filled.py names each one. The red is")
+        print("your to-do list, and it goes green when the list is done. LICENSE is")
+        print("the one file not scaffolded — it is a legal choice, not a template.")
+    else:
+        print("\nCLAUDE.md is scaffolded with placeholders and nothing at this")
+        print("tier will name them for you: check_templates_filled.py ships with")
+        print("the gates, from tier B up. So the to-do list is a file you read")
+        print("rather than a command you run — and if that sounds like something")
+        print("you will forget, that is the argument for tier B, not for")
+        print("scaffolding one gate by hand.")
 
     print("\nNext, in order. Each step has one thing to check:")
-    print("  1. python3 scripts/guards/selftest.py && python3 scripts/gates/selftest.py")
-    print("     Both must pass before you trust either.")
+    print("  1. python3 scripts/guards/selftest.py"
+          + (" && python3 scripts/gates/selftest.py" if gated else ""))
+    print("     %s must pass before you trust %s."
+          % (("Both", "either") if gated else ("It", "it")))
     print("  2. Break one check on purpose; confirm its selftest goes red.")
     print("     Until you have seen it fail, you have a file, not a check.")
     print("  3. Read scripts/guards/*.py. The merge above wired them, so they now")
     print("     run before every Bash call in this repo — that is code you are")
     print("     handing the keys to, and it arrived from a scaffolder.")
-    print("  4. Work the red list down: ./ci.sh --fast, fill what it names,")
-    print("     repeat. Add a LICENSE. Then it is green from a clean worktree.")
-    print("  5. Disconnect a hook on purpose and confirm ci.sh turns red.")
-    print("     A suite that survives that is measuring nothing.")
+    if gated:
+        print("  4. Work the red list down: ./ci.sh --fast, fill what it names,")
+        print("     repeat. Add a LICENSE. Then it is green from a clean worktree.")
+        print("  5. Disconnect a hook on purpose and confirm ci.sh turns red.")
+        print("     A suite that survives that is measuring nothing.")
+    else:
+        print("  4. Fill CLAUDE.md and docs/index.md by hand, and add a LICENSE.")
+        print("  5. Disconnect the PreToolUse hook on purpose and confirm the")
+        print("     guard stops firing. Until you have watched that, the wiring")
+        print("     is an assumption.")
     return 0
 
 

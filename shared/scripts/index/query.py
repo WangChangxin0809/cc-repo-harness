@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from collections import defaultdict
 
 DAMPING = 0.85
@@ -41,6 +42,88 @@ def load(root, path):
             return json.load(fh)
     except (OSError, ValueError):
         return None
+
+
+def divergence(root, g):
+    """Files that have moved under the graph since it was built.
+
+    Returns (changed, gone) as sorted path lists, or None when the graph
+    carries no stamp -- a graph built by an older `build.py`, which is a fact
+    worth reporting rather than a reason to guess.
+
+    Only files the graph already knows about are stat'ed. Detecting *added*
+    files would mean re-running `git ls-files` and reapplying build.py's
+    exclusion rules here, which is a second copy of a decision that already
+    exists in one place -- and this repository has already been bitten once by
+    exactly that (two readers of `Governs:` with two different window sizes).
+    An added file is not silent anyway: seeding on one produces `seed not found
+    in graph`, which is louder than anything this function would print."""
+    st = (g.get("meta") or {}).get("stamp")
+    if not st or "files" not in st:
+        return None
+    changed, gone = [], []
+    for rel, (mtime, size) in st["files"].items():
+        try:
+            now = os.stat(os.path.join(root, rel))
+        except OSError:
+            gone.append(rel)
+            continue
+        if now.st_mtime_ns != mtime or now.st_size != size:
+            changed.append(rel)
+    return sorted(changed), sorted(gone)
+
+
+def report_divergence(root, g, seeds, stream=sys.stderr):
+    """Say how stale the graph is, and never refuse because of it.
+
+    Refusing was the first design and it is wrong. `after_edit.py` queries this
+    on PostToolUse -- immediately after an edit -- so the file the agent just
+    touched is always among the changed ones. A staleness check that exits
+    non-zero there would silence the hint for the entire rest of the session,
+    starting from the first edit, which is worse than answering from a graph
+    that is one file out of date.
+
+    Any threshold ("too stale to answer") would be an invented number, and an
+    invented number in a check is the thing people route around. Staleness is
+    reported; whether it is disqualifying is the caller's judgement, and the
+    caller has context this does not."""
+    d = divergence(root, g)
+    if d is None:
+        print("# graph carries no build stamp — it predates staleness "
+              "detection, and how far the tree has moved since is unknown",
+              file=stream)
+        return
+    changed, gone = d
+    if not changed and not gone:
+        return
+
+    st = g["meta"]["stamp"]
+    age = ""
+    if st.get("built_at"):
+        mins = max(0, int(time.time()) - st["built_at"]) // 60
+        age = (f", built {mins // 1440}d ago" if mins >= 1440 else
+               f", built {mins // 60}h ago" if mins >= 60 else
+               f", built {mins}m ago")
+    parts = []
+    if changed:
+        parts.append(f"{len(changed)} changed")
+    if gone:
+        parts.append(f"{len(gone)} gone")
+    print(f"# graph is stale: {', '.join(parts)} since it was built{age}. "
+          f"Rebuild with build.py for current answers.", file=stream)
+
+    # The actionable half. A seed among the changed files means the ranking
+    # started from a node describing a version of that file which no longer
+    # exists, and that is a different quality of wrong from a stale file
+    # somewhere out in the neighbourhood.
+    moved = set(changed) | set(gone)
+    hit = sorted({p for n in seeds
+                  for p in [(g["nodes"].get(n) or {}).get("path")]
+                  if p in moved})
+    if hit:
+        print(f"# and the seed itself moved: {', '.join(hit[:5])}"
+              + (f" (+{len(hit) - 5} more)" if len(hit) > 5 else ""),
+              file=stream)
 
 
 def resolve_seeds(g, seeds):
@@ -175,10 +258,21 @@ def main():
     if a.stats:
         m = dict(g["meta"])
         blind = m.pop("blind", {})
+        # `stamp` holds one entry per indexed file. Printed raw it buries every
+        # other row under thousands of lines of mtimes.
+        m.pop("stamp", None)
         for k, v in m.items():
             print(f"{k:<12} {v}")
         print(f"{'blind':<12} {blind.get('unresolved_import_count', 0)} unresolved "
               f"imports, {blind.get('dynamic_dispatch_count', 0)} dynamic sites")
+        d = divergence(root, g)
+        if d is None:
+            print(f"{'stale':<12} unknown — graph carries no build stamp")
+        else:
+            changed, gone = d
+            print(f"{'stale':<12} {len(changed)} changed, {len(gone)} gone "
+                  f"since build" if changed or gone
+                  else f"{'stale':<12} no — every indexed file is as built")
         return 0
 
     seeds, missed = resolve_seeds(g, a.seed)
@@ -190,6 +284,8 @@ def main():
         print("cannot judge: no seed matched anything in the graph",
               file=sys.stderr)
         return 2
+
+    report_divergence(root, g, seeds)
 
     if a.hops > 1:
         # The one published ablation of this exact choice found 2-hop flattened
