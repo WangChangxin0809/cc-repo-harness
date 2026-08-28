@@ -74,7 +74,7 @@ is the part that stops the same idea being re-litigated every six months.
 Record what you rejected. A decision that lists only the winner reads as
 inevitable, and the next person re-proposes the alternative you already killed.
 
-Numbering is sequential and never reused. `0001-agent-harness.md` explains why
+Numbering is sequential and never reused. `0001-agent-conventions.md` explains why
 the repository is shaped this way.
 
 ## Exec plans

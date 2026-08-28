@@ -194,7 +194,7 @@ def main():
           "If it genuinely cannot be fixed now, add the exact pair to\n"
           '"layering_allow" in .claude/guards.json AND a line in\n'
           "docs/exec-plans/tech-debt-tracker.md saying why. Why this rule\n"
-          "exists: docs/decisions/0001-agent-harness.md", file=sys.stderr)
+          "exists: docs/decisions/", file=sys.stderr)
     return 1
 
 
