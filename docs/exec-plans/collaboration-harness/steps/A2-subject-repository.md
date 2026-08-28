@@ -6,10 +6,37 @@ a sample of one contributor.
 
 ## Consulted
 
-None yet, and this is the step where that costs most: choosing a subject is
-exactly where somebody else's published choice would save a mistake we cannot
-detect from inside. What is wanted is how SWE-bench-style work picks its
-repositories and what it excludes — the selection criteria, not the results.
+- **Prior art**: our own `godot-nakama-workspace` (read in full under A1). It
+  rejected the real repository as a subject on purpose — *"Breach already
+  contains the fixes for these pitfalls in code comments and would contaminate
+  both arms"* — and ran against a clean fixture instead. That is a direct
+  argument against this step as originally written, and it is recorded below
+  rather than quietly absorbed.
+- **Existing skills**: none apply.
+- **Research**: still owed. How SWE-bench-style work selects repositories and
+  what it excludes — the selection criteria, not the results.
+
+## The contradiction this step now has to resolve
+
+The plan says *use a real multi-contributor repository*. The workspace says *a
+real repository contaminates both arms*. Both are right about different things,
+and collapsing them into either extreme loses the measurement:
+
+- What the awareness claim needs from *real* is **concurrent history** — two
+  people genuinely moving the same tree at overlapping times. That cannot be
+  invented convincingly, and a synthetic history is exactly where we would
+  accidentally build situations the plugin is good at.
+- What contamination is about is **the answer already being in the tree**.
+  A repository that solved a problem carries the solution in its comments, its
+  tests and its structure, so both arms score high and the delta vanishes into
+  the repository's own quality.
+
+So the constraint is narrower than either: real history, at a commit *before*
+the knowledge was written down. Replaying to a parent commit — already required
+below — is what supplies that, provided the case is built from a change that
+actually landed later rather than one invented for the case. If a candidate
+subject cannot supply such a commit, it fails this step regardless of how well
+it satisfies the other three.
 
 ## What has to be decided
 

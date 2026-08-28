@@ -6,15 +6,48 @@ changes an outcome, and none of those claims is judgeable until this exists.
 
 ## Consulted
 
-- **Existing skills**: not yet run. `find-skill` is owed here before any harness
-  is written — "does an eval suite for plugins already exist" is exactly its
-  question, and writing one first would be the expensive way to find out.
-- **Prior art**: not yet read. `claude plugin eval` is first-party, so its own
-  shipped example suites are the prior art that matters and they have not been
-  opened.
-- **Research**: McNemar's test, for paired binary outcomes — the reason the runs
-  are paired rather than two independent samples. Nothing else; this step is
+- **Existing skills**: the local skill store, where `godot-nakama-workspace`
+  turned out to be a hand-built paired-arm eval harness rather than a skill —
+  `evals.json`, `assertions.json`, `run_eval.sh`, `grade.py`, iteration
+  directories, an HTML review. It is the closest prior art there is, and it is
+  ours. Reading it changed this step from *build a harness* to *port its case
+  design onto the first-party runner*, which is a much smaller step.
+- **Prior art**: that workspace, in detail. Four decisions in it are load-bearing
+  and are adopted below. One is a gap: its arms are `with_skill | old_skill`,
+  so it never measured *no skill at all*. That is precisely the arm
+  `--ablation with-without` adds, and the reason the plan's next step records a
+  no-plugin baseline first.
+- **Research**: McNemar's test, for paired binary outcomes — the reason runs are
+  paired rather than two independent samples. Nothing further; this step is
   instrumentation, not an open question.
+
+### What the workspace already settled
+
+- **The prompt never names the pitfall.** Its cases read like a teammate's
+  message — *"the save button isn't even wired up"* — while the assertions test
+  for six specific things the agent had to know unprompted. This is the same
+  rule stated below, arrived at independently, which is the strongest form of
+  agreement available here.
+- **Assertions are needles, not quality judgements.** Its grader prompt is
+  explicit: *"You are NOT judging whether the code is good"*, no credit because
+  the agent "probably knew", no credit for generic hedging. And it separates
+  *does X* from *states X* — code that implements a behaviour satisfies the
+  first and not the second. That distinction is worth keeping verbatim.
+- **The subject was chosen to avoid contamination**, and this is the finding
+  that reaches beyond this step. Its note: runs go against a clean fixture and
+  *not* the real repository, because the real one "already contains the fixes
+  for these pitfalls in code comments and would contaminate both arms." See A2
+  — that constraint pulls against how A2 is currently written.
+- **Both arms produce comparable artefacts**: final message, a design note the
+  agent is asked to write, and a `git diff` with generated paths excluded. Three
+  artefacts, so a grader can distinguish what was done from what was understood.
+
+`claude plugin eval` supplies natively what that workspace built by hand: cases
+as `case.yaml` or `prompt.md` + `graders/*.md`, `--ablation with-without` on by
+default whenever a plugin resolves, `with-only` graders (including
+`tool_used: Skill`) treated as plugin-fired indicators outside the score, a
+judge model, `--max-cost-usd`, and the HTML report. So the work here is case
+design and grader wording, not runner plumbing.
 
 ## What has to be decided
 
