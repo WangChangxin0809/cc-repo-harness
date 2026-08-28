@@ -165,6 +165,46 @@ Three rules that are easy to get wrong:
    `src/` makes every edit deliver a document that answers nothing, and then the
    hook's output stops being read.
 
+## Read the pairs back: `drift.py`
+
+`Governs:` buys a third thing, and it is the one that pays later. A pair is a
+named, checkable claim — *this document describes that code* — which turns "is
+the documentation still true" from a summarising job into a small number of
+specific comparisons.
+
+```bash
+python3 scripts/drift.py pairs      # which pairs are worth reading, and why
+python3 scripts/drift.py prepare    # one packet per suspect pair, plus a brief
+python3 scripts/drift.py report     # collect the findings
+```
+
+Three things about it are the whole design:
+
+**The triage is free.** Git already knows whether the code moved after the
+document did. Pairs where nothing governed has changed since the document's last
+commit are skipped, which is the difference between a pass you run and one you
+do not. It is a prior and not a verdict — a document can be wrong on the day it
+is written, and `--all` reads every pair.
+
+**It is not a gate.** Findings are *claims that two things disagree*, and a check
+that is sometimes wrong gets switched off within a week. `check_docs_runnable.py`
+is the gate: it catches a documented command that would not run, which is the
+mechanical half of drift and the smaller half.
+
+**A finding never says the document is wrong.** It says the two disagree. A
+document encodes intent, and intent legitimately runs ahead of code — a rule the
+team decided and has not built, a limitation recorded before it was removed. A
+pass that quietly aligns documents to code deletes exactly that material and
+reads beautifully afterwards. Which side moves is a human decision, and it is
+often the code.
+
+The first pass over this repository found six: two documents teaching a
+workaround for a bug that had been fixed, a document denying a measurement
+sitting in the directory it governed, two wrong line counts, and an incomplete
+inventory. The second pass found nothing, which is also a result — `report`
+records a pair as read-and-quiet, because an unreviewed pair and a clean one
+must never print the same.
+
 ## References
 
 | File | Read when |

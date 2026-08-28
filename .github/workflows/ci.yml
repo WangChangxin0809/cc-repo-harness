@@ -68,6 +68,13 @@ jobs:
       - name: documented commands would run
         run: python3 shared/scripts/gates/check_docs_runnable.py --root .
 
+      # The other half of drift needs judgement and cannot be a gate. What can
+      # be checked is the tool that prepares the judgement: that its git triage
+      # points the right way, that `Governs:` matches by segment here too, and
+      # that an unreviewed packet cannot come back clean.
+      - name: the drift pass can still tell a suspect from a quiet pair
+        run: python3 shared/scripts/drift.py selftest --verbose
+
       # End to end, in a throwaway repository: scaffold, confirm the red names
       # placeholders rather than anything else, fill them, confirm green. The
       # acceptance criterion in bootstrap-repo-harness is "ci.sh runs green
