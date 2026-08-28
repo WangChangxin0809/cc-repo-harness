@@ -75,9 +75,9 @@ jobs:
             ref: 73ce26c3e822cdc2ccf99625619a50c91f163f8d  # 2025-03-29
             commits: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -120,7 +120,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: recall-${{ matrix.name }}
           path: result.json
