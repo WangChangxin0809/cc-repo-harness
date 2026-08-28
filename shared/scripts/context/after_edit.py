@@ -32,6 +32,13 @@ import subprocess
 import sys
 
 GOVERNS = re.compile(r"^Governs:\s*(.+)$", re.M)
+# Must equal index/build.py's window. It did not: this scanned 40 lines and the
+# graph builder scanned 60, so a `Governs:` on line 50 created an edge in the
+# graph and produced no hint here -- the convention half-worked, in a direction
+# nobody would think to test. These two files cannot share a constant (they are
+# installed at different tiers and one is often absent), so the index selftest
+# asserts they agree instead.
+GOVERNS_HEAD = 60
 MAX_LINES = 6
 
 
@@ -98,7 +105,7 @@ def governing_docs(root, rel):
         try:
             with open(os.path.join(root, doc), encoding="utf-8",
                       errors="replace") as fh:
-                head = "".join(fh.readlines()[:40])
+                head = "".join(fh.readlines()[:GOVERNS_HEAD])
         except OSError:
             continue
         for spec in GOVERNS.findall(head):

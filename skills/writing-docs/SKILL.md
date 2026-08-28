@@ -125,7 +125,7 @@ natural home: **"I am about to change code this document describes."** Nobody
 opens a document for that, because knowing to open it requires already knowing
 it exists.
 
-One line in the document's first 40 lines fixes it:
+One line in the document's first 60 lines fixes it:
 
 ```markdown
 # How billing works
@@ -151,9 +151,11 @@ Comma- or space-separated. It buys two things:
 
 Three rules that are easy to get wrong:
 
-1. **Directory targets end in `/`.** `Governs: src/bill` also covers
-   `src/billing_old/`. An over-broad claim is worse than a missing one: it reads
-   as though somebody documented that code.
+1. **Targets match by path segment, not by prefix.** `Governs: src/bill`
+   covers `src/bill` and everything under `src/bill/`, and does *not* reach
+   `src/billing_old/`. A trailing slash is allowed and changes nothing. This was
+   once plain prefix matching, and the trailing slash was load-bearing; both
+   readers now agree and an index selftest case holds them there.
 2. **A target that resolves to nothing is drift, and is reported.** It lands in
    `docs/generated/index-report.md` as a dangling target. This is the one signal
    that catches a document still describing a path that was deleted — invisible

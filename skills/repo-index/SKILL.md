@@ -40,9 +40,10 @@ candidate, and `--report` lists which names are ambiguous.
 
 `Governs:` is the edge that makes documents reachable from code. Without it,
 docs and code are two disconnected components and no amount of ranking bridges
-them. It is a plain line in the document's first 40 lines — no `---` fence
-needed — and directory targets must end in `/` or they over-match
-(`src/bill` covers `src/billing_old/`). See `writing-docs` for the convention.
+them. It is a plain line in the document's first **60** lines — no `---` fence
+needed. Targets are matched by path segment, so `Governs: src/bill` covers
+`src/bill` and `src/bill/…` and does *not* reach `src/billing_old/`; a trailing
+slash is allowed and changes nothing. See `writing-docs` for the convention.
 
 ```bash
 python3 scripts/index/build.py            # full rebuild, from source only
@@ -106,9 +107,40 @@ which have been measured here**. What does transfer is the direction. Treat
 `--hops 2` as an experiment you are running, not a better setting.
 
 They did **not** test PageRank; they inherited it from Aider and dropped it
-without a comparison. So nothing above argues for or against the default here —
-it is an open question, and the honest position is that this ranking has never
-been measured against the cheaper thing it replaced.
+without a comparison. So nothing above argues for or against the default — which
+is why `benchmark.py` exists.
+
+## The default was measured, and it wins the internal comparison
+
+```bash
+python3 scripts/index/benchmark.py --k 10
+```
+
+Leave-one-out co-change prediction against git history, with two controls and no
+model in the loop. A commit touching {A, B, C} is a statement by someone who knew
+the codebase; seed on A and ask whether B and C come back. On Flask at
+`d318b683` (800 commits, 300 trials, k=10):
+
+| strategy | recall@10 | vs random |
+|---|---|---|
+| frequency | **0.3774** | 5.15x |
+| pagerank | 0.3417 | 4.66x |
+| hops1 | 0.3171 | 4.33x |
+| hops2 | 0.3038 | 4.14x |
+| random | 0.0733 | — |
+
+Two readings, and the second is the uncomfortable one. **`pagerank > hops1 >
+hops2`, in that order** — RepoGraph's finding that more hops is worse reproduces
+on a different graph, a different corpus, and a different metric, and the default
+beats the thing they never compared it against. And **the graph does not beat
+churn**: `frequency` wins while ignoring the seed entirely and costing nothing.
+On that repository this index does not earn its build time.
+
+`random` is the floor and `frequency` the bar, because a retrieval number alone
+is unfalsifiable — 0.34 is good or bad depending on what else was available.
+Full reasoning, including what the ubiquity filter does to the numbers in both
+directions, is in `docs/decisions/0001-retrieval-is-measured-not-argued.md` in
+this repository.
 
 **Deliberate** — the `repo-explorer` subagent (`<plugin>/agents/repo-explorer.md`).
 Given a question, it queries the graph, reads what the graph pointed at,
@@ -138,7 +170,11 @@ of the result, not that it did not crash:
 | symbol names are not merged into one hub | ranking flowed through `sym:main` |
 | a reference resolves to a later-scanned definition | one pass, so edges depended on `git ls-files` order |
 | `Governs:` is directory-aware | prefix matching, so `src/bill` claimed `src/billing_old/` |
+| an unresolvable `Governs:` target is reported | a stale target vanished silently |
 | an unmatched seed cannot judge | a silent degrade to the global ranking looks like an answer |
+| a bare symbol name still resolves as a seed | path-keying the nodes nearly broke seeding by name |
+| the benchmark separates signal from noise | a benchmark whose floor is level with its subject reports artefacts |
+| both readers of `Governs:` scan the same window | `build.py` read 60 lines and `after_edit.py` read 40, so a line between them made an edge with no hint |
 
 Two of those cases passed *vacuously* when first written — the fixture used a
 trailing slash, and put the definer earlier in sort order, so the broken and
