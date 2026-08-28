@@ -177,7 +177,6 @@ def probe(root):
         "selftests": count("scripts", "selftests"),
         "git_hooks": has(".githooks") or os.path.isdir(
             os.path.join(root, ".git", "hooks")),
-        "gates": count("scripts", "gates"),
         "ci_entry": [
             f for f in ("ci.sh", "scripts/ci.sh", "Makefile", "justfile",
                         "noxfile.py")

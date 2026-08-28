@@ -222,7 +222,7 @@ def scan(root, files, excluded=0):
                     g["meta"].setdefault("_imports", []).append((rel, target))
 
     # --- pass 2: references and calls, against the complete definition set ---
-    for rel, lang in code_files:
+    for rel, _lang in code_files:
         lines = read_lines(os.path.join(root, rel))
         if lines is None:
             continue
@@ -241,7 +241,7 @@ def scan(root, files, excluded=0):
                          1.0 / len(targets))
             # An identifier used as a string key is how dynamic dispatch
             # usually looks. Record it; do not pretend it is an edge.
-            for m in re.finditer(r"""getattr\(|__import__\(|['"]\w+['"]\s*:\s*\w+\(""", line):
+            for _ in re.finditer(r"""getattr\(|__import__\(|['"]\w+['"]\s*:\s*\w+\(""", line):
                 dynamic.append(f"{rel}:{i + 1}")
                 break
 

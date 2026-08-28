@@ -8,4 +8,5 @@
 # and sits stale forever. Here it is watched -- see .github/dependabot.yml.
 
 actionlint-py==1.7.12.24   # GitHub Actions linter: syntax, expressions, shellcheck on run:
+ruff==0.16.5               # Python lint. Config in ruff.toml. Lint only, no formatter.
 zizmor==1.29.0             # Actions security audit, by Trail of Bits.
