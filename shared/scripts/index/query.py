@@ -44,15 +44,23 @@ def load(root, path):
 
 
 def resolve_seeds(g, seeds):
+    """Match a seed to nodes. A seed is a path, a path fragment, or a symbol
+    name.
+
+    Symbol nodes are keyed `sym:<path>:<name>`, so a bare name matches every
+    file that defines it. That is the correct behaviour and not a fallback: the
+    caller knows a name, not which definition it meant, and splitting a seed's
+    mass across the candidates says exactly that. One seed always contributes a
+    total mass of 1 however many nodes it matched, so a common name cannot
+    outvote a precise one."""
     hits, missed = {}, []
     for s in seeds:
         found = []
-        if f"file:{s}" in g["nodes"]:
-            found.append(f"file:{s}")
-        if f"sym:{s}" in g["nodes"]:
-            found.append(f"sym:{s}")
-        if f"doc:{s}" in g["nodes"]:
-            found.append(f"doc:{s}")
+        for prefix in ("file:", "doc:"):
+            if f"{prefix}{s}" in g["nodes"]:
+                found.append(f"{prefix}{s}")
+        found += [n for n, d in g["nodes"].items()
+                  if d["kind"] == "symbol" and d.get("name") == s]
         if not found:
             low = s.lower()
             found = [n for n, d in g["nodes"].items()
@@ -176,13 +184,10 @@ def main():
         rank = pagerank(g, seeds, a.iterations)
     ranked = sorted(rank.items(), key=lambda kv: (-kv[1], kv[0]))
 
-    # One pass to invert the defines edges. Doing this per symbol instead is a
-    # full scan of the edge list per symbol -- 17k x 160k on a real repository,
-    # which turns a one-second query into eighty.
-    definer = {}
-    for src, dst, kind, _w in g["edges"]:
-        if kind == "defines" and dst not in definer:
-            definer[dst] = g["nodes"][src].get("path")
+    # A symbol node carries the path that defines it, because its id is keyed
+    # by that path. This used to need a full inversion of the defines edges --
+    # 17k x 160k on a real repository if done per symbol, which turned a
+    # one-second query into eighty.
 
     # ~4 chars per token; each printed line is roughly one path plus its symbols.
     remaining = a.budget * 4
@@ -206,7 +211,7 @@ def main():
                 listed.add(d["path"])
                 order.append((d["path"], score, d["kind"]))
         elif d["kind"] == "symbol":
-            p = definer.get(nid)
+            p = d.get("path")
             if p and len(by_file[p]) < 8:
                 by_file[p].append(d["name"])
                 if p not in listed:

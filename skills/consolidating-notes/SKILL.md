@@ -5,6 +5,8 @@ description: Merge an accumulated pile of agent notes, memories, or scratch docu
 
 # Consolidation
 
+Governs: shared/scripts/dream.py
+
 Notes accumulate faster than they are corrected. After a few months a pile
 contains contradictions, entries about flags that were removed, and — buried in
 it — the measurements that are the only reason any of it is worth keeping.

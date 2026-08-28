@@ -40,6 +40,14 @@ jobs:
       - name: gates can still turn red
         run: python3 shared/scripts/gates/selftest.py --verbose
 
+      # The index is the one component whose defects are invisible: a broken
+      # gate turns red, a broken guard fails open and its selftest catches it,
+      # but a graph that ranks the wrong file returns a confident wrong answer
+      # nobody checks. It shipped without a selftest; these are the defects
+      # that were in it.
+      - name: the repo graph still says what it claims
+        run: python3 shared/scripts/index/selftest.py --verbose
+
       # The shipped gates, turned on this repository. This is the step that
       # would have caught the defect that motivated writing check_templates_
       # filled.py in the first place: a scaffolder whose own output no gate

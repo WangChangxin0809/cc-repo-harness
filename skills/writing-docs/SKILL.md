@@ -5,6 +5,8 @@ description: Write or restructure documentation that agents and people actually 
 
 # Writing docs an agent will actually use
 
+Governs: shared/scripts/context/after_edit.py
+
 A document is read because something happened. That event is its **reading
 trigger**, and it decides everything: where the file goes, how long it may be,
 and what shape it takes. Documents written without one become reference material
@@ -116,6 +118,51 @@ Open with what it covers and what it does not. Two lines. It tells the next
 writer where new material goes, which is the difference between a document that
 stays focused and one that becomes the place things get appended to.
 
+## Give the document a reading trigger: `Governs:`
+
+Every kind above is defined by *why someone opened it*, and one trigger has no
+natural home: **"I am about to change code this document describes."** Nobody
+opens a document for that, because knowing to open it requires already knowing
+it exists.
+
+One line in the document's first 40 lines fixes it:
+
+```markdown
+# How billing works
+
+Governs: src/billing/, src/payments/gateway.py
+
+...
+```
+
+Plain text at the start of a line — despite being described elsewhere as
+frontmatter, it needs no `---` fence and works anywhere in the head of the file.
+Comma- or space-separated. It buys two things:
+
+- **Delivery.** A `PostToolUse` hook (`scripts/context/after_edit.py`) says
+  *"docs/billing.md governs this file — read it before assuming how this is
+  supposed to work"* the moment the file is edited. Nothing else in the harness
+  can deliver a document at that instant, which is the only instant it matters.
+- **Reachability.** `scripts/index/build.py` turns the line into weighted
+  `governs` edges. Without them documents and code are two disconnected
+  components of the graph and no ranking bridges them — a repository with no
+  `Governs:` anywhere has documents that rank zero from every code query, which
+  looks exactly like having no documents at all.
+
+Three rules that are easy to get wrong:
+
+1. **Directory targets end in `/`.** `Governs: src/bill` also covers
+   `src/billing_old/`. An over-broad claim is worse than a missing one: it reads
+   as though somebody documented that code.
+2. **A target that resolves to nothing is drift, and is reported.** It lands in
+   `docs/generated/index-report.md` as a dangling target. This is the one signal
+   that catches a document still describing a path that was deleted — invisible
+   from the document's side and from the code's side, both.
+3. **Do not govern what you do not describe.** The line is a claim that this
+   document explains how that code is supposed to work. Pointing it at a whole
+   `src/` makes every edit deliver a document that answers nothing, and then the
+   hook's output stops being read.
+
 ## References
 
 | File | Read when |
@@ -123,4 +170,5 @@ stays focused and one that becomes the place things get appended to.
 | `references/kinds.md` | Full template for each of the six kinds |
 
 Related skills: `writing-checks` (the gates named above),
-`consolidating-notes` (merging accumulated notes into these kinds).
+`consolidating-notes` (merging accumulated notes into these kinds),
+`repo-index` (what the `governs` edges are used for).

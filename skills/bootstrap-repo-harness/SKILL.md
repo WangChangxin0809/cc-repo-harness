@@ -5,6 +5,8 @@ description: Lay the foundation that makes a repository teach coding agents how 
 
 # Bootstrap a repository harness
 
+Governs: shared/scripts/scaffold.py, shared/scripts/probe_repo.py
+
 A harness is the machinery that puts the right knowledge in front of an agent at
 the moment it acts, and stops the actions that are cheaper to prevent than to
 review. Most repositories have none: they have a `CLAUDE.md` full of rules that

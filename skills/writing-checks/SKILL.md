@@ -5,6 +5,8 @@ description: Build the machinery that enforces a convention instead of documenti
 
 # Guards and gates
 
+Governs: shared/scripts/guards/, shared/scripts/gates/
+
 Two mechanisms, one discipline. A **guard** reads one proposed action before it
 runs and may block it. A **gate** reads the worktree at CI time and may fail the
 build. Everything below applies to both, because the failure modes are the same.
