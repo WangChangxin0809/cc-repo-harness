@@ -345,6 +345,7 @@ run fast "gates can still turn red"  python3 scripts/gates/selftest.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
+run fast "documented commands run"   python3 scripts/gates/check_docs_runnable.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
 
 # --- unit: minutes -----------------------------------------------------------

@@ -183,6 +183,65 @@ CASES = [
                               "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
                               "## License\n\nMIT.\n"),
     ),
+    # A script whose real interface the documents below either match or do not.
+    # `--tier` exists, `--dry-run` exists, `--flavour` never did.
+    dict(
+        gate="check_docs_runnable.py",
+        why="a documented flag the script does not have",
+        needle="has no option --flavour",
+        plant=lambda t: (
+            write(t, "scripts/scaffold.py",
+                  "import argparse\n\n\n"
+                  "def main():\n"
+                  "    ap = argparse.ArgumentParser()\n"
+                  "    ap.add_argument('command', choices=['init', 'check'])\n"
+                  "    ap.add_argument('--tier')\n"
+                  "    ap.add_argument('--dry-run', action='store_true')\n"
+                  "    return ap.parse_args()\n"),
+            write(t, "docs/how-to/setup.md",
+                  "# Setup\n\n```bash\npython3 scripts/scaffold.py init "
+                  "--tier B --flavour vanilla\n```\n")),
+    ),
+    dict(
+        gate="check_docs_runnable.py",
+        why="a documented subcommand the script does not have",
+        needle="has no subcommand 'bootstrap'",
+        plant=lambda t: (
+            write(t, "scripts/scaffold.py",
+                  "import argparse\n\n\n"
+                  "def main():\n"
+                  "    ap = argparse.ArgumentParser()\n"
+                  "    ap.add_argument('command', choices=['init', 'check'])\n"
+                  "    ap.add_argument('--tier')\n"
+                  "    return ap.parse_args()\n"),
+            write(t, "docs/how-to/setup.md",
+                  "# Setup\n\n```bash\npython3 scripts/scaffold.py bootstrap "
+                  "--tier B\n```\n")),
+    ),
+    # Three ways to be right that a blunter check would call wrong: a
+    # placeholder value, a `<plugin>/` prefix, and a hook wiring quoted inside
+    # JSON, which is not a command line at all.
+    dict(
+        gate="check_docs_runnable.py",
+        why="correct commands in every dialect these documents use",
+        needle=None,
+        plant=lambda t: (
+            write(t, "scripts/scaffold.py",
+                  "import argparse\n\n\n"
+                  "def main():\n"
+                  "    ap = argparse.ArgumentParser()\n"
+                  "    ap.add_argument('command', choices=['init', 'check'])\n"
+                  "    ap.add_argument('--tier')\n"
+                  "    ap.add_argument('--dry-run', action='store_true')\n"
+                  "    return ap.parse_args()\n"),
+            write(t, "docs/how-to/setup.md",
+                  "# Setup\n\n```bash\n"
+                  "python3 <plugin>/scripts/scaffold.py init --tier <A|B|C>\n"
+                  "python3 scripts/scaffold.py check --dry-run  # a comment\n"
+                  "```\n\nWire it up:\n\n```json\n"
+                  "{\"hooks\": [{\"command\": \"python3 scripts/nothing.py\"}]}\n"
+                  "```\n")),
+    ),
     dict(
         gate="check_docs_index.py",
         why="a document nothing routes to",
