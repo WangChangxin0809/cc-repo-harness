@@ -241,7 +241,7 @@ def main():
                     listed.add(p)
                     order.append((p, score, "file"))
 
-    for path, score, kind in order:
+    for path, score, _kind in order:
         syms = by_file.get(path) or []
         line = (path if a.paths_only
                 else f"{path}  [{score:.4f}]" + (f"  {' '.join(syms)}" if syms else ""))

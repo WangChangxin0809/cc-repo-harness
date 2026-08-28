@@ -195,6 +195,11 @@ jobs:
       - name: workflows are not a supply-chain hole
         run: zizmor --no-progress .github/workflows/
 
+      # Lint only -- see ruff.toml for why there is no formatter, and for what
+      # was deliberately not selected. It found two real defects on first run.
+      - name: the Python says what it means
+        run: ruff check .
+
   release-hygiene:
     # Only on a pull request: there is nothing to diff a push to main against,
     # and a check that quietly does nothing on half its triggers is worse than
