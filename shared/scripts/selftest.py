@@ -89,10 +89,10 @@ def fill_placeholders(root):
         fh.write("MIT\n")
 
 
-def scaffold(root, tier, from_dir=PLUGIN):
+def scaffold(root, tier, from_dir=PLUGIN, dry=False):
     return sh([sys.executable,
                os.path.join(from_dir, "shared", "scripts", "scaffold.py"),
-               "--root", root, "--tier", tier])
+               "--root", root, "--tier", tier] + (["--dry-run"] if dry else []))
 
 
 def ci(root, lane="--fast"):
@@ -172,6 +172,43 @@ def case_tier_a_ships_working_guards():
         shutil.rmtree(repo, ignore_errors=True)
 
 
+def case_dry_run_describes_the_run_that_happens():
+    """`--dry-run` must name exactly the files the real run creates.
+
+    It did not. The preview printed `NEW scripts/context/after_edit.py`
+    unconditionally while the writer gated that copy on tier B, so a tier A
+    `--dry-run` promised a file the actual run never wrote. Found by scaffolding
+    this repository onto itself -- nothing here scaffolds a *tier A* repo and
+    then looks at what landed, so both halves were individually plausible.
+
+    A preview exists to be approved before the thing happens. One that
+    describes a different run is worse than none, because none is not trusted.
+    """
+    for tier in ("A", "B"):
+        repo = fresh_repo()
+        try:
+            preview = scaffold(repo, tier, dry=True)
+            if preview.returncode != 0:
+                return f"--dry-run --tier {tier} exited {preview.returncode}"
+            # `  COPY           scripts/guards/  (6 files)` -- the path is the
+            # second field, not the last one.
+            promised = {
+                line.split()[1].rstrip("/")
+                for line in preview.stdout.splitlines()
+                if line.strip().startswith(("NEW", "COPY", "DIR"))
+            }
+            if scaffold(repo, tier).returncode != 0:
+                return f"scaffold --tier {tier} failed after its own dry run"
+
+            for rel in sorted(promised):
+                if not os.path.exists(os.path.join(repo, rel)):
+                    return (f"tier {tier}: --dry-run promised {rel}, and the "
+                            f"real run did not create it")
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+    return None
+
+
 def case_survives_the_plugin_being_deleted():
     """The acceptance criterion, mechanised.
 
@@ -246,6 +283,8 @@ CASES = [
      case_scaffold_reaches_green("C")),
     ("tier A ships guards that are wired and pass their own selftest",
      case_tier_a_ships_working_guards),
+    ("--dry-run describes the run that actually happens",
+     case_dry_run_describes_the_run_that_happens),
     ("the repository survives the plugin being deleted",
      case_survives_the_plugin_being_deleted),
 ]
