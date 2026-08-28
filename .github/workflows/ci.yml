@@ -1,0 +1,85 @@
+name: ci
+
+# The server-side half of what this plugin tells everyone else to build. Its
+# own README calls a check that only runs on a laptop the weakest of the three
+# layers, and until this file existed that was exactly what this repository
+# had: a ci.sh nobody was obliged to run.
+#
+# Exit 2 means "could not judge" and is never a pass. Nothing special is needed
+# to honour that here -- any non-zero exit fails the step -- but it is the
+# reason no step is allowed to swallow a status with `|| true`.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The README claims Python 3.9+ with no dependencies. A claim about a
+        # version nobody runs is a claim, not a fact -- so run the floor and
+        # the ceiling, and let the matrix be the thing that keeps it true.
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: guards can still turn red
+        run: python3 shared/scripts/guards/selftest.py
+
+      - name: gates can still turn red
+        run: python3 shared/scripts/gates/selftest.py --verbose
+
+      # The shipped gates, turned on this repository. This is the step that
+      # would have caught the defect that motivated writing check_templates_
+      # filled.py in the first place: a scaffolder whose own output no gate
+      # here could see.
+      - name: no unfilled templates
+        run: python3 shared/scripts/gates/check_templates_filled.py --root .
+
+      - name: public face intact
+        run: python3 shared/scripts/gates/check_community_health.py --root .
+
+      # End to end, in a throwaway repository: scaffold, confirm the red names
+      # placeholders rather than anything else, fill them, confirm green. The
+      # acceptance criterion in bootstrap-repo-harness is "ci.sh runs green
+      # from a clean worktree", and it was false for a whole release.
+      - name: scaffold reaches green from a clean worktree
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          git -C "$work" init -q .
+          mkdir -p "$work/src" && echo 'def a(): pass' > "$work/src/a.py"
+          git -C "$work" add -A
+          git -C "$work" -c user.email=ci@example.com -c user.name=ci commit -qm init
+          python3 shared/scripts/scaffold.py --root "$work" --tier B > /dev/null
+
+          cd "$work"
+          if ./ci.sh --fast > out.txt 2>&1; then
+            echo "expected a fresh scaffold to be red; it was green" >&2
+            exit 1
+          fi
+          grep -q "unfilled placeholder" out.txt || {
+            echo "red, but not for the placeholders it is supposed to name:" >&2
+            cat out.txt >&2
+            exit 1
+          }
+
+          python3 - <<'PY'
+          import pathlib, re
+          for p in pathlib.Path(".").rglob("*.md"):
+              p.write_text(re.sub(r"<[^<>\n]{2,}>", "written by a human", p.read_text()))
+          pathlib.Path("LICENSE").write_text("MIT\n")
+          PY
+
+          ./ci.sh --fast

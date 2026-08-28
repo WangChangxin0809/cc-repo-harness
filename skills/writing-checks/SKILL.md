@@ -55,6 +55,64 @@ sounds. The paragraph on stderr is the highest-value text in the repository.
 What a guard must never be is the *only* thing standing between an agent and an
 irreversible action.
 
+## Layer 2, concretely: a GitHub ruleset
+
+Layer 2 is the only one that is not running on the machine that would break the
+rule, which is what makes it the one worth wiring first. On GitHub that is a
+**ruleset** — the successor to branch protection, and worth preferring because
+several can apply to one branch, the enforcement status can be flipped without
+deleting the configuration, and anyone with read access can see what is
+enforced. Overlapping rulesets aggregate, and the most restrictive version of a
+rule wins, so adding one never quietly loosens another.
+
+```bash
+gh api -X POST repos/OWNER/REPO/rulesets --input ruleset.json
+```
+
+```json
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "pull_request",
+     "parameters": {"required_approving_review_count": 0,
+                    "dismiss_stale_reviews_on_push": false,
+                    "require_code_owner_review": false,
+                    "require_last_push_approval": false,
+                    "required_review_thread_resolution": false}},
+    {"type": "required_status_checks",
+     "parameters": {"strict_required_status_checks_policy": true,
+                    "required_status_checks": [{"context": "checks (3.13)"}]}}
+  ]
+}
+```
+
+Four things that are easy to get wrong:
+
+- **`required_approving_review_count: 0` is not pointless on a solo project.**
+  It still forces every change through a pull request, which is what makes the
+  status checks run at all. Requiring an approval you cannot give would only
+  teach you to add a bypass.
+- **`non_fast_forward` is the force-push rule.** It is the one that matters
+  most, because a force push is the only operation here that destroys history
+  the reflog on someone else's clone cannot recover.
+- **Never require a status check that does not exist yet.** The name must match
+  the job as GitHub reports it — including the matrix suffix, `checks (3.13)`,
+  not `ci`. A required check that never reports blocks every merge forever, and
+  it looks exactly like a broken CI.
+- **A bypass actor is a decision, not a detail.** Granting the admin role
+  `bypass_mode: always` means the rule is advice for exactly the person most
+  able to break it at 2am. Prefer no bypass, and accept the friction; if you
+  add one, say why in the decision record.
+
+The rule that cannot be expressed here goes back to layer 1 or 3. That is the
+normal case, not a failure — the three layers exist because none of them covers
+what the others do.
+
 ## Write the failure modes before the check
 
 List how the thing you are guarding actually goes wrong — concretely, each one a
