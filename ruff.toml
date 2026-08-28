@@ -1,0 +1,47 @@
+# Lint only. There is no formatter configured, and that is a decision:
+# `ruff format` would move about 2,500 lines of this repository, and the layout
+# it would flatten is load-bearing. The comments here carry the reasoning that
+# the code cannot, and they are hand-wrapped around it.
+#
+# The rules selected are the ones that find defects, not the ones that find
+# opinions. A linter that reports 123 findings on first contact gets one look
+# and then a blanket ignore; the point of this file is that when it says
+# something, it is worth stopping for. Two real bugs turned up the first time
+# it ran: a dictionary key written twice, and an import nothing used.
+
+target-version = "py39"
+
+# Not cosmetic. The README claims Python 3.9, and CI runs it, so ruff has to
+# judge against the same floor -- otherwise it recommends `zip(strict=True)`,
+# which is a syntax error on the version this repository promises to support.
+# The floor lives in three places now; that is two too many, and the CI matrix
+# is the one that would actually catch a lie.
+
+line-length = 88
+
+[lint]
+select = [
+    "F",    # pyflakes -- undefined names, unused imports, duplicate dict keys
+    "E9",   # syntax and IO errors that stop the file being read at all
+    "B",    # bugbear -- mutable defaults, unused loop variables, silent traps
+    "PLE",  # pylint's error class only; none of its style opinions
+]
+
+# Deliberately absent, having been measured rather than assumed:
+#
+#   S (bandit)  28 findings, essentially all `subprocess` without shell=False
+#               spelled the way it wants. This repository runs `git` on purpose,
+#               everywhere, and the findings are noise around the one thing it
+#               does.
+#   RUF001      flags `×` in output strings as an ambiguous unicode character.
+#               It is a multiplication sign, used as one, in text meant for a
+#               terminal.
+#   C408, ISC   style preferences about dict() and string concatenation.
+#   PLW1510     `subprocess.run` without `check=`. Every call site here reads
+#               the return code deliberately -- the 0/1/2 tri-state is the whole
+#               convention -- so `check=True` would be wrong, not safer.
+
+[lint.per-file-ignores]
+# The guard dispatcher and the selftests import by path after mutating
+# sys.path, which is the mechanism, not an oversight.
+"shared/scripts/guards/selftest.py" = ["E402"]
