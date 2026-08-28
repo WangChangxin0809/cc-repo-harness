@@ -5,6 +5,8 @@ description: Give a repository a code-and-docs graph an agent can query — tree
 
 # One graph, two tiers
 
+Governs: shared/scripts/index/
+
 Retrieval fails in repositories for a specific reason: the useful unit is not a
 paragraph, it is a symbol and its neighbourhood. A chunk-and-embed pipeline
 returns files that talk *about* authentication; what the task needs is the four
@@ -16,20 +18,31 @@ ranking problem on top of the one you had.
 
 ## The graph
 
-Nodes are files, symbols (`def`/`class`/`type`), and documents. Edges:
+Nodes are `file:<path>`, `sym:<path>:<name>`, and `doc:<path>`. Edges:
 
 | Edge | From | Weight |
 |---|---|---|
 | defines | file → symbol | tree-sitter tags |
-| references | file → symbol | tree-sitter tags |
+| references | file → symbol | tree-sitter tags, split across definers |
 | imports | file → file | resolved import statements |
 | calls | symbol → symbol | call sites inside a definition's span |
-| governs | doc → path | `Governs: src/billing/**` in doc frontmatter |
+| governs | doc → path | a `Governs: src/billing/` line in the doc's head |
 | supersedes | doc → doc | `Supersedes: 0004` |
+
+**A symbol node is keyed by the file that defines it.** Keying by bare name
+merges every definition sharing it, and the merged node then dominates the
+graph: in this plugin's own repository `sym:main` — sixteen unrelated
+`def main()` — had a higher degree than any real file, and seeding on one guard
+ranked an *empty template* second because five guards define `check`. Bare names
+are still how a reference resolves and how `--seed` matches; they are just no
+longer the node. A reference to an ambiguous name contributes `1/N` to each
+candidate, and `--report` lists which names are ambiguous.
 
 `Governs:` is the edge that makes documents reachable from code. Without it,
 docs and code are two disconnected components and no amount of ranking bridges
-them.
+them. It is a plain line in the document's first 40 lines — no `---` fence
+needed — and directory targets must end in `/` or they over-match
+(`src/bill` covers `src/billing_old/`). See `writing-docs` for the convention.
 
 ```bash
 python3 scripts/index/build.py            # full rebuild, from source only
@@ -68,6 +81,35 @@ on every turn, and being unreliable is acceptable because nothing depends on it
 alone. This is where the earlier generation of RAG belongs, scoped down to what
 it is actually good at.
 
+**Use `--hops 1`.** RepoGraph ([arXiv:2410.14684](https://arxiv.org/abs/2410.14684))
+ablated exactly this on SWE-bench Lite and the result is the most useful number
+anyone has published about repository graphs:
+
+| Retrieval | Resolve rate |
+|---|---|
+| no graph (baseline) | 27.33% |
+| **1-hop, flattened** | **29.67%** |
+| 2-hop, summarized by an LLM | 28.67% |
+| 1-hop, summarized | 28.33% |
+| 2-hop, flattened | **26.00%** — *below the baseline* |
+
+Two hops averaged 54.5 nodes against one hop's 11.6, and the extra context was
+worse than no context at all. Feeding an agent more of the neighbourhood is not
+a free improvement with a diminishing return; past one hop it is a net loss that
+an LLM summarisation pass only partly repairs.
+
+What transfers and what does not, stated honestly: their graph is unweighted,
+successors-only, and unranked, while this one weights edges, walks both
+directions, decays by `w/(depth+1)²`, and truncates to a token budget — all of
+which are plausibly the mitigations their 2-hop result calls for, and **none of
+which have been measured here**. What does transfer is the direction. Treat
+`--hops 2` as an experiment you are running, not a better setting.
+
+They did **not** test PageRank; they inherited it from Aider and dropped it
+without a comparison. So nothing above argues for or against the default here —
+it is an open question, and the honest position is that this ranking has never
+been measured against the cheaper thing it replaced.
+
 **Deliberate** — the `repo-explorer` subagent (`<plugin>/agents/repo-explorer.md`).
 Given a question, it queries the graph, reads what the graph pointed at,
 follows edges the graph got wrong, and returns a conclusion with citations. It
@@ -77,6 +119,31 @@ enter the main conversation — only the answer and the paths do.
 Delegate to it when the question is *"where does X happen and what would break"*
 and not when you already know the file. The rule of thumb: if you would have to
 read more than three files to answer, delegate.
+
+## Prove the graph still says what it claims
+
+```bash
+python3 scripts/index/selftest.py --verbose
+```
+
+The index is the one component here whose defects are *invisible*. A broken gate
+turns red. A broken guard fails open and its selftest catches it. A graph that
+ranks the wrong file returns a confident, plausible, wrong answer, and nobody
+goes and checks — which is why this shipped with three real defects and no
+error message between them. Each case plants a structure and asserts a property
+of the result, not that it did not crash:
+
+| Case | The defect it was written against |
+|---|---|
+| symbol names are not merged into one hub | ranking flowed through `sym:main` |
+| a reference resolves to a later-scanned definition | one pass, so edges depended on `git ls-files` order |
+| `Governs:` is directory-aware | prefix matching, so `src/bill` claimed `src/billing_old/` |
+| an unmatched seed cannot judge | a silent degrade to the global ranking looks like an answer |
+
+Two of those cases passed *vacuously* when first written — the fixture used a
+trailing slash, and put the definer earlier in sort order, so the broken and
+correct implementations agreed. They only became checks after an injection
+showed them staying green.
 
 ## The negative control
 

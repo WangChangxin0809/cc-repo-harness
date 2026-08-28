@@ -55,28 +55,56 @@ def edited_path(payload, root):
     return None
 
 
+MAX_DOCS_SCANNED = 500
+
+
+def covers(target, rel):
+    """Whether a `Governs:` target covers this path.
+
+    Must agree with `governed_by` in scripts/index/build.py exactly. Two
+    implementations of one convention is already one too many; two that
+    *disagree* means a document governs a file in the graph and not in the
+    hook, which is indistinguishable from the convention not working."""
+    t = target.rstrip("*")
+    if t.endswith("/"):
+        return rel.startswith(t)
+    return rel == t or rel.startswith(t + "/")
+
+
+def markdown_files(root):
+    """Every tracked markdown file, not just docs/.
+
+    This used to walk `docs/` only, while build.py indexed every tracked
+    markdown. A `Governs:` line in ARCHITECTURE.md or a skill therefore created
+    a real edge in the graph and was invisible here -- the delivery moment the
+    convention exists for. Same set on both sides or the convention is a
+    coin flip."""
+    out = subprocess.run(["git", "ls-files", "-z", "*.md"], cwd=root,
+                         capture_output=True, text=True)
+    if out.returncode == 0:
+        return [p for p in out.stdout.split("\0") if p][:MAX_DOCS_SCANNED]
+    docs = os.path.join(root, "docs")          # not a git repo: best effort
+    return [os.path.relpath(os.path.join(d, n), root)
+            for d, _, names in os.walk(docs) for n in names
+            if n.endswith(".md")][:MAX_DOCS_SCANNED]
+
+
 def governing_docs(root, rel):
-    """Documents whose `Governs:` prefix covers this path. Scanning docs/ head
-    bytes is cheap enough to do inline; building an index for it would be a
-    second source of truth that can go stale."""
+    """Documents whose `Governs:` target covers this path. Reading head bytes
+    inline is cheap enough; building an index for it would be a second source
+    of truth that can go stale."""
     hits = []
-    docs = os.path.join(root, "docs")
-    for dirpath, dirnames, filenames in os.walk(docs):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        for name in filenames:
-            if not name.endswith(".md"):
-                continue
-            path = os.path.join(dirpath, name)
-            try:
-                with open(path, encoding="utf-8", errors="replace") as fh:
-                    head = "".join(fh.readlines()[:40])
-            except OSError:
-                continue
-            for spec in GOVERNS.findall(head):
-                for target in re.split(r"[,\s]+", spec.strip()):
-                    if target and rel.startswith(target.rstrip("*")):
-                        hits.append(os.path.relpath(path, root))
-                        break
+    for doc in markdown_files(root):
+        try:
+            with open(os.path.join(root, doc), encoding="utf-8",
+                      errors="replace") as fh:
+                head = "".join(fh.readlines()[:40])
+        except OSError:
+            continue
+        for spec in GOVERNS.findall(head):
+            if any(covers(t, rel) for t in re.split(r"[,\s]+", spec.strip()) if t):
+                hits.append(doc)
+                break
     return sorted(set(hits))
 
 
