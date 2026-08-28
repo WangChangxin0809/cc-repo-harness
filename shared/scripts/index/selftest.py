@@ -161,6 +161,29 @@ def case_dangling_governs_is_reported(t):
     return None
 
 
+def case_report_does_not_overstate_the_extractor(t):
+    """The report may not name a parser the build did not run.
+
+    This is not hypothetical tidiness. `try_tree_sitter()` used to import
+    `tree_sitter_languages`, throw it away, and return "tree-sitter", so on any
+    machine with that package installed the negative control opened by
+    misdescribing how the graph was produced -- and it is the one file an agent
+    reads specifically to calibrate how much an absence is worth.
+
+    Asserting the *value* rather than merely that a key exists is the point: a
+    label decoupled from the code that produces it drifts back the first time
+    someone adds an extractor and forgets the report.
+    """
+    g, err = build(make_repo(t, SHARED_NAME))
+    if g is None:
+        return f"build failed: {err.strip()[:200]}"
+    got = g["meta"].get("extractor")
+    if got != "regex":
+        return (f"extractor reported as {got!r}; symbols are extracted by the "
+                f"regexes in LANGS, so the only honest value is 'regex'")
+    return None
+
+
 def case_unmatched_seed_cannot_judge(t):
     """A seed matching nothing must exit 2, never degrade to a global ranking.
 
@@ -291,6 +314,8 @@ CASES = [
     ("a reference resolves to a later-scanned definition", case_forward_reference),
     ("Governs: is directory-aware", case_governs_is_directory_aware),
     ("an unresolvable Governs: target is reported", case_dangling_governs_is_reported),
+    ("the report does not overstate the extractor",
+     case_report_does_not_overstate_the_extractor),
     ("an unmatched seed cannot judge", case_unmatched_seed_cannot_judge),
     ("a bare symbol name still resolves as a seed", case_seed_by_symbol_name),
     ("the benchmark separates signal from noise",
