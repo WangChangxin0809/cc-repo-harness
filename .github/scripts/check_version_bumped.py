@@ -93,7 +93,13 @@ def changed_files(base, root):
 
 def check(base, root):
     """Returns (exit_code, message)."""
-    if not os.path.isdir(os.path.join(root, ".git")):
+    # `git rev-parse`, not `os.path.isdir(".git")`. In a linked worktree .git
+    # is a *file* pointing at the real directory, and in a submodule likewise,
+    # so the isdir test reports "not a git repository" for a tree git is
+    # perfectly happy with. It answered that way the first time this ran inside
+    # a worktree -- exit 2, in a check whose whole contract is that 2 means
+    # nobody could tell.
+    if sh(["git", "rev-parse", "--git-dir"], cwd=root).returncode != 0:
         return 2, "cannot judge: not a git repository"
 
     files = changed_files(base, root)
@@ -236,6 +242,37 @@ def _case_string_comparison_would_be_wrong():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def _case_a_linked_worktree_is_judgeable():
+    """A worktree is a git repository, and `.git` in one is a file.
+
+    Found by running this check inside a worktree while resolving a rebase, and
+    getting "not a git repository" from a tree git had just created.
+    """
+    root = _repo()
+    linked = tempfile.mkdtemp(prefix="version-check-wt-")
+    path = os.path.join(linked, "wt")
+    try:
+        base = sh(["git", "rev-parse", "HEAD"], cwd=root).stdout.strip()
+        _write(root, "skills/demo/SKILL.md", "---\nname: demo\n---\n\nNew.\n")
+        _commit(root, "change a skill")
+        out = sh(["git", "worktree", "add", "-q", "--detach", path, "HEAD"],
+                 cwd=root)
+        if out.returncode != 0:
+            return f"could not build the fixture: {out.stderr.strip()[:200]}"
+        if os.path.isdir(os.path.join(path, ".git")):
+            return "fixture is wrong: .git is a directory, so this proves nothing"
+        code, msg = check(base, path)
+        if code == 2:
+            return f"a worktree must be judgeable, got: {msg}"
+        if code != 1:
+            return f"expected 1 in the worktree, got {code}: {msg}"
+        return None
+    finally:
+        sh(["git", "worktree", "remove", "--force", path], cwd=root)
+        shutil.rmtree(linked, ignore_errors=True)
+        shutil.rmtree(root, ignore_errors=True)
+
+
 SELF_TEST = [
     ("a shipped file changed with no bump is caught",
      _case_shipped_change_without_bump),
@@ -245,6 +282,7 @@ SELF_TEST = [
     ("0.10 is newer than 0.9.0", _case_lower_version_is_not_a_bump),
     ("a version that went backwards is caught",
      _case_string_comparison_would_be_wrong),
+    ("a linked worktree is judgeable", _case_a_linked_worktree_is_judgeable),
 ]
 
 
