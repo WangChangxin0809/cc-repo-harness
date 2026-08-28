@@ -1,7 +1,10 @@
 # shared/scripts/ — this is payload
 
-Everything under this directory is **copied into other people's repositories**
+Every `.py` under this directory is **copied into other people's repositories**
 by `scaffold.py`. You are not editing our tooling; you are editing a stranger's.
+
+(This file is not: `COPY` takes `.py` only, so the note you are reading stays
+here. It is the one thing in this directory written for us.)
 
 - Write for a repository you have never seen. No path, name, or convention from
   this repository may be assumed.
