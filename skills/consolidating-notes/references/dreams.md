@@ -39,9 +39,9 @@ need to look at what was dropped.
 ## The mechanics, by hand
 
 ```bash
-python3 <plugin>/shared/scripts/dream.py prepare --notes .agent-notes --sessions .agent-sessions
-# the synthesis reads .dream/BRIEF.md and writes ONLY to .dream/candidate/
-python3 <plugin>/shared/scripts/dream.py diff
+python3 <plugin>/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
+# the synthesis reads .consolidation/BRIEF.md and writes ONLY to .consolidation/candidate/
+python3 <plugin>/shared/scripts/consolidate.py diff
 ```
 
 `prepare` copies and then chmods the snapshot read-only. That is not paranoia
@@ -76,7 +76,7 @@ Worth using when the pile is large enough that a hand pass will not be run.
   reads and writes.
 
 The sessions are not a secondary input. The store is what gets deduplicated; the
-transcripts are where a pattern nobody wrote down is still visible. `dream.py`
+transcripts are where a pattern nobody wrote down is still visible. `consolidate.py`
 takes `--sessions` for the same reason, and the brief tells the synthesis to
 read them.
 
@@ -87,7 +87,7 @@ against the input, read what was dropped, and only then point anything at it.
 
 A consolidation that produces a cleaner note pile has moved nothing. Every
 surviving entry gets a destination, and most destinations are not notes — see
-the table in the skill body. `dream.py` supports `ROUTE:` lines in a candidate
+the table in the skill body. `consolidate.py` supports `ROUTE:` lines in a candidate
 entry for exactly this:
 
 ```

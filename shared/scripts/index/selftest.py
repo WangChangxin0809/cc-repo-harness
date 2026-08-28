@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -237,6 +238,54 @@ def case_benchmark_separates_signal_from_noise(t):
     return None
 
 
+def case_governs_window_agrees_with_after_edit(t):
+    """Both readers of `Governs:` must scan the same number of lines.
+
+    The defect: `index/build.py` read the first 60 lines and
+    `context/after_edit.py` read the first 40. A `Governs:` line at line 50
+    therefore created a graph edge and produced no PostToolUse hint -- the
+    convention half-worked, in the direction nobody thinks to test, and both
+    halves individually looked correct.
+
+    They cannot share a constant: they are installed at different tiers, and a
+    tier B repository has after_edit.py with no index/ at all. So the agreement
+    is asserted here rather than enforced by an import."""
+    after_edit = os.path.join(HERE, "..", "context", "after_edit.py")
+    try:
+        with open(os.path.join(HERE, "build.py"), encoding="utf-8") as fh:
+            build_src = fh.read()
+        with open(after_edit, encoding="utf-8") as fh:
+            edit_src = fh.read()
+    except OSError as exc:
+        return f"cannot read both scanners: {exc}"
+
+    b = re.search(r"lines\[:(\d+)\]", build_src)
+    e = re.search(r"GOVERNS_HEAD\s*=\s*(\d+)", edit_src)
+    if not b:
+        return "build.py no longer slices a fixed head window; update this case"
+    if not e:
+        return "after_edit.py no longer declares GOVERNS_HEAD; update this case"
+    if b.group(1) != e.group(1):
+        return (f"build.py scans {b.group(1)} lines for Governs:, "
+                f"after_edit.py scans {e.group(1)} — a Governs: line between "
+                f"them makes an edge with no hint, or a hint with no edge")
+
+    # And the agreed window must actually work end to end, not merely match.
+    depth = int(b.group(1))
+    filler = "\n".join(f"Line {i}." for i in range(depth - 6))
+    g, err = build(make_repo(t, {
+        "src/billing/pay.py": "def pay():\n    return 1\n",
+        "docs/deep.md": f"# Deep\n\n{filler}\n\nGoverns: src/billing/\n",
+    }))
+    if g is None:
+        return f"build failed: {err.strip()[:200]}"
+    if not any(a == "doc:docs/deep.md" and kind == "governs"
+               for a, _b, kind, _w in g["edges"]):
+        return (f"a Governs: line inside the declared {depth}-line window "
+                f"produced no edge")
+    return None
+
+
 CASES = [
     ("symbol names are not merged into one hub", case_no_symbol_hub),
     ("a reference resolves to a later-scanned definition", case_forward_reference),
@@ -246,6 +295,8 @@ CASES = [
     ("a bare symbol name still resolves as a seed", case_seed_by_symbol_name),
     ("the benchmark separates signal from noise",
      case_benchmark_separates_signal_from_noise),
+    ("both readers of Governs: scan the same window",
+     case_governs_window_agrees_with_after_edit),
 ]
 
 

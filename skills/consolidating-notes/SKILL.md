@@ -5,7 +5,7 @@ description: Merge an accumulated pile of agent notes, memories, or scratch docu
 
 # Consolidation
 
-Governs: shared/scripts/dream.py
+Governs: shared/scripts/consolidate.py
 
 Notes accumulate faster than they are corrected. After a few months a pile
 contains contradictions, entries about flags that were removed, and — buried in
@@ -24,9 +24,9 @@ the evidence needed to tell a good merge from a lossy one, and lossy merges are
 the normal failure — they read beautifully.
 
 ```bash
-python3 <plugin>/shared/scripts/dream.py prepare --notes .agent-notes --sessions .agent-sessions
-# snapshot is chmod'd read-only; the synthesis writes to .dream/candidate/ only
-python3 <plugin>/shared/scripts/dream.py diff
+python3 <plugin>/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
+# snapshot is chmod'd read-only; the synthesis writes to .consolidation/candidate/ only
+python3 <plugin>/shared/scripts/consolidate.py diff
 ```
 
 `diff` reports three things, in the order they matter:
