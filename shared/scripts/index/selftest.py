@@ -309,6 +309,163 @@ def case_governs_window_agrees_with_after_edit(t):
     return None
 
 
+def case_stale_graph_is_announced_but_still_answers(t):
+    """A tree that has moved under the graph is reported, and does not refuse.
+
+    Both halves are the case. The graph had no staleness detection at all and
+    nothing rebuilt it, so `after_edit.py` queried an arbitrarily old graph and
+    presented the result with no qualification -- build.py's own docstring
+    calls that "confidently wrong answers ... strictly worse than no answers,
+    because nobody goes and checks".
+
+    The second half guards the fix from overcorrecting. `after_edit.py` runs on
+    PostToolUse, so the file the agent just edited is *always* among the
+    changed ones. A staleness check that exited non-zero would kill the hint
+    for the whole session from the first edit onward. Staleness is reported;
+    it is never disqualifying on its own."""
+    tmp = make_repo(t, {
+        "src/pay.py": "def pay():\n    return 1\n",
+        "src/bill.py": "from src.pay import pay\n\ndef bill():\n    return pay()\n",
+    })
+    g, err = build(tmp)
+    if g is None:
+        return f"build failed: {err}"
+
+    fresh = query(tmp, "--seed", "src/bill.py", "--paths-only")
+    if "stale" in fresh.stderr:
+        return f"a just-built graph reported itself stale: {fresh.stderr.strip()}"
+
+    with open(os.path.join(tmp, "src", "pay.py"), "w", encoding="utf-8") as fh:
+        fh.write("def pay():\n    return 2\n")
+
+    after = query(tmp, "--seed", "src/bill.py", "--paths-only")
+    if "stale" not in after.stderr:
+        return ("a file changed under the graph and the query said nothing: "
+                f"{after.stderr.strip()!r}")
+    if after.returncode != 0:
+        return (f"staleness made the query exit {after.returncode}; on "
+                f"PostToolUse the just-edited file is always stale, so this "
+                f"silences after_edit.py for the rest of the session")
+    if not after.stdout.strip():
+        return "reported stale and then returned nothing"
+
+    seeded = query(tmp, "--seed", "src/pay.py", "--paths-only")
+    if "seed itself moved" not in seeded.stderr:
+        return ("seeding on the changed file did not say so — that is the "
+                "actionable half, and it is a different quality of wrong from "
+                "a stale file out in the neighbourhood")
+    return None
+
+
+def case_after_edit_says_when_its_hint_is_stale(t):
+    """The PostToolUse hook must pass the staleness through, not swallow it.
+
+    `after_edit.py` is the only automatic consumer of the graph in the whole
+    plugin, and it had no test of any kind -- it is wired into every tier B
+    repository as a PostToolUse hook and was exercised only by being run in
+    anger. It also captured query.py's stderr and dropped it, so when
+    staleness detection was added the detection worked and the one place that
+    shows the answer to an agent still presented a stale neighbour list as a
+    current one.
+
+    Run end to end against the scaffolded layout, because that is the only
+    thing that proves the two halves are wired to each other."""
+    tmp = make_repo(t, {
+        "src/pay.py": "def pay():\n    return 1\n",
+        "src/bill.py": "from src.pay import pay\n\ndef bill():\n    return pay()\n",
+        "docs/money.md": "# Money\n\nGoverns: src/\n\nHow billing works.\n",
+    })
+    # Mirror where the scaffolder puts these; after_edit.py looks them up by
+    # that path and silently produces no hint if they are anywhere else.
+    dst = os.path.join(tmp, "scripts", "index")
+    os.makedirs(dst, exist_ok=True)
+    for f in ("build.py", "query.py"):
+        shutil.copy(os.path.join(HERE, f), os.path.join(dst, f))
+    built = sh([sys.executable, os.path.join(dst, "build.py"), "--root", tmp], tmp)
+    if built.returncode != 0:
+        return f"build failed in the scaffolded layout: {built.stderr.strip()}"
+
+    hook = os.path.join(HERE, "..", "context", "after_edit.py")
+    payload = json.dumps({"tool_input":
+                          {"file_path": os.path.join(tmp, "src", "bill.py")}})
+
+    def fire():
+        return subprocess.run([sys.executable, hook], input=payload, cwd=tmp,
+                              capture_output=True, text=True)
+
+    fresh = fire()
+    if "docs/money.md governs" not in fresh.stdout:
+        return (f"the governing document was not delivered on edit: "
+                f"{fresh.stdout.strip()!r} {fresh.stderr.strip()!r}")
+    if "adjacent in the repo graph" not in fresh.stdout:
+        return f"no neighbours delivered: {fresh.stdout.strip()!r}"
+    if "out of date" in fresh.stdout:
+        return "a just-built graph was announced as stale"
+
+    with open(os.path.join(tmp, "src", "pay.py"), "w", encoding="utf-8") as fh:
+        fh.write("def pay():\n    return 2\n")
+
+    after = fire()
+    if "adjacent in the repo graph" not in after.stdout:
+        return f"the hint disappeared once the graph went stale: {after.stdout!r}"
+    if "out of date" not in after.stdout:
+        return ("the graph is stale and the hook presented its neighbour list "
+                "as current — query.py reports it on stderr and the hook "
+                "captures stderr, so the warning has to be forwarded")
+    return None
+
+
+def case_generated_report_has_no_clock(t):
+    """Regenerating the report must be a no-op when the tree has not changed.
+
+    The report's own header says an empty `git diff` on regeneration is what
+    keeps it from being edited by hand. Adding a build timestamp to the graph
+    put a clock one careless line away from that file, and a generated document
+    that differs on every regeneration trains people to ignore its diff --
+    which costs exactly the property the header claims.
+
+    (No gate enforces that header's claim anywhere in this repository. This
+    case covers the index's half of it; the claim itself is still broader than
+    what is checked.)"""
+    tmp = make_repo(t, {"src/pay.py": "def pay():\n    return 1\n",
+                        "docs/x.md": "# X\n\nGoverns: src/\n"})
+
+    def regenerate():
+        out = sh([sys.executable, os.path.join(HERE, "build.py"), "--root", tmp,
+                  "--out", os.path.join(tmp, ".index", "graph.json"),
+                  "--report"], tmp)
+        if out.returncode != 0:
+            return None
+        with open(os.path.join(tmp, "docs", "generated", "index-report.md"),
+                  encoding="utf-8") as fh:
+            return fh.read()
+
+    first = regenerate()
+    if first is None:
+        return "build --report failed"
+    # Move every mtime, which is what the stamp is built from. Content is
+    # untouched, so the report must be byte-identical.
+    os.utime(os.path.join(tmp, "src", "pay.py"), (1, 1))
+    second = regenerate()
+    if first != second:
+        return ("the generated report changed when only mtimes did — "
+                "something time-dependent leaked into it")
+
+    # The comparison above is necessary and not sufficient. `built_at` has
+    # one-second resolution, so two regenerations this close carry the *same*
+    # clock value and a leaked timestamp would compare equal here -- passing
+    # while the property is broken. Check for the values directly as well.
+    with open(os.path.join(tmp, ".index", "graph.json"), encoding="utf-8") as fh:
+        st = json.load(fh)["meta"]["stamp"]
+    for field in ("built_at", "head"):
+        value = st.get(field)
+        if value and str(value) in second:
+            return (f"the generated report contains the graph's {field} — it "
+                    f"will differ on regeneration for reasons that are not "
+                    f"changes to the tree")
+    return None
+
+
 CASES = [
     ("symbol names are not merged into one hub", case_no_symbol_hub),
     ("a reference resolves to a later-scanned definition", case_forward_reference),
@@ -322,6 +479,12 @@ CASES = [
      case_benchmark_separates_signal_from_noise),
     ("both readers of Governs: scan the same window",
      case_governs_window_agrees_with_after_edit),
+    ("a stale graph is announced but still answers",
+     case_stale_graph_is_announced_but_still_answers),
+    ("the generated report has no clock in it",
+     case_generated_report_has_no_clock),
+    ("after_edit forwards the staleness it is told about",
+     case_after_edit_says_when_its_hint_is_stale),
 ]
 
 
