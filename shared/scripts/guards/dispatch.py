@@ -8,12 +8,17 @@ a rule is adding one file here.
     {
       "hooks": {
         "PreToolUse": [{
-          "matcher": "*",
+          "matcher": "Bash",
           "hooks": [{"type": "command",
                      "command": "python3 scripts/guards/dispatch.py"}]
         }]
       }
     }
+
+The matcher is "Bash" because every guard that ships here returns early on any
+other tool; paying an interpreter start on Read and Edit buys nothing. Widen it
+to "*" the first time you write a guard that judges a non-Bash call, and not
+before.
 
 Reads the hook payload as JSON on stdin. Exit codes:
 
@@ -25,6 +30,27 @@ error must not become an unbypassable wall across unrelated work, because a
 harness that blocks everything gets switched off within the hour and takes the
 working guards with it. The cost of failing open is that breakage is silent to
 the model -- which is why selftest.py belongs in the fast CI lane.
+
+## What a guard is not
+
+A guard is a *speed bump*, not a boundary. It pattern-matches the text of a
+proposed command, so `B=push; git $B origin main | tail` sails through, and it
+fails open by construction (above). Both are correct trade-offs for what it is
+for -- catching the mistake you were about to make by habit -- and both make it
+unfit for anything adversarial.
+
+So when a rule truly cannot tolerate a miss, a guard is the *third* line, not
+the first:
+
+    permissions.deny in .claude/settings.json   evaluated by the harness, not
+                                                by a regex we maintain
+    server-side branch protection, CI required  survives the laptop entirely
+    a guard here                                explains why, at the moment,
+                                                to whoever was about to do it
+
+The guard's real product is the paragraph on stderr. Prefer a deny rule for
+anything a deny rule can express; see no_protected_branch_push.py for the shape
+of a rule that genuinely cannot be expressed as one.
 
 Each guard module in this directory exposes:
 
