@@ -178,7 +178,7 @@ jobs:
       # Pinned in a requirements file rather than inline, so Dependabot can see
       # them. A version written into YAML is one nothing updates.
       - name: install the linters
-        run: python3 -m pip install --require-hashes=false -r .github/requirements-dev.txt
+        run: python3 -m pip install -r .github/requirements-dev.txt
 
       # Syntax, expression typing, and shellcheck over every `run:` block. It
       # was already clean when introduced; that is the point of adding it before
