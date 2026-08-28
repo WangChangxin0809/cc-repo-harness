@@ -39,9 +39,9 @@ need to look at what was dropped.
 ## The mechanics, by hand
 
 ```bash
-python3 <plugin>/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
 # the synthesis reads .consolidation/BRIEF.md and writes ONLY to .consolidation/candidate/
-python3 <plugin>/shared/scripts/consolidate.py diff
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py diff
 ```
 
 `prepare` copies and then chmods the snapshot read-only. That is not paranoia

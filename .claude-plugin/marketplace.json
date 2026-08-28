@@ -1,11 +1,14 @@
 {
   "name": "wangchangxin-plugins",
-  "owner": { "name": "WangChangxin0809" },
+  "owner": {
+    "name": "WangChangxin0809"
+  },
   "plugins": [
     {
       "name": "repo-agent-harness",
       "source": "./",
       "description": "Lay the foundation that makes a repository teach coding agents how to work in it, then get out of the way."
     }
-  ]
+  ],
+  "description": "Plugins by WangChangxin0809. Currently one: a repository-side harness for coding agents."
 }
