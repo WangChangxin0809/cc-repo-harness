@@ -61,15 +61,27 @@ better than both. `--hops 2` should be treated as an experiment, not a setting.
 
 ## Rejected
 
-- **Running RepoGraph's benchmark instead.** It is not a reusable benchmark; it
-  is an experiment bound to forks of Agentless and SWE-agent, measuring
-  end-to-end issue resolve rate with GPT-4o. Using it means plugging this index
-  into their forks and running 300 SWE-bench instances per arm — their own paper
-  reports 2–10 hours and $0.34–$2.69 per instance, so roughly $100–800 and a day
-  per configuration. That price buys one number about an agent, dominated by the
-  model, and cannot answer "is PageRank better than 1-hop *for this graph*"
-  without a full run per arm. It is the right instrument for their claim and the
-  wrong one for this question.
+- **Running RepoGraph's benchmark instead — the end-to-end half of it.**
+  RepoGraph's repository does ship SWE-bench integration: forks of Agentless and
+  SWE-agent, run over SWE-bench Lite. What it measures there is *issue resolve
+  rate with GPT-4o in the loop*. Using it means plugging this index into their
+  forks and running 300 instances per arm — their own paper reports 2–10 hours
+  and $0.34–$2.69 per instance, so roughly $100–800 and a day per configuration.
+  That price buys one number about an agent, dominated by the model, and cannot
+  answer "is PageRank better than 1-hop *for this graph*" without a full run per
+  arm. It is the right instrument for their claim and the wrong one for this
+  question.
+
+  The **dataset** underneath it is a different matter and is not rejected — see
+  *Revisit when*. SWE-bench Lite's (issue text → files the gold patch touched)
+  pairs need no model at all, and that is RepoGraph's Table 3. Their harness is
+  not reusable here; their corpus is.
+
+  Their instrument also could not answer this question even at unlimited budget.
+  RepoGraph is Python-only by construction (`tree_sitter_languages` over `.py`),
+  ranks nothing, and has no notion of documents governing code. Three of the four
+  things measured here — cross-language extraction, PageRank vs k-hop, and
+  `Governs:` edges — have no arm in their experiment to be compared against.
 - **Excluding nothing.** Unfiltered, `frequency` scores 0.5555 against
   PageRank's 0.2144 — but almost entirely on `CHANGES.rst`, which appears in 30%
   of Flask commits. A tool answering "you edited `blueprints.py`, also look at
@@ -97,7 +109,12 @@ different instrument entirely.
 
 - A localisation benchmark exists — seed from an issue's text, score against the
   files a real patch touched. That is RepoGraph's Table 3, it needs no model,
-  and it measures the task the index actually claims.
+  and it measures the task the index actually claims. SWE-bench Lite is the
+  corpus for it: 300 instances, each carrying an issue body and a gold patch,
+  every one of them a repository this index can build. The work is a loader and
+  a seeding rule, not a harness — and it is the one place this repository should
+  borrow from RepoGraph rather than reason past it. Cost is bounded by clone
+  time, because no model is involved.
 - The result reverses on a second repository. One corpus is one corpus, and
   Flask is small, flat, and changelog-heavy. If the graph beats churn on a large
   layered codebase, the conclusion here is about Flask, not about the index.

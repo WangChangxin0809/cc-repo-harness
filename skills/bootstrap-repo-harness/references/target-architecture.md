@@ -26,7 +26,7 @@ repo/
 │   ├── reference/             ◇ tables keyed for lookup; the glossary lives here
 │   ├── troubleshooting/       ◇ symptom → cause → action
 │   ├── decisions/               numbered · immutable · superseded, never edited
-│   │   ├── 0001-agent-harness.md  ◆ why this repo is shaped this way
+│   │   ├── 0001-agent-conventions.md  ◆ why this repo is shaped this way
 │   │   └── 00NN-….md          ◇ Supersedes: 0001
 │   ├── exec-plans/
 │   │   ├── tech-debt-tracker.md   ◆ permanent · found-in-passing goes here
@@ -78,7 +78,7 @@ must not enter the tree is a gate, and why the boundary sits where it does is a
 decision record. Security prose that is only prose is the clearest case of a
 rule with no reading trigger.
 
-**`docs/decisions/0001-agent-harness.md` is the closing act.** It records why
+**`docs/decisions/0001-agent-conventions.md` is the closing act.** It records why
 the repository has this shape. Without it the conventions survive as folklore,
 and folklore gets routed around within a quarter. With it, the next person can
 argue with the design instead of quietly abandoning it.

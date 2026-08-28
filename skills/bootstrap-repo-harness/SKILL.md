@@ -179,7 +179,7 @@ disk, and the synthesis wrote to a *different* path that you diffed.
 
 ### 7. Close by writing down why
 
-`docs/decisions/0001-agent-harness.md` — what was chosen, what was rejected,
+`docs/decisions/0001-agent-conventions.md` — what was chosen, what was rejected,
 what would have to become true to revisit it. Without it the conventions survive
 as folklore, and folklore gets routed around within a quarter. With it, the next
 person argues with the design instead of quietly abandoning it.
