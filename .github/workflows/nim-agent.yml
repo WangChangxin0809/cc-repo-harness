@@ -125,7 +125,7 @@ jobs:
               cat /tmp/proxy.log >&2
               exit 1
             fi
-            if (exec 3<>/dev/tcp/127.0.0.1/$PROXY_PORT) 2>/dev/null; then
+            if (exec 3<>"/dev/tcp/127.0.0.1/${PROXY_PORT}") 2>/dev/null; then
               echo "listening after ${i}s"; exit 0
             fi
             sleep 1
