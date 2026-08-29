@@ -169,8 +169,38 @@ def tool_calls_in(body):
     return message.get("tool_calls") or []
 
 
-def probe(base, key, model):
-    """One model's row: (verdict, seconds, detail).
+def probe(base, key, model, samples=3, pause=4.0):
+    """One model's row: (verdict, median seconds, hits, detail).
+
+    Sampled, because one probe is not a measurement of tool calling. gpt-oss-120b
+    called the tool correctly on one machine and answered in prose on a runner
+    minutes later, on the same prompt -- and it was the fastest candidate, so a
+    single sample would have promoted the one model that cannot be relied on.
+    Verdict is the majority: `pass` needs more than half the samples to call the
+    tool, and `flaky` is a distinct answer from both pass and prose."""
+    results, times, detail = [], [], ""
+    for i in range(samples):
+        if i:
+            time.sleep(pause)
+        verdict, secs, d = probe_once(base, key, model)
+        results.append(verdict)
+        if secs is not None:
+            times.append(secs)
+        # Keep the first non-passing explanation: a failure says more than a
+        # success, and the successes all say the same thing.
+        if verdict != "pass" or not detail:
+            detail = d
+    hits = results.count("pass")
+    median = sorted(times)[len(times) // 2] if times else None
+    if hits == samples:
+        return ("pass", median, hits, detail)
+    if hits:
+        return ("flaky", median, hits, detail)
+    return (results[0], median, 0, detail)
+
+
+def probe_once(base, key, model):
+    """(verdict, seconds, detail) for a single request.
 
     Verdict is pass / prose / error / unreachable. Kept separate from main()'s
     exit codes because a comparison wants every row, not the first refusal."""
@@ -193,29 +223,38 @@ def probe(base, key, model):
     return ("pass", secs, f"{fn.get('name')}({fn.get('arguments')})"[:70])
 
 
-def compare(base, key, names, pause):
-    """Rank candidates by whether they call tools, then by how fast.
+def compare(base, key, names, pause, samples):
+    """Rank candidates by whether they reliably call tools, then by how fast.
 
     A shared free tier rate-limits bursts, so this paces itself. That makes the
     run slow and the numbers honest; a burst would measure the throttle."""
     rows = []
+    print(f"  {'verdict':<9} {'tool':>5} {'median':>7}  model")
     for i, model in enumerate(names):
         if i:
             time.sleep(pause)
-        verdict, secs, detail = probe(base, key, model)
-        rows.append((model, verdict, secs, detail))
-        print(f"  {verdict:<11} {secs if secs is None else round(secs, 1):>6}s  "
-              f"{model:<40} {detail}")
+        verdict, secs, hits, detail = probe(base, key, model, samples, pause)
+        rows.append((model, verdict, secs, hits, detail))
+        shown = "  --  " if secs is None else f"{secs:6.1f}s"
+        print(f"  {verdict:<9} {hits:>2}/{samples} {shown}  {model:<40} {detail}")
 
     ok = sorted((r for r in rows if r[1] == "pass"), key=lambda r: r[2])
+    flaky = [r for r in rows if r[1] == "flaky"]
     print()
+    if flaky:
+        print("Flaky -- called the tool sometimes. Not usable as a harness "
+              "backend, and the reason one sample is not enough:")
+        for model, _, secs, hits, _ in flaky:
+            print(f"  {hits}/{samples}  {model}")
+        print()
     if not ok:
-        print("No candidate called a tool. None of these can drive a coding agent.")
+        print("No candidate called a tool on every sample. None of these can be "
+              "relied on to drive a coding agent.")
         return 1
-    print("Usable, fastest first:")
-    for model, _, secs, _ in ok:
+    print(f"Reliable ({samples}/{samples}), fastest first:")
+    for model, _, secs, _, _ in ok:
         print(f"  {secs:>6.1f}s  {model}")
-    print(f"\nPASS: {len(ok)}/{len(rows)} candidates call tools. "
+    print(f"\nPASS: {len(ok)}/{len(rows)} candidates call tools every time. "
           f"Fastest is {ok[0][0]} at {ok[0][2]:.1f}s.")
     return 0
 
@@ -225,7 +264,9 @@ def main():
     ap.add_argument("--compare", nargs="?", const=",".join(CANDIDATES), default="",
                     help="rank model ids against each other; bare flag uses CANDIDATES")
     ap.add_argument("--pause", type=float, default=6.0,
-                    help="seconds between candidates, to stay under the rate limit")
+                    help="seconds between requests, to stay under the rate limit")
+    ap.add_argument("--samples", type=int, default=3,
+                    help="probes per candidate; one is not a measurement")
     # `or`, not a get() default: CI sets these to the empty string when the
     # triggering event carries no inputs, and an empty string is present.
     ap.add_argument("--base-url", default=os.environ.get("NIM_BASE_URL") or DEFAULT_BASE)
@@ -251,8 +292,9 @@ def main():
         if unknown:
             print("FAIL: not in the catalogue: " + ", ".join(unknown), file=sys.stderr)
             return 1
-        print(f"comparing {len(names)} candidates, {a.pause}s apart\n")
-        return compare(a.base_url, key, names, a.pause)
+        print(f"comparing {len(names)} candidates, {a.samples} samples each, "
+              f"{a.pause}s apart\n")
+        return compare(a.base_url, key, names, a.pause, a.samples)
 
     print(f"model     {a.model}")
 
