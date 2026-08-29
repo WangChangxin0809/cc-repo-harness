@@ -1,4 +1,4 @@
-# 0000 — Constrain the top level, not the shape
+# 0019 — Constrain the top level, not the shape
 
 Date: 2026-08-29
 Status: accepted
