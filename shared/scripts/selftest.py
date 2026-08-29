@@ -209,6 +209,48 @@ def case_dry_run_describes_the_run_that_happens():
     return None
 
 
+def case_hooks_survive_the_working_directory_moving():
+    """Every wired hook must resolve from any directory, not just the root.
+
+    A hook runs in whatever directory Claude is currently in. That changes on a
+    `cd` and again inside a worktree, so a relative command silently stops
+    resolving -- and the way it fails is the trap. `python3 <missing>.py` exits
+    2, which is exactly the code Claude Code reads as *block*. So a broken path
+    does not quietly stop protecting; it blocks every matching tool call with an
+    unreadable "can't open file".
+
+    The Stop hook is worse. Its `stop_hook_active` short-circuit, the thing that
+    stops an unbreakable loop, lives inside the script that never runs. A
+    relative path there means the session cannot be ended at all -- the exact
+    failure that script's fail-open design exists to prevent, defeated from
+    outside it.
+
+    Asserts the placeholder is present rather than running the hooks, because
+    only Claude Code substitutes ${CLAUDE_PROJECT_DIR} and a test that
+    substituted it itself would be testing its own substitution."""
+    repo = fresh_repo()
+    try:
+        if scaffold(repo, "B").returncode != 0:
+            return "scaffold --tier B failed"
+        path = os.path.join(repo, ".claude", "settings.json")
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+
+        commands = [entry["command"]
+                    for matchers in cfg.get("hooks", {}).values()
+                    for matcher in matchers
+                    for entry in matcher.get("hooks", [])]
+        if not commands:
+            return "no hook commands were wired at all"
+        for command in commands:
+            if "${CLAUDE_PROJECT_DIR}" not in command:
+                return (f"hook command resolves relative to the working "
+                        f"directory: {command!r}")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    return None
+
+
 def case_personal_permission_grants_cannot_be_committed():
     """A scaffolded repository must never be able to commit settings.local.json.
 
@@ -336,6 +378,8 @@ CASES = [
      case_tier_a_ships_working_guards),
     ("--dry-run describes the run that actually happens",
      case_dry_run_describes_the_run_that_happens),
+    ("wired hooks survive the working directory moving",
+     case_hooks_survive_the_working_directory_moving),
     ("personal permission grants cannot be committed",
      case_personal_permission_grants_cannot_be_committed),
     ("the repository survives the plugin being deleted",

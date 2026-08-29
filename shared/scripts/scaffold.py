@@ -442,18 +442,29 @@ GUARDS_JSON = {
     "layering_allow": [],
 }
 
+# Every command references its script through ${CLAUDE_PROJECT_DIR}, never
+# relatively. A hook runs in whatever directory Claude is currently in, which
+# changes on a `cd` and again inside a worktree -- and `python3 <missing>.py`
+# exits 2, the same code Claude Code reads as *block*. So a relative path does
+# not quietly stop protecting: it blocks every matching tool call with an
+# unreadable "can't open file". For the Stop hook it is worse still, because the
+# stop_hook_active short-circuit lives inside the script that never runs, and
+# the session cannot be ended at all.
+#
+# Quoted because these are shell form; the docs ask for quotes around any path
+# placeholder there.
 HOOKS = {
     "PreToolUse": dict(matcher="Bash",
-                       command="python3 scripts/guards/dispatch.py"),
+                       command='python3 "${CLAUDE_PROJECT_DIR}/scripts/guards/dispatch.py"'),
     "SessionStart": dict(matcher="*",
-                         command="python3 scripts/context/session_brief.py"),
+                         command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py"'),
     "PostToolUse": dict(matcher="Edit|Write|MultiEdit",
-                        command="python3 scripts/context/after_edit.py"),
+                        command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/after_edit.py"'),
     # The last moment anything can be said to an agent. Every other hook fires
     # while work is happening; none covers finishing with the tree red, which
     # is the failure a person discovers later, from CI, after the agent is gone.
     "Stop": dict(matcher="*",
-                 command="python3 scripts/context/on_stop.py"),
+                 command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/on_stop.py"'),
 }
 
 # rel path -> (template, mode, minimum tier)
