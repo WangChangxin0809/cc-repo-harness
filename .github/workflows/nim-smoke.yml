@@ -1,0 +1,64 @@
+# Can a non-Claude provider drive the harness?
+#
+# Run by hand only. It spends somebody's API quota and needs a secret, so it has
+# no business firing on every push.
+#
+# This exists because the question cannot be answered from every desk. Some
+# networks put a sixty-second ceiling on a request, which takes every SSE
+# stream and every model slower than a minute, and leaves a hang that looks
+# exactly like a bad key. `eval/nim_smoke.py` returns 2 there rather than
+# guessing. A runner has no such ceiling, which makes it the instrument rather
+# than merely the host: the streaming leg cannot be measured anywhere else.
+name: nim-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model id on the provider"
+        # Not deepseek-v4-pro: it accepts a sixteen-token request and
+        # then holds the connection open for 61s before resetting it.
+        default: "nvidia/nemotron-3-super-120b-a12b"
+      base_url:
+        description: "OpenAI-shaped endpoint"
+        default: "https://integrate.api.nvidia.com"
+      stream:
+        description: "Also check the streaming path (agents stream)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to, where every later step can read it. Nothing here needs it.
+          persist-credentials: false
+
+      - name: Does the provider answer, and does it call tools?
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Empty on a push event; the script carries the same defaults, so
+          # leaving them unset is the same run rather than a degraded one.
+          NIM_BASE_URL: ${{ inputs.base_url }}
+          NIM_MODEL: ${{ inputs.model }}
+        run: |
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "cannot judge: NVIDIA_API_KEY secret is not set on this repository" >&2
+            exit 2
+          fi
+          python3 eval/nim_smoke.py --stream
+
+      - name: Which candidates call tools, and how fast?
+        # Ranking is worth having even when the chosen model passed, and worth
+        # having *especially* when it did not.
+        if: always()
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: python3 eval/nim_smoke.py --compare --pause 8

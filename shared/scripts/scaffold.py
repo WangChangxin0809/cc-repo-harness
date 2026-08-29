@@ -637,7 +637,17 @@ def merge_settings(root, wanted, made):
         # Keyed on the command, not the event: an event can hold several hooks
         # and re-running the scaffolder must add each missing one without
         # duplicating the ones already there.
-        if command in json.dumps(hooks.get(event, [])):
+        #
+        # Compared against the parsed structure and not against `json.dumps` of
+        # it. It was the latter, and that silently stopped working the day these
+        # commands gained quotes around `${CLAUDE_PROJECT_DIR}`: serialising
+        # turns the stored `"` into `\"`, so the raw command was never a
+        # substring of its own serialised form and every re-run appended a
+        # duplicate. Two guard dispatchers on one Bash call, two Stop hooks on
+        # one turn -- and the file still looked plausible.
+        if any(h.get("command") == command
+               for entry in hooks.get(event, []) or []
+               for h in entry.get("hooks", []) or []):
             continue
         hooks.setdefault(event, []).append({
             "matcher": matcher,

@@ -1,9 +1,9 @@
 version: 2
 
 # This repository ships no runtime dependencies, and that claim is enforced by
-# running the whole suite on 3.9 and 3.13 with an empty environment. So there
-# are exactly two things here that can rot, and both are third-party code that
-# runs with access to the repository.
+# running the whole suite on 3.9 and 3.13 with an empty environment. So the
+# things here that can rot are all third-party code that runs with access to
+# the repository, and each is pinned somewhere a human can read.
 
 updates:
   # Actions are pinned to commit SHAs, which is what makes them immutable and
@@ -34,4 +34,16 @@ updates:
     groups:
       linters:
         patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  # The agent under test, pinned in eval/agent/package-lock.json. It is not a
+  # runtime dependency of anything this plugin installs into a repository -- it
+  # is the subject of eval/, downloaded by a workflow that is dispatched by hand.
+  # Watched for the reason the linters are: a pin nothing updates becomes a
+  # version CI proves against that nobody runs, and an agent frozen a year back
+  # would measure the harness against an agent nobody uses.
+  - package-ecosystem: npm
+    directory: /eval/agent
+    schedule:
+      interval: weekly
     open-pull-requests-limit: 3

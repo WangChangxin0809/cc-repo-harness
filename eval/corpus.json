@@ -1,0 +1,215 @@
+{
+  "_comment": [
+    "The corpus is pinned, never vendored. Each entry names a repository and an",
+    "exact commit; eval/fetch.py clones them into eval/.work/, which is ignored.",
+    "Nine of these carry no licence at all, which makes redistribution not ours",
+    "to do -- and a frozen copy would stop being an unseen repository within a",
+    "few months anyway, which is the whole property being bought here."
+  ],
+  "selected_on": "2026-08-30",
+  "selection": {
+    "criterion": "small repositories built mainly by Claude Code",
+    "funnel": [
+      "3,919,287 commits on GitHub carry the 'Generated with Claude Code' trailer",
+      "300 distinct repositories, from that commit search plus a root-CLAUDE.md code search",
+      "297 alive: not a fork, not archived, pushed during 2026",
+      "65 small: <= 5 MB and with a language GitHub could name",
+      "20 kept: >= 50% of the last 100 commits carry the Claude Code trailer"
+    ],
+    "why_this_population": [
+      "It is the population the plugin is for: small projects that agents built",
+      "and that have to survive becoming large ones.",
+      "It also has a property no synthetic fixture has -- every one of these",
+      "already carries a CLAUDE.md somebody else wrote, and scaffold.py skips",
+      "files that exist. What the harness does to a repository that already has",
+      "the file it cares most about is untested, and this is where it shows."
+    ],
+    "deliberate_extremes": {
+      "CompendiumLabs/gum-org": "22 KB, 6 commits \u2014 the floor",
+      "daniliammo/Konda": "4.8 MB \u2014 the ceiling",
+      "ultimatixarup/asml-po-tracker": "14 commits, and its default branch is an agent-generated name"
+    }
+  },
+  "repos": [
+    {
+      "full_name": "ultimatixarup/asml-po-tracker",
+      "sha": "e011fa02f0a34a9bda472062c771e8fd3ae89b2f",
+      "default_branch": "claude/hello-world-whatsapp-agent-58ktb6",
+      "language": "TypeScript",
+      "size_kb": 157,
+      "licence": "NONE",
+      "claude_commit_share": "100% (14/14)"
+    },
+    {
+      "full_name": "benniehaelen/governed_metrics_demo",
+      "sha": "c3616fb36911dc9a8b1e5f0838ae46b73eddf42e",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 294,
+      "licence": "NONE",
+      "claude_commit_share": "100% (3/3)"
+    },
+    {
+      "full_name": "philoserf/t5chargen",
+      "sha": "6176ada47f4d09a8e3e5c51acc0b06b2f4167838",
+      "default_branch": "main",
+      "language": "Go",
+      "size_kb": 1751,
+      "licence": "NOASSERTION",
+      "claude_commit_share": "100% (100/100)"
+    },
+    {
+      "full_name": "Sanne/incus-spawn",
+      "sha": "59191aa8f3859ea1216cf61cabec69ec03e19243",
+      "default_branch": "main",
+      "language": "Java",
+      "size_kb": 3051,
+      "licence": "Apache-2.0",
+      "claude_commit_share": "99% (99/100)"
+    },
+    {
+      "full_name": "bmatusiak/rectify-webpack-react-nw-app",
+      "sha": "2034f400a0d2fa1b13b94c0b4d67991679657602",
+      "default_branch": "master",
+      "language": "JavaScript",
+      "size_kb": 3707,
+      "licence": "NONE",
+      "claude_commit_share": "98% (98/100)"
+    },
+    {
+      "full_name": "pjastam/ResearchVault",
+      "sha": "6bbe080dcd8b56e045778de8270a47a4c250c237",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 3473,
+      "licence": "MIT",
+      "claude_commit_share": "94% (94/100)"
+    },
+    {
+      "full_name": "tinkerindustries/claude-customisation",
+      "sha": "b66c2b3be177faba537af9319384caa4c45855c8",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 226,
+      "licence": "MIT",
+      "claude_commit_share": "89% (25/28)"
+    },
+    {
+      "full_name": "ethankwyap-stack/fantasy-edge",
+      "sha": "bedf88d2569d398bc6454e0f56cacdf74072b096",
+      "default_branch": "main",
+      "language": "JavaScript",
+      "size_kb": 1152,
+      "licence": "NONE",
+      "claude_commit_share": "86% (86/100)"
+    },
+    {
+      "full_name": "alraiani/aeria-seller-app",
+      "sha": "a08fbb45758a2ceaed40ac61792a6fa8e1417553",
+      "default_branch": "main",
+      "language": "C#",
+      "size_kb": 188,
+      "licence": "GPL-3.0",
+      "claude_commit_share": "83% (5/6)"
+    },
+    {
+      "full_name": "Synchronium/Debian.tips",
+      "sha": "86fd408820b089076a2745aabecae857ba99a8cf",
+      "default_branch": "main",
+      "language": "TypeScript",
+      "size_kb": 1996,
+      "licence": "NONE",
+      "claude_commit_share": "78% (78/100)"
+    },
+    {
+      "full_name": "Bonkey-Apps/bonkey-app-runners",
+      "sha": "f1f6e2e9284bbbf9c09dd21147b9f42f14dc1a0b",
+      "default_branch": "main",
+      "language": "HCL",
+      "size_kb": 334,
+      "licence": "NONE",
+      "claude_commit_share": "77% (20/26)"
+    },
+    {
+      "full_name": "daniliammo/Konda",
+      "sha": "efff148ac65b81b5ddeb7cea169ec7344eab70a8",
+      "default_branch": "main",
+      "language": "C",
+      "size_kb": 4820,
+      "licence": "GPL-3.0",
+      "claude_commit_share": "76% (76/100)"
+    },
+    {
+      "full_name": "danplischke/origofs",
+      "sha": "e6bcb580c4eb33148ab21984caf903ce9d1298ff",
+      "default_branch": "main",
+      "language": "Rust",
+      "size_kb": 2445,
+      "licence": "Apache-2.0",
+      "claude_commit_share": "75% (75/100)"
+    },
+    {
+      "full_name": "hugozhu/dingtalk-opencode-tag",
+      "sha": "171c82872a25413ff10a8fe12146944c8e8112fb",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 976,
+      "licence": "MIT",
+      "claude_commit_share": "74% (74/100)"
+    },
+    {
+      "full_name": "Dezodemius/resuming",
+      "sha": "e50e9e3f8a740f08a242335134de7aa757ad7cae",
+      "default_branch": "main",
+      "language": "HTML",
+      "size_kb": 2110,
+      "licence": "NOASSERTION",
+      "claude_commit_share": "69% (69/100)"
+    },
+    {
+      "full_name": "sai3000pro/ScaleUp",
+      "sha": "ce956f3c23f4c0609b4abe6f4a80b791054566d0",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 3852,
+      "licence": "NONE",
+      "claude_commit_share": "69% (31/45)"
+    },
+    {
+      "full_name": "MrJoy/claudebox",
+      "sha": "fdd0ac1fcca3fdf086edf5dc29c262558cd4d929",
+      "default_branch": "main",
+      "language": "Shell",
+      "size_kb": 711,
+      "licence": "NONE",
+      "claude_commit_share": "61% (59/96)"
+    },
+    {
+      "full_name": "Swih/mistral-mcp",
+      "sha": "c2bb12f27b793149cc14074b2b1141f86e5d5eac",
+      "default_branch": "main",
+      "language": "TypeScript",
+      "size_kb": 607,
+      "licence": "MIT",
+      "claude_commit_share": "52% (45/86)"
+    },
+    {
+      "full_name": "DevelopersCoffee/BrewPress",
+      "sha": "bd843ffb44d622e563e2b4bf4255fb7c9cec1ad1",
+      "default_branch": "main",
+      "language": "Python",
+      "size_kb": 367,
+      "licence": "Apache-2.0",
+      "claude_commit_share": "51% (29/57)"
+    },
+    {
+      "full_name": "CompendiumLabs/gum-org",
+      "sha": "4dd95e8db5e4d253ce7756213660449ab8a31486",
+      "default_branch": "master",
+      "language": "Shell",
+      "size_kb": 22,
+      "licence": "NONE",
+      "claude_commit_share": "50% (3/6)"
+    }
+  ]
+}

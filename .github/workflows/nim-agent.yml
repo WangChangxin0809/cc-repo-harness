@@ -1,0 +1,216 @@
+# Can a non-Claude model, behind a translating proxy, actually drive the agent?
+#
+# Run by hand. It spends API quota and installs a toolchain, so it has no
+# business firing on a push.
+#
+# The chain is provider -> proxy -> agent, and every link fails with the same
+# symptom at the far end: the agent does little and explains less. So each link
+# gets its own probe and its own step, in order, and a red run names the link
+# rather than the chain:
+#
+#   1. nim_smoke.py        does the provider return an OpenAI tool call?
+#   2. anthropic_smoke.py  does the proxy turn that into an Anthropic tool_use?
+#   3. claude -p           does the agent read a file it was not handed?
+#
+# Step 3 is deliberately the smallest real task rather than a repository
+# rewrite. "It edited nothing" and "it could not reach the model" look alike,
+# and a task with one observable outcome tells them apart.
+name: nim-agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Upstream model id on the provider"
+        default: "nvidia/nemotron-3-super-120b-a12b"
+      cc_switch_version:
+        description: "cc-switch-cli release tag"
+        default: "v5.10.3"
+
+permissions:
+  contents: read
+
+env:
+  # Pinned, like eval/corpus.json: a floating "latest" turns a red run into a
+  # question about which version was current that morning.
+  CC_SWITCH_VERSION: ${{ inputs.cc_switch_version || 'v5.10.3' }}
+  UPSTREAM_MODEL: ${{ inputs.model || 'nvidia/nemotron-3-super-120b-a12b' }}
+  PROXY_PORT: "8788"
+  # Keep cc-switch's state inside the workspace: it is a build artefact of this
+  # run, not something to leave in a home directory a later step might read.
+  CC_SWITCH_CONFIG_DIR: ${{ github.workspace }}/.cc-switch
+
+jobs:
+  drive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to, where every later step can read it. Nothing here needs it.
+          persist-credentials: false
+
+      - name: Guard -- a secret we do not have makes every later step a lie
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "cannot judge: NVIDIA_API_KEY is not set on this repository" >&2
+            exit 2
+          fi
+          echo "secret present"
+
+      - name: 1. Does the provider return a tool call?
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NIM_MODEL: ${{ env.UPSTREAM_MODEL }}
+        run: python3 eval/nim_smoke.py --stream
+
+      - name: Install cc-switch-cli
+        run: |
+          set -euo pipefail
+          url="https://github.com/SaladDay/cc-switch-cli/releases/download/${CC_SWITCH_VERSION}/cc-switch-cli-linux-x64-musl.tar.gz"
+          echo "fetching $url"
+          curl -fsSL --retry 3 -o /tmp/ccs.tar.gz "$url"
+          mkdir -p /tmp/ccs && tar -xzf /tmp/ccs.tar.gz -C /tmp/ccs
+          # No -perm test: this archive ships the binary without the executable
+          # bit, and `install -m755` is what grants it anyway. Filtering on a
+          # mode the tarball never carried rejected the file it was looking for.
+          bin="$(find /tmp/ccs -type f -name 'cc-switch*' | head -1)"
+          if [ -z "$bin" ]; then
+            echo "the archive contained no cc-switch binary; it holds:" >&2
+            find /tmp/ccs -type f | head -20 >&2
+            exit 1
+          fi
+          file "$bin"
+          install -m755 "$bin" /usr/local/bin/cc-switch
+          cc-switch --version
+
+      - name: Point cc-switch at the provider, in OpenAI-translation mode
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$CC_SWITCH_CONFIG_DIR"
+          # --api-format openai_chat is the whole trick: it tells the proxy to
+          # accept Anthropic Messages and speak OpenAI chat completions upstream.
+          # Every Claude model role maps to the one model we actually have, so
+          # the agent's choice of Haiku for a cheap subtask cannot 404.
+          cc-switch --app claude provider add \
+            --name nvidia --id nvidia \
+            --base-url "https://integrate.api.nvidia.com" \
+            --api-key "$NVIDIA_API_KEY" \
+            --api-format openai_chat \
+            --model         "$UPSTREAM_MODEL" \
+            --haiku-model   "$UPSTREAM_MODEL" \
+            --sonnet-model  "$UPSTREAM_MODEL" \
+            --opus-model    "$UPSTREAM_MODEL"
+          cc-switch --app claude provider switch nvidia
+          cc-switch --app claude provider current
+          cc-switch --app claude proxy show || true
+
+      - name: Start the proxy and wait for it to listen
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          set -euo pipefail
+          nohup cc-switch --app claude proxy serve \
+            --listen-address 127.0.0.1 \
+            --listen-port "$PROXY_PORT" \
+            --takeover claude > /tmp/proxy.log 2>&1 &
+          echo $! > /tmp/proxy.pid
+          # Poll rather than sleep: a fixed sleep is either flaky or slow, and
+          # a proxy that died on startup should be reported as dead, not as a
+          # timeout thirty seconds later.
+          for i in $(seq 1 40); do
+            if ! kill -0 "$(cat /tmp/proxy.pid)" 2>/dev/null; then
+              echo "the proxy exited during startup; its log:" >&2
+              cat /tmp/proxy.log >&2
+              exit 1
+            fi
+            if (exec 3<>"/dev/tcp/127.0.0.1/${PROXY_PORT}") 2>/dev/null; then
+              echo "listening after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "nothing listening on $PROXY_PORT after 40s; log:" >&2
+          cat /tmp/proxy.log >&2
+          exit 1
+
+      - name: 2. Does the proxy return an Anthropic tool_use?
+        env:
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          python3 eval/anthropic_smoke.py \
+            --base-url "http://127.0.0.1:${PROXY_PORT}" \
+            --model "$UPSTREAM_MODEL" \
+            --stream
+
+      - name: Install Claude Code
+        run: |
+          set -euo pipefail
+          # From eval/agent/package-lock.json, not a version written here: the
+          # same argument .github/requirements-dev.txt makes about the Python
+          # linters. A version in YAML is invisible to Dependabot and sits stale
+          # forever, and the agent is the dependency where a silent change is
+          # hardest to notice -- a behaviour change in the thing under test looks
+          # exactly like a finding about the thing under test.
+          #
+          # Scripts run: the package picks its platform binary from an optional
+          # dependency in a postinstall hook, so --ignore-scripts installs an
+          # agent that cannot start. The lockfile's integrity hashes are what
+          # make that acceptable.
+          npm ci --prefix eval/agent --no-audit --no-fund
+          echo "$GITHUB_WORKSPACE/eval/agent/node_modules/.bin" >> "$GITHUB_PATH"
+          eval/agent/node_modules/.bin/claude --version
+
+      - name: 3. Does the agent do a small real task?
+        env:
+          ANTHROPIC_BASE_URL: http://127.0.0.1:8788
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_MODEL: ${{ env.UPSTREAM_MODEL }}
+          ANTHROPIC_SMALL_FAST_MODEL: ${{ env.UPSTREAM_MODEL }}
+          DISABLE_TELEMETRY: "1"
+          DISABLE_ERROR_REPORTING: "1"
+        run: |
+          set -uo pipefail
+          work=$(mktemp -d)
+          # A task with exactly one observable outcome, whose answer is not in
+          # the prompt: the agent has to use a tool to learn it. A summarise-
+          # this task would be passed by a model that ignored every tool.
+          printf 'zarquon-7741\n' > "$work/needle.txt"
+          echo "unrelated" > "$work/decoy.txt"
+
+          cd "$work"
+          set +e
+          timeout 300 claude -p \
+            'Read needle.txt in the current directory and write its exact contents into a new file called answer.txt. Do not guess.' \
+            --dangerously-skip-permissions \
+            --max-turns 12 > /tmp/agent.log 2>&1
+          rc=$?
+          set -e
+          echo "--- claude exit $rc, transcript ---"
+          tail -60 /tmp/agent.log
+
+          echo "--- verdict ---"
+          if [ ! -f answer.txt ]; then
+            echo "FAIL: the agent produced no answer.txt" >&2
+            ls -la
+            exit 1
+          fi
+          if grep -q "zarquon-7741" answer.txt; then
+            echo "PASS: the agent read a file it was not handed and wrote what it found."
+            echo "      This model can drive the harness."
+          else
+            echo "FAIL: answer.txt exists but does not carry the value:" >&2
+            cat answer.txt >&2
+            exit 1
+          fi
+
+      - name: Proxy log, whatever happened
+        if: always()
+        run: |
+          echo "--- proxy ---"; tail -80 /tmp/proxy.log 2>/dev/null || echo "(none)"
+          kill "$(cat /tmp/proxy.pid)" 2>/dev/null || true
