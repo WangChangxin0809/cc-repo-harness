@@ -1,0 +1,55 @@
+# Can a non-Claude provider drive the harness?
+#
+# Run by hand only. It spends somebody's API quota and needs a secret, so it has
+# no business firing on every push.
+#
+# This exists because the question cannot be answered from every desk. A network
+# that permits `GET /v1/models` and drops `POST /v1/chat/completions` produces a
+# hang indistinguishable from a bad key; `eval/nim_smoke.py` returns 2 there
+# rather than guessing. A GitHub runner has no such filter, which makes it the
+# instrument rather than merely the host.
+name: nim-smoke
+
+on:
+  # TEMPORARY, removed before this branch merges: workflow_dispatch is only
+  # triggerable once the file sits on the default branch, and the point of the
+  # run is to decide whether the file should go there at all.
+  push:
+    branches: [exec-plan-folders]
+    paths: [".github/workflows/nim-smoke.yml", "eval/nim_smoke.py"]
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model id on the provider"
+        default: "deepseek-ai/deepseek-v4-pro-0813"
+      base_url:
+        description: "OpenAI-shaped endpoint"
+        default: "https://integrate.api.nvidia.com"
+      stream:
+        description: "Also check the streaming path (agents stream)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Does the provider answer, and does it call tools?
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          # Empty on a push event; the script carries the same defaults, so
+          # leaving them unset is the same run rather than a degraded one.
+          NIM_BASE_URL: ${{ inputs.base_url }}
+          NIM_MODEL: ${{ inputs.model }}
+        run: |
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "cannot judge: NVIDIA_API_KEY secret is not set on this repository" >&2
+            exit 2
+          fi
+          python3 eval/nim_smoke.py --stream
