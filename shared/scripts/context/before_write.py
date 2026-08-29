@@ -65,7 +65,17 @@ because nothing else delivers it.
   subprocess (`python build.py`) is invisible. The native loader recovers zero
   paths from Bash, so best-effort is strictly more than nothing, and strictly
   less than exact.
-- **Injected context does not survive compaction the way a loaded rule does.**
+- **It says a thing once per session, and does not repeat it after a
+  compaction.** A path-scoped rule that Claude Code loaded reappears the next
+  time a matching file is read; an injected one does not, and the dedup state
+  is keyed on the session, which outlives the context window.
+
+  That is a decision, not an oversight. Repeating is the main way a hook stops
+  being read, and the alternative -- re-announcing whenever the context might
+  have dropped -- trades a rare miss for a constant noise. The miss is also
+  already covered: a convention lost this way produces a wrong file, and a
+  wrong file is what gates are for. Delivery is best-effort by construction and
+  nothing load-bearing should be resting on it.
 
 ## Why `additionalContext` and not stdout
 
