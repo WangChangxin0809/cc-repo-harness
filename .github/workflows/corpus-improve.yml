@@ -183,13 +183,18 @@ jobs:
           # that a quoted expansion is not a defence.
           ONLY: ${{ inputs.only }}
           TURNS: ${{ inputs.turns || '40' }}
-          NO_AGENT: ${{ inputs.agent && '' || '--no-agent' }}
+          # The boolean itself, decided in bash. Written as a pseudo-ternary
+          # -- `inputs.agent && '' || '--no-agent'` -- it always yielded
+          # '--no-agent', because the true branch is the empty string and the
+          # empty string is falsy, so `||` took over every time. The workflow's
+          # entire purpose would have silently never run.
+          AGENT: ${{ inputs.agent }}
         run: |
-          # An array, because the flag has to vanish when it is empty and a
-          # quoted empty string is an argument. Unquoted $NO_AGENT does vanish
-          # and is a shellcheck finding for the reason that it also word-splits.
+          # An array, because the flag has to vanish entirely when it is not
+          # wanted: a quoted empty string is still an argument, and an unquoted
+          # variable word-splits.
           args=(--only "$ONLY" --turns "$TURNS")
-          [ -n "$NO_AGENT" ] && args+=("$NO_AGENT")
+          [ "$AGENT" = "true" ] || args+=(--no-agent)
           python3 eval/improve.py "${args[@]}"
 
       - name: Everything this run learned, whatever happened to it
