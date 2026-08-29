@@ -48,6 +48,7 @@ the first question, because the answer changes who is affected.
 ```bash
 python3 shared/scripts/guards/selftest.py     # guards can still turn red
 python3 shared/scripts/gates/selftest.py      # gates can still turn red
+python3 shared/scripts/context/selftest.py    # hooks still reach the model
 python3 shared/scripts/selftest.py            # scaffold reaches green, outlives the plugin
 python3 shared/scripts/probe_repo.py --root . # what this repo has and lacks
 claude plugin validate . --strict             # the manifest, by the first-party checker

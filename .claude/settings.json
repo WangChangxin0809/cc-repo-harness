@@ -9,6 +9,15 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/guards/dispatch.py\""
           }
         ]
+      },
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/before_write.py\""
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -22,17 +31,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/after_edit.py\""
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "matcher": "*",
@@ -41,6 +39,17 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/on_stop.py\"",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "matcher": "path_glob_match",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/before_write.py\""
           }
         ]
       }

@@ -124,7 +124,7 @@ def last_commit_time(root, path):
 
 
 def covers(target, rel):
-    """Same segment-aware rule as index/build.py and context/after_edit.py.
+    """Same segment-aware rule as index/build.py and context/before_write.py.
 
     Prefix matching would make `Governs: src/bill` cover `src/billing_old/`, and
     an over-broad claim reads as though somebody documented that code."""

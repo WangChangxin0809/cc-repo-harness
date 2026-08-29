@@ -76,7 +76,7 @@ def divergence(root, g):
 def report_divergence(root, g, seeds, stream=sys.stderr):
     """Say how stale the graph is, and never refuse because of it.
 
-    Refusing was the first design and it is wrong. `after_edit.py` queries this
+    Refusing was the first design and it is wrong. the delivering hook queries this
     on PostToolUse -- immediately after an edit -- so the file the agent just
     touched is always among the changed ones. A staleness check that exits
     non-zero there would silence the hint for the entire rest of the session,

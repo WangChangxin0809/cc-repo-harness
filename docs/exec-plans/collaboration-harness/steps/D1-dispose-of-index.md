@@ -49,7 +49,7 @@ Not everything in `index/` is the graph.
 
 ## What has to happen before the delete
 
-The component has readers. `repo-index` is a skill that teaches it, `after_edit`
+The component has readers. `repo-index` is a skill that teaches it, `before_write`
 calls into it, `scaffold.py` ships it, `ci.sh` runs its selftest, and the
 generated report is referenced from documents. Deleting the code and leaving any
 of those is worse than leaving all of it — a skill teaching a component that no
@@ -64,7 +64,7 @@ invisible instead of resolved.
 - [ ] D2 has landed: one `Governs:` implementation, and it is not this one
 - [ ] A decision record exists carrying the argument above, including the
       benchmark result
-- [ ] Every reader is updated or removed: `repo-index`, `after_edit`,
+- [ ] Every reader is updated or removed: `repo-index`, `before_write`,
       `scaffold.py`'s COPY table, `ci.sh`, docs routing
 - [ ] The PostToolUse-staleness finding has landed in F2's guidance
 - [ ] Full suite green with the directory gone

@@ -5,7 +5,7 @@ description: Write or restructure documentation that agents and people actually 
 
 # Writing docs an agent will actually use
 
-Governs: shared/scripts/context/after_edit.py
+Governs: shared/scripts/context/before_write.py
 
 A document is read because something happened. That event is its **reading
 trigger**, and it decides everything: where the file goes, how long it may be,
@@ -208,9 +208,20 @@ A declared pair is the only thing that makes that mechanically detectable: this
 document claims to describe that path, so when the path moves and the document
 does not, something can say so. It buys two things:
 
-- **Delivery at the one instant it matters.** A `PostToolUse` hook
-  (`scripts/context/after_edit.py`) says *"docs/billing.md governs this file"*
-  the moment the file is edited. Nothing else in the harness can do that.
+- **Delivery at the one instant it matters.** A `PreToolUse` hook
+  (`scripts/context/before_write.py`) says *"docs/billing.md governs this path"*
+  **before** the write, alongside any `.claude/rules/` scoped to it. Nothing
+  else in the harness can do that — and two corrections are owed here, both
+  measured. It ran on `PostToolUse` and delivered *after* the file was already
+  written, which is the wrong half of the moment: creating a file is when a
+  convention is worth most. And it printed to stdout, which on every event
+  except `UserPromptSubmit`, `UserPromptExpansion` and `SessionStart` goes to
+  the debug log — so for its whole life it delivered nothing to anybody. The
+  channel is `hookSpecificOutput.additionalContext`.
+
+  It advises; it does not prevent. Measured, the first write lands wrong and
+  the agent corrects on the retry. A rule that must not be violated belongs in
+  a guard, which can refuse.
 - **A checkable claim.** See `drift.py` below.
 
 Be honest about the standing of this: **no measured work exists on declared
