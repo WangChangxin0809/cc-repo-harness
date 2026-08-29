@@ -35,7 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to, where every later step can read it. Nothing here needs it.
+          persist-credentials: false
 
       - name: Does the provider answer, and does it call tools?
         env:
