@@ -26,6 +26,9 @@ on:
       cc_switch_version:
         description: "cc-switch-cli release tag"
         default: "v5.10.3"
+      claude_code_version:
+        description: "@anthropic-ai/claude-code version"
+        default: "2.1.251"
 
 permissions:
   contents: read
@@ -35,6 +38,7 @@ env:
   # question about which version was current that morning.
   CC_SWITCH_VERSION: ${{ inputs.cc_switch_version || 'v5.10.3' }}
   UPSTREAM_MODEL: ${{ inputs.model || 'nvidia/nemotron-3-super-120b-a12b' }}
+  CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version || '2.1.251' }}
   PROXY_PORT: "8788"
   # Keep cc-switch's state inside the workspace: it is a build artefact of this
   # run, not something to leave in a home directory a later step might read.
@@ -150,7 +154,10 @@ jobs:
       - name: Install Claude Code
         run: |
           set -euo pipefail
-          npm install -g @anthropic-ai/claude-code
+          # Pinned like everything else here. An unpinned agent is the one
+          # dependency whose behaviour change would look exactly like a finding.
+          npm install -g --ignore-scripts \
+            "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
           claude --version
 
       - name: 3. Does the agent do a small real task?
