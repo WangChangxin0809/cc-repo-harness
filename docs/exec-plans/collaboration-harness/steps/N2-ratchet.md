@@ -66,8 +66,8 @@ absolute ones are checks over actions.
 
 **How the baseline is established without becoming a dumping ground.** A file
 that anyone can append to is not a ratchet. Growing it has to be a visible,
-reviewed act — and by the same argument as `<!-- unrouted: reason -->`, an entry
-without a stated reason becomes a blanket exemption.
+reviewed act — and by the same argument that makes the unrouted-document
+exemption carry a reason, an entry without one becomes a blanket exemption.
 
 ## Done when
 

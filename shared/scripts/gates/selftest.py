@@ -368,6 +368,25 @@ CASES = [
             write(t, "docs/exec-plans/demo/steps/02-unlinked.md", "# Unlinked\n")),
     ),
 
+    dict(
+        gate="check_docs_layout.py",
+        # The failure that actually happened to OpenStack's seventh repository:
+        # `configuration/` became `config/`, nothing broke that day, and both
+        # spellings accumulated documents. Here it is `decisions/` forking to
+        # `adr/` -- the most likely fork, since `docs/adr` is about twice as
+        # common on GitHub as `docs/decisions`.
+        why="a required bucket renamed to a common variant",
+        needle="fork a required name",
+        plant=lambda t: write(t, "docs/adr/0001-something.md",
+                              "# 0001 — Something\n\nStatus: accepted\n"),
+    ),
+    dict(
+        gate="check_docs_layout.py",
+        why="a document loose at the top of docs/",
+        needle="loose at the top",
+        plant=lambda t: write(t, "docs/notes.md", "# Notes\n\nStray.\n"),
+    ),
+
     # --- negative controls ---------------------------------------------------
     # Each gate needs at least one of these, and coverage_gaps() below enforces
     # it. Without one, a gate that flagged *everything* would show a perfect row
@@ -412,6 +431,22 @@ CASES = [
                   "- [ ] todo [second](steps/02-second.md)\n"),
             write(t, "docs/exec-plans/demo/steps/01-first.md", "# First\n"),
             write(t, "docs/exec-plans/demo/steps/02-second.md", "# Second\n")),
+    ),
+    dict(
+        gate="check_docs_layout.py",
+        # Pins the half of the rule that is easy to lose. Only the top level is
+        # fixed; additions are legitimate once routed, which is how OpenStack's
+        # conformers all carried project-specific directories alongside the
+        # mandated ones. A gate that rejected every addition would be enforcing
+        # a rule nobody agreed to, and would be switched off within a month.
+        why="an added top-level directory that the index routes",
+        needle=None,
+        plant=lambda t: (
+            write(t, "docs/index.md",
+                  "# docs\n\n| I want to | Read | Edit |\n|---|---|---|\n"
+                  "| a thing | [how](how-to/thing.md) | src/ |\n"
+                  "| the shape of it | [arch](explanation/shape.md) | src/ |\n"),
+            write(t, "docs/explanation/shape.md", "# Shape\n\nWhy it is so.\n")),
     ),
     dict(
         gate="check_layering.py",

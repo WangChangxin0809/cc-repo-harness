@@ -32,6 +32,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 shared/scripts/context/on_stop.py",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   }
 }

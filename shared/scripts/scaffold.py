@@ -113,10 +113,21 @@ INDEX_MD = """\
 |---|---|---|
 | `how-to/` | I need to do a thing | Ordered steps: action → command → criterion |
 | `reference/` | I need to look up a fact | Tables and rules, keyed for lookup |
-| `troubleshooting/` | I hit a symptom | Symptom → cause → action |
-| `decisions/` | Why is it like this? | Numbered, immutable, superseded not edited |
+| `decisions/` | Why is it like this? | Numbered from the PR, superseded not edited |
 | `exec-plans/` | What are we in the middle of? | One folder per plan: `README.md` owns state, `steps/` owns substance |
-| `generated/` | What is it right now? | Written from a truth source, never by hand |
+
+**This top level is fixed; inside each directory, organise however suits the
+material.** `scripts/gates/check_docs_layout.py` holds the top level and checks
+nothing below it. A directory that forks a required name — `adr/`, `howto/`,
+`plans/` — is an error even when routed, because two spellings of one bucket
+both accumulate documents and merging them later is a migration. Additions are
+fine once a row below routes into them.
+
+Two things are deliberately not directories. **A symptom and its fix belong in
+the failure output** of the guard or gate that detects it, not in a file nobody
+opens while stuck. **Generated is a property**: such a file lives where its
+content belongs and declares its source in its own first line, and the gate is
+that regenerating leaves an empty `git diff`.
 
 A plan past a few steps is a folder, not a file. `README.md` carries the goal,
 the abort condition, and every step's state; a step earns its own file under
@@ -352,6 +363,7 @@ run fast "gates can still turn red"  python3 scripts/gates/selftest.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
+run fast "docs top level"            python3 scripts/gates/check_docs_layout.py
 run fast "documented commands run"   python3 scripts/gates/check_docs_runnable.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
 
@@ -437,6 +449,11 @@ HOOKS = {
                          command="python3 scripts/context/session_brief.py"),
     "PostToolUse": dict(matcher="Edit|Write|MultiEdit",
                         command="python3 scripts/context/after_edit.py"),
+    # The last moment anything can be said to an agent. Every other hook fires
+    # while work is happening; none covers finishing with the tree red, which
+    # is the failure a person discovers later, from CI, after the agent is gone.
+    "Stop": dict(matcher="*",
+                 command="python3 scripts/context/on_stop.py"),
 }
 
 # rel path -> (template, mode, minimum tier)
@@ -460,10 +477,18 @@ PLAN = [
 DIRS = [
     ("docs/how-to", "A"),
     ("docs/reference", "A"),
-    ("docs/troubleshooting", "B"),
-    ("docs/generated", "B"),
     ("scripts/selftests", "B"),
     ("scripts/baselines", "B"),
+]
+
+# Context scripts: hook-wired, copied one file at a time rather than by
+# directory, because `context/` also holds things a target repository has no use
+# for. One list feeds the dry run, the writer and the hook wiring -- when this
+# was two code paths, a tier A `--dry-run` promised a file the real run never
+# wrote.
+CONTEXT_SCRIPTS = [
+    ("after_edit.py", "PostToolUse", "B"),
+    ("on_stop.py", "Stop", "B"),
 ]
 
 # source dir under this script -> destination under the repo, minimum tier
@@ -571,8 +596,10 @@ def main():
             if at_least(a.tier, floor)]
     dirs = [d for d, floor in DIRS if at_least(a.tier, floor)]
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
-    events = ["PreToolUse", "SessionStart"] + (
-        ["PostToolUse"] if at_least(a.tier, "B") else [])
+    context_scripts = [(name, floor) for name, _, floor in CONTEXT_SCRIPTS
+                       if at_least(a.tier, floor)]
+    events = ["PreToolUse", "SessionStart"] + [
+        event for _, event, floor in CONTEXT_SCRIPTS if at_least(a.tier, floor)]
 
     if a.dry_run:
         print(f"would scaffold tier {a.tier} into {root}:")
@@ -585,12 +612,10 @@ def main():
             n = len([f for f in os.listdir(os.path.join(HERE, src))
                      if f.endswith(".py")])
             print(f"  {'COPY':<14} {dst}/  ({n} files)")
-        # Gated exactly as the real run below is. It was not, and printed this
-        # line at every tier -- so a tier A `--dry-run` promised a file the
-        # actual run never wrote. A preview whose only job is to be trusted
-        # before you approve it must not describe a different run.
-        if at_least(a.tier, "B"):
-            print(f"  {'NEW':<14} scripts/context/after_edit.py")
+        # Driven by the same list as the real run. A preview whose only job is
+        # to be trusted before you approve it must not describe a different run.
+        for name, _ in context_scripts:
+            print(f"  {'NEW':<14} scripts/context/{name}")
         print(f"  {'MERGE':<14} .claude/settings.json  (+{', '.join(events)})")
         return 0
 
@@ -620,15 +645,16 @@ def main():
             os.chmod(target, 0o755)
             made.append(("NEW", rel, ""))
 
-    if at_least(a.tier, "B"):
-        target = os.path.join(root, "scripts", "context", "after_edit.py")
+    for name, _ in context_scripts:
+        target = os.path.join(root, "scripts", "context", name)
+        rel = os.path.relpath(target, root)
         if os.path.exists(target):
-            made.append(("SKIP", os.path.relpath(target, root), "already exists"))
-        else:
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.copy(os.path.join(HERE, "context", "after_edit.py"), target)
-            os.chmod(target, 0o755)
-            made.append(("NEW", "scripts/context/after_edit.py", ""))
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(HERE, "context", name), target)
+        os.chmod(target, 0o755)
+        made.append(("NEW", rel, ""))
 
     merge_settings(root, events, made)
 
