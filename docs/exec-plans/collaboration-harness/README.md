@@ -1,23 +1,75 @@
 # Collaboration harness
 
-Goal, two halves. Both on one large repository with several people on it, and
-both measured by `claude plugin eval --ablation with-without` rather than
-asserted.
+**Give a small project the capacity to survive becoming a large one, worked
+purely by agents.**
 
-**Awareness** — each person's agent knows what the others moved underneath it,
-before it acts, without being asked, and that knowing changes the outcome.
+The intervention point is when the repository is small. What it buys is the
+ability to absorb many concurrent agents later without the codebase losing
+coherence — which is a property the repository has to already possess by the
+time it needs it, because nobody adds it under load.
 
-**Convergence** — two people adding the same kind of thing independently produce
+## Why this is the gap
+
+Orchestration is solved and open: OpenAI's [Symphony](https://github.com/openai/symphony)
+spec runs an issue tracker as the control plane, gives every issue its own agent
+and its own isolated workspace, and polls continuously so no human assigns work.
+Its §5 is called *Repository Contract*, and what it asks of the repository is a
+root `WORKFLOW.md` holding tracker config and a prompt template. That is all.
+
+So **Symphony scales the number of agents, and nothing scales the repository's
+ability to absorb them.** At one agent a messy repository is survivable, because
+a person reviews. At twenty concurrent agents opening pull requests, the
+repository's own conventions are the only thing still holding coherence — human
+attention is precisely what the orchestrator removed. Symphony reports a 500%
+increase in landed pull requests; landed pull requests is also the metric that
+rises when review is removed, so read that as 500% more entropy arriving at one
+tree.
+
+Symphony is cited here as evidence of the shape of the problem, not as an
+integration target. **This plugin is for Claude Code**: the agents in every
+claim below are Claude Code agents, the entry file is `CLAUDE.md`, and the
+delivery moments are Claude Code's hooks. What Symphony demonstrates is that the
+orchestration half is solved and open while the repository half is specified as
+a prompt template — and that emptiness is the same whichever agent fills the
+slots.
+
+## The two halves, restated against concurrent agents
+
+**Awareness** — an agent knows what landed underneath it since its workspace was
+cut, before it acts, without being asked, and that knowing changes the outcome.
+Under Symphony this is structural rather than occasional: workspaces are cut
+from a base and merged later, so *every* agent past the first is working against
+a tree that has moved.
+
+**Convergence** — two agents given the same kind of task independently produce
 the same shape, and where they do not, a check says so before merge. The metric
-here is *variance between runs*, not score: guidance that standardises makes
-independent runs resemble each other, and that is visible in a way "was the
-answer good" is not.
+is *variance between runs*, not score. This matters more here than under human
+collaboration, because the people who would have noticed two divergent solutions
+are the ones the orchestrator took out of the loop.
 
-Abort if: the with/without delta is indistinguishable on a real
-multi-contributor repository. Then push has no measured value at any moment,
-what survives is guards, gates and declared relations, and the rest gets a
-decision record and a deletion — the same treatment `index/` is getting below
-for the same reason.
+## What concurrency actually breaks
+
+The failure modes are enumerable rather than collected, which is why this plan
+no longer waits on a corpus:
+
+| Two agents, one base | Caught by | Where |
+|---|---|---|
+| Solve the same problem two different ways | guidance, and variance measurement | phase F |
+| B's workspace predates A's merge | the SessionStart delta | B1 |
+| Both edit one file | git, for free | already solved |
+| **Touch no common file, contradict each other in meaning** | `Governs:` pairs, `drift.py` | **nothing catches this today** |
+| Each invents its own convention | gates | already built |
+
+Row four is the one CI cannot see and the one that only exists under
+concurrency — a single agent never contradicts itself across two workspaces. It
+is the strongest argument the declared-relation half of this harness has, and it
+has never been tested, because we have never run two agents at once.
+
+Abort if: with the delta delivered, concurrent agents on a scaffolded repository
+are no more coherent than concurrent agents without it. Then push has no
+measured value at any moment; what survives is guards, gates and declared
+relations, and the rest gets a decision record and a deletion — the same
+treatment `index/` is getting below, for the same reason.
 
 ## How this folder works
 
@@ -56,15 +108,61 @@ Phase F is the exception and is listed last only because it is longest. It does
 not depend on the claim, so it survives the abort branch intact — which means a
 negative result costs four phases rather than everything.
 
+**Phase A was blocked and is not any more, and the reason is worth keeping.**
+While the collaborators were assumed to be people, the subject had to be a real
+multi-contributor repository with concurrent history, and the cases had to come
+from a corpus of real collaboration failures nobody had collected. Both were
+genuine blockers and neither dissolves by thinking harder. Agents remove both:
+concurrency can be *generated* — N issues, N agents, one base — so the history
+is reproducible instead of excavated, and the failure modes are enumerable (the
+table above) instead of gathered. The measurement problem was never hard; the
+wrong collaborator was assumed.
+
+## The eval ladder
+
+Four rungs, cheapest first, each able to end it. Rungs 0 and 1 are done
+(`scripts/measure_cost.py`, `scripts/probe_moments.py`) and needed no model, no
+network and no budget.
+
+| Rung | Asks | Status |
+|---|---|---|
+| 0 | What does it cost? | **Done.** ~2359 tok standing; 55% is the plugin and is paid in every repository, including ones the harness never touched |
+| 1 | Does anything fire at all? | **Done.** Five moments, both directions, all as declared |
+| 2 | Is the channel inert? | Corrupt the delivered brief in a detectable way; if output is unchanged the channel is dead and B1 fails without paying for rung 3 |
+| 3 | Does it converge? | N agents, one task, measure variance — and **our own gates are the grader**, so no judge model and no rubric |
+| 4 | Do outcomes improve? | Only if 0–3 survive |
+
+Rung 3 deserves its own note: convergence does not need an LLM judge. Run N
+agents on *"add a gate that checks X"*, then run our existing gates and
+selftests over what they produced. Conformance rate is the metric — free,
+deterministic, and built on judgement we already trust. It measures the gates at
+the same time: if both arms score alike, either the guidance does nothing or the
+gates are too loose, and both are worth knowing.
+
 ## Steps
 
 - [x] done    This plan, in the shape it describes. If the format cannot carry
               its own construction it will not carry a migration.
 
+**Now · What the positioning exposed. Does not wait on the decision point, which
+is why it carries no phase letter — the letters mean "in this order".**
+
+- [x] done    Dropped `AGENTS.md` from the plugin's keywords. It was advertised
+              and never produced, and the fix runs the other way: this plugin is
+              for Claude Code, Claude Code reads `CLAUDE.md`, and a second entry
+              file for other vendors is not ours to write. Reading one a target
+              repository already has stays in scope — `probe_repo.py` looks for
+              it and `moments.md` says what to do when both exist. Handling what
+              we find is not the same as promising to produce it.
+- [ ] todo    [The ratchet: no single agent may make it worse](steps/N2-ratchet.md)
+
 **A · Instrument first — nothing below is judgeable without it**
 
+- [x] done    Rung 0 and rung 1: `scripts/measure_cost.py` and
+              `scripts/probe_moments.py`. Cost before benefit, and firing
+              before effect. Neither needs a model or a budget.
 - [ ] todo    [A1 · The eval harness](steps/A1-eval-harness.md)
-- [ ] todo    [A2 · A real multi-contributor subject](steps/A2-subject-repository.md)
+- [ ] todo    [A2 · The concurrency fixture](steps/A2-subject-repository.md)
 - [ ] todo    Record the no-plugin baseline before writing any new mechanism.
               A baseline measured after the fact is a number chosen to be beaten.
 
@@ -169,6 +267,8 @@ argued with instead of quietly revisited.
 | A hard 90 s cap on the fast lane | A budget that fails the build goes red on slow hardware for reasons that are not the code. Declared and reported instead. |
 | Semantic index over the repository | Identifiers are exact tokens, so the vocabulary mismatch embeddings solve is weak in code. A-RAG does not build an index for its lexical half either. |
 | A second repository for the plugin | `check_docs_runnable.py` and `Governs:`/`drift.py` both compare documents against code in one tree. Splitting deletes two working checks to gain a boundary that directories already provide. |
+| Support Symphony's `WORKFLOW.md` | Betting on one orchestrator's adoption before anyone has asked. The spec is Apache-2.0 and stable enough to read, so the cost of waiting is a day's work later; the cost of guessing wrong is a file we ship to strangers forever. Revisit when someone actually runs it against a scaffolded repo. |
+| Build the orchestrator | Symphony is the orchestrator, it is open, and it is a solved problem with a reference implementation. Our half is the one it leaves empty — §5 asks the repository for a prompt template and tracker config, and nothing about being able to absorb what comes back. |
 
 ## Evidence status
 
