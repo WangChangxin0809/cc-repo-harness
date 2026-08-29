@@ -1,0 +1,171 @@
+{
+  "samples": 2,
+  "seconds": 711,
+  "tally": {
+    "red": 4,
+    "green": 2,
+    "could-not-run": 14
+  },
+  "rows": [
+    {
+      "repo": "ultimatixarup/asml-po-tracker",
+      "verdict": "red",
+      "detail": "node: bad option: --experimental-strip-types",
+      "seconds": 0.7,
+      "ecosystem": "node",
+      "command": "npm test --silent"
+    },
+    {
+      "repo": "benniehaelen/governed_metrics_demo",
+      "verdict": "green",
+      "detail": "",
+      "seconds": 65.8,
+      "ecosystem": "make",
+      "command": "make test"
+    },
+    {
+      "repo": "philoserf/t5chargen",
+      "verdict": "green",
+      "detail": "",
+      "seconds": 25.5,
+      "ecosystem": "go",
+      "command": "go test ./..."
+    },
+    {
+      "repo": "Sanne/incus-spawn",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "bmatusiak/rectify-webpack-react-nw-app",
+      "verdict": "could-not-run",
+      "detail": "npm install failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_23_46_298Z-debug-0.log",
+      "seconds": null,
+      "ecosystem": "node",
+      "command": "npm test --silent"
+    },
+    {
+      "repo": "pjastam/ResearchVault",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "tinkerindustries/claude-customisation",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "ethankwyap-stack/fantasy-edge",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "alraiani/aeria-seller-app",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "Synchronium/Debian.tips",
+      "verdict": "could-not-run",
+      "detail": "npm ci failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_28_50_874Z-debug-0.log",
+      "seconds": null,
+      "ecosystem": "node",
+      "command": "npm test --silent"
+    },
+    {
+      "repo": "Bonkey-Apps/bonkey-app-runners",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "daniliammo/Konda",
+      "verdict": "red",
+      "detail": "Makefile:17: *** \u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f gcc >= 15 (\u043e\u0431\u043d\u0430\u0440\u0443\u0436\u0435\u043d gcc 14): \u043d\u0443\u0436\u0435\u043d musttail \u0434\u043b\u044f \u0433\u0430\u0440\u0430\u043d\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u043e\u0433\u043e TCO. \u0423\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0435 gcc-15 \u0438 \u0441\u043e\u0431\u0435\u0440\u0438\u0442\u0435 \u00abmake CC=gcc-15\u00bb, \u043b\u0438\u0431\u043e \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439\u0442",
+      "seconds": 0.0,
+      "ecosystem": "make",
+      "command": "make test"
+    },
+    {
+      "repo": "danplischke/origofs",
+      "verdict": "could-not-run",
+      "detail": "cargo is not on PATH",
+      "seconds": null,
+      "ecosystem": "rust",
+      "command": "cargo test --quiet"
+    },
+    {
+      "repo": "hugozhu/dingtalk-opencode-tag",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "Dezodemius/resuming",
+      "verdict": "red",
+      "detail": "E   ModuleNotFoundError: No module named 'pytest_asyncio'",
+      "seconds": 0.4,
+      "ecosystem": "python",
+      "command": "/usr/bin/python3 -m pytest -q"
+    },
+    {
+      "repo": "sai3000pro/ScaleUp",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "MrJoy/claudebox",
+      "verdict": "could-not-run",
+      "detail": "no ecosystem recognised a runnable test command",
+      "seconds": null,
+      "ecosystem": "-",
+      "command": "-"
+    },
+    {
+      "repo": "Swih/mistral-mcp",
+      "verdict": "could-not-run",
+      "detail": "npm ci failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_31_19_638Z-debug-0.log",
+      "seconds": null,
+      "ecosystem": "node",
+      "command": "npm test --silent"
+    },
+    {
+      "repo": "DevelopersCoffee/BrewPress",
+      "verdict": "red",
+      "detail": "!!!!!!!!!!!!!!!!!!! Interrupted: 13 errors during collection !!!!!!!!!!!!!!!!!!!",
+      "seconds": 1.7,
+      "ecosystem": "python",
+      "command": "/usr/bin/python3 -m pytest -q"
+    },
+    {
+      "repo": "CompendiumLabs/gum-org",
+      "verdict": "could-not-run",
+      "detail": "sh: 1: bun: not found",
+      "seconds": null,
+      "ecosystem": "node",
+      "command": "npm test --silent"
+    }
+  ]
+}

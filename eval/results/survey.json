@@ -1,0 +1,456 @@
+{
+  "repos": 20,
+  "rows": [
+    {
+      "repo": "ultimatixarup/asml-po-tracker",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": false,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "A",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "benniehaelen/governed_metrics_demo",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": false,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "philoserf/t5chargen",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "Sanne/incus-spawn",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": true,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "bmatusiak/rectify-webpack-react-nw-app",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "pjastam/ResearchVault",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": true,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1,
+        4,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "tinkerindustries/claude-customisation",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": false,
+        "CI": false,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "ethankwyap-stack/fantasy-edge",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": false,
+        "CI": true,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "A",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "alraiani/aeria-seller-app",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": false,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "Synchronium/Debian.tips",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "B",
+      "moments": [
+        1,
+        6,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "Bonkey-Apps/bonkey-app-runners",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": false,
+        "CI": true,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "daniliammo/Konda",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "danplischke/origofs",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": true,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": true,
+        "SECURITY": true,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "hugozhu/dingtalk-opencode-tag",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": true,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "Dezodemius/resuming",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "A",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "sai3000pro/ScaleUp",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "MrJoy/claudebox",
+      "has": {
+        "README": true,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": false,
+        "CI": false,
+        "docs/": true,
+        "CHANGELOG": true,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "Swih/mistral-mcp",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": true,
+        "CI": true,
+        "docs/": false,
+        "CHANGELOG": true,
+        "SECURITY": true,
+        "editorconfig": false,
+        "lockfile": true
+      },
+      "tier": "B",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "DevelopersCoffee/BrewPress",
+      "has": {
+        "README": true,
+        "LICENSE": true,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": true,
+        "tests": true,
+        "CI": true,
+        "docs/": true,
+        "CHANGELOG": true,
+        "SECURITY": true,
+        "editorconfig": true,
+        "lockfile": false
+      },
+      "tier": "B",
+      "moments": [
+        1,
+        7
+      ],
+      "probe_read": true
+    },
+    {
+      "repo": "CompendiumLabs/gum-org",
+      "has": {
+        "README": false,
+        "LICENSE": false,
+        "CLAUDE.md": true,
+        "CONTRIBUTING": false,
+        "tests": false,
+        "CI": false,
+        "docs/": false,
+        "CHANGELOG": false,
+        "SECURITY": false,
+        "editorconfig": false,
+        "lockfile": false
+      },
+      "tier": "A",
+      "moments": [
+        1
+      ],
+      "probe_read": true
+    }
+  ],
+  "missing": {
+    "README": 1,
+    "LICENSE": 10,
+    "CLAUDE.md": 0,
+    "CONTRIBUTING": 16,
+    "tests": 5,
+    "CI": 6,
+    "docs/": 9,
+    "CHANGELOG": 15,
+    "SECURITY": 17,
+    "editorconfig": 19,
+    "lockfile": 14
+  },
+  "empty_moments": {
+    "2": 20,
+    "3": 20,
+    "4": 19,
+    "5": 20,
+    "6": 19,
+    "7": 12
+  }
+}

@@ -1,0 +1,202 @@
+# Scaffold twenty strangers' repositories, let an agent close the gaps, and
+# record what moved -- judged by their test suites, not by ours.
+#
+# Run by hand. It spends API quota and can run for hours, which is the point:
+# a job may run six, and the work is twenty repositories deep rather than wide.
+#
+# ## Why this is a workflow and not a script somebody runs
+#
+# `eval/green.py` was written to answer one question -- how many corpus
+# repositories pass their own tests untouched -- and on the laptop it was
+# written on the answer was two. Reading the failures rather than the count
+# tells a different story: `cargo is not on PATH`, `bun: not found`, `node: bad
+# option: --experimental-strip-types`, `gcc 14 < 15`, a missing pytest plugin.
+# Those are facts about that machine. Eleven languages need eleven toolchains,
+# and a runner is where you can have them all without any of them being a
+# preference of the person who happened to run it.
+#
+# ## What is measured, and what is deliberately not
+#
+# The gates generate the task. They do not score it. `scaffold.py` writes the
+# files `check_docs_index.py` looks for, so "scaffolded repositories pass our
+# gates" is a restatement; their value here is that their output is a list of
+# specific located complaints, which is the shape a work order needs. The score
+# is each repository's own test suite, written by somebody with no stake in this
+# plugin, before this plugin existed.
+name: corpus-improve
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Substring filter; empty means all twenty"
+        default: ""
+      model:
+        description: "Upstream model id on the provider"
+        default: "nvidia/nemotron-3-super-120b-a12b"
+      turns:
+        description: "Max agent turns per repository"
+        default: "40"
+      agent:
+        description: "Run the agent. Off measures the scaffolder alone and needs no key."
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CC_SWITCH_VERSION: v5.10.3
+  UPSTREAM_MODEL: ${{ inputs.model || 'nvidia/nemotron-3-super-120b-a12b' }}
+  PROXY_PORT: "8788"
+  CC_SWITCH_CONFIG_DIR: ${{ github.workspace }}/.cc-switch
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    # A job may run six hours. Twenty repositories, each with an install, a
+    # test suite, an agent and a second test suite, is the shape that needs it.
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Eleven languages. Each of these replaces a `could-not-run` that was a
+      # fact about somebody's laptop rather than about a repository.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed  # v5.1.0
+        with:
+          go-version: "stable"
+
+      - name: The toolchains a corpus of eleven languages needs
+        run: |
+          set -euo pipefail
+          # Rust and bun are not on the image by default, and both were a
+          # could-not-run in the first local run.
+          curl -fsSL --retry 3 https://sh.rustup.rs -o /tmp/rustup.sh
+          sh /tmp/rustup.sh -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          curl -fsSL --retry 3 https://bun.sh/install -o /tmp/bun.sh
+          bash /tmp/bun.sh
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --quiet pytest pytest-asyncio
+
+      - name: Fetch the corpus at its pinned commits
+        run: python3 eval/fetch.py
+
+      - name: How many are green untouched -- the instrument, before anything
+        # Never fails the job. A repository that cannot be made green is a
+        # finding about the corpus, and stopping here would throw away the run
+        # that produces it.
+        continue-on-error: true
+        run: python3 eval/green.py --samples 2
+
+      - name: Install cc-switch-cli
+        if: ${{ inputs.agent }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/SaladDay/cc-switch-cli/releases/download/${CC_SWITCH_VERSION}/cc-switch-cli-linux-x64-musl.tar.gz"
+          curl -fsSL --retry 3 -o /tmp/ccs.tar.gz "$url"
+          mkdir -p /tmp/ccs && tar -xzf /tmp/ccs.tar.gz -C /tmp/ccs
+          bin="$(find /tmp/ccs -type f -name 'cc-switch*' | head -1)"
+          if [ -z "$bin" ]; then
+            echo "the archive contained no cc-switch binary" >&2
+            find /tmp/ccs -type f | head -20 >&2
+            exit 1
+          fi
+          install -m755 "$bin" /usr/local/bin/cc-switch
+          cc-switch --version
+
+      - name: Point cc-switch at the provider, and start the proxy
+        if: ${{ inputs.agent }}
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "cannot judge: NVIDIA_API_KEY is not set on this repository" >&2
+            exit 2
+          fi
+          mkdir -p "$CC_SWITCH_CONFIG_DIR"
+          cc-switch --app claude provider add \
+            --name nvidia --id nvidia \
+            --base-url "https://integrate.api.nvidia.com" \
+            --api-key "$NVIDIA_API_KEY" \
+            --api-format openai_chat \
+            --model         "$UPSTREAM_MODEL" \
+            --haiku-model   "$UPSTREAM_MODEL" \
+            --sonnet-model  "$UPSTREAM_MODEL" \
+            --opus-model    "$UPSTREAM_MODEL"
+          cc-switch --app claude provider switch nvidia
+          nohup cc-switch --app claude proxy serve \
+            --listen-address 127.0.0.1 --listen-port "$PROXY_PORT" \
+            --takeover claude > /tmp/proxy.log 2>&1 &
+          echo $! > /tmp/proxy.pid
+          for i in $(seq 1 40); do
+            if ! kill -0 "$(cat /tmp/proxy.pid)" 2>/dev/null; then
+              echo "the proxy exited during startup; its log:" >&2
+              cat /tmp/proxy.log >&2; exit 1
+            fi
+            if (exec 3<>"/dev/tcp/127.0.0.1/${PROXY_PORT}") 2>/dev/null; then
+              echo "listening after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "nothing listening on $PROXY_PORT after 40s" >&2
+          cat /tmp/proxy.log >&2; exit 1
+
+      - name: The proxy speaks Anthropic before the agent is asked to trust it
+        if: ${{ inputs.agent }}
+        env:
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          python3 eval/anthropic_smoke.py \
+            --base-url "http://127.0.0.1:${PROXY_PORT}" \
+            --model "$UPSTREAM_MODEL" --stream
+
+      - name: Install Claude Code
+        if: ${{ inputs.agent }}
+        run: |
+          set -euo pipefail
+          npm ci --prefix eval/agent --no-audit --no-fund
+          echo "$GITHUB_WORKSPACE/eval/agent/node_modules/.bin" >> "$GITHUB_PATH"
+          eval/agent/node_modules/.bin/claude --version
+
+      - name: Scaffold, improve, and re-measure
+        env:
+          ANTHROPIC_BASE_URL: http://127.0.0.1:8788
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_MODEL: ${{ env.UPSTREAM_MODEL }}
+          ANTHROPIC_SMALL_FAST_MODEL: ${{ env.UPSTREAM_MODEL }}
+          DISABLE_TELEMETRY: "1"
+          DISABLE_ERROR_REPORTING: "1"
+        run: |
+          python3 eval/improve.py \
+            --only '${{ inputs.only }}' \
+            --turns '${{ inputs.turns || 40 }}' \
+            ${{ inputs.agent && ' ' || '--no-agent' }}
+
+      - name: Everything this run learned, whatever happened to it
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: corpus-improve-results
+          # The working copies too: a diff is the only way to see what an agent
+          # actually did, and a summary of a diff is somebody's opinion of it.
+          path: |
+            eval/results/
+            eval/.improve/
+          retention-days: 14
+
+      - name: Proxy log
+        if: always()
+        run: |
+          tail -80 /tmp/proxy.log 2>/dev/null || echo "(no proxy in this run)"
+          kill "$(cat /tmp/proxy.pid)" 2>/dev/null || true

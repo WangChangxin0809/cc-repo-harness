@@ -49,11 +49,14 @@ FILES = {
 # section -> a pattern that, appearing anywhere in the README, satisfies it.
 # Deliberately loose: this gate judges presence, not wording, and a gate that
 # insists on a heading spelling is a gate people satisfy by renaming headings.
+#
+# Keys carry no article, because the message is built from them and the first
+# version of it read "the README has no a pointer to contributing".
 README_SECTIONS = {
-    "a quick start": r"(?im)^#{1,4}\s*(quick\s*start|getting\s*started|installation|install|usage)\b",
-    "requirements": r"(?im)^#{1,4}\s*(requirements|prerequisites|dependencies)\b|^\s*[-*]\s*(python|node|go|rust|godot|java)\s*[\d>=]",
-    "a licence statement": r"(?im)^#{1,4}\s*licen[cs]e\b|\blicen[cs]ed under\b",
-    "a pointer to contributing": r"(?i)contributing",
+    "quick start": r"(?im)^#{1,4}\s*(quick\s*start|getting\s*started|installation|install|usage)\b",
+    "requirements section": r"(?im)^#{1,4}\s*(requirements|prerequisites|dependencies)\b|^\s*[-*]\s*(python|node|go|rust|godot|java)\s*[\d>=]",
+    "licence statement": r"(?im)^#{1,4}\s*licen[cs]e\b|\blicen[cs]ed under\b",
+    "pointer to CONTRIBUTING": r"(?i)contributing",
 }
 
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
