@@ -1,0 +1,937 @@
+{
+  "tier": "B",
+  "repos": 20,
+  "crashes": 0,
+  "notes": 0,
+  "seconds": 12,
+  "rows": [
+    {
+      "repo": "ultimatixarup/asml-po-tracker",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "benniehaelen/governed_metrics_demo",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 286 lines, cap is 100."
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "philoserf/t5chargen",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_docs_index.py",
+          "11 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "14 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "Sanne/incus-spawn",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 135 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "5 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "5 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "bmatusiak/rectify-webpack-react-nw-app",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 532 lines, cap is 100."
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "pjastam/ResearchVault",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 5,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 406 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "32 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "1 top-level director(ies) the index does not route:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "tinkerindustries/claude-customisation",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "ethankwyap-stack/fantasy-edge",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "alraiani/aeria-seller-app",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_docs_index.py",
+          "1 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "1 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "Synchronium/Debian.tips",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 5,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 190 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "28 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "2 director(ies) fork a required name:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "Bonkey-Apps/bonkey-app-runners",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 176 lines, cap is 100."
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "daniliammo/Konda",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 313 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "4 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "4 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "danplischke/origofs",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 325 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "6 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "6 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "hugozhu/dingtalk-opencode-tag",
+      "has": [
+        ".claude",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 197 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "7 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "7 file(s) loose at the top of docs/:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "Dezodemius/resuming",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 111 lines, cap is 100."
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "sai3000pro/ScaleUp",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 249 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "44 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "3 top-level director(ies) the index does not route:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "MrJoy/claudebox",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 107 lines, cap is 100."
+        ],
+        [
+          "check_docs_index.py",
+          "12 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "1 top-level director(ies) the index does not route:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "Swih/mistral-mcp",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 1,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_context_budget.py",
+          "Always-on instructions total 162 lines, cap is 100."
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "DevelopersCoffee/BrewPress",
+      "has": [
+        ".claude",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "LICENSE",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 4,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 1,
+        "check_docs_layout.py": 1,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "README:"
+        ],
+        [
+          "check_docs_index.py",
+          "10 document(s) that docs/index.md does not route to:"
+        ],
+        [
+          "check_docs_layout.py",
+          "1 top-level director(ies) the index does not route:"
+        ]
+      ],
+      "notes": []
+    },
+    {
+      "repo": "CompendiumLabs/gum-org",
+      "has": [
+        ".claude",
+        "CLAUDE.md",
+        "README.md",
+        "ci.sh",
+        "docs",
+        "scripts"
+      ],
+      "probe": 0,
+      "moments": 3,
+      "dry_run": 0,
+      "scaffold": 0,
+      "gates": {
+        "check_community_health.py": 1,
+        "check_context_budget.py": 0,
+        "check_docs_index.py": 0,
+        "check_docs_layout.py": 0,
+        "check_docs_runnable.py": 0,
+        "check_layering.py": 0,
+        "check_plugin_structure.py": 2,
+        "check_templates_filled.py": 1
+      },
+      "crashes": [],
+      "abstained": [
+        [
+          "check_plugin_structure.py",
+          "cannot judge: no .claude-plugin/plugin.json \u2014 this is not a plugin repository"
+        ]
+      ],
+      "judged_the_repo": [
+        [
+          "check_community_health.py",
+          "Missing from the repository's public face:"
+        ]
+      ],
+      "notes": []
+    }
+  ]
+}

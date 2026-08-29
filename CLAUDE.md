@@ -20,7 +20,7 @@ the first question, because the answer changes who is affected.
 |---|---|---|
 | `.claude-plugin/` `skills/` `agents/` `hooks/` | the plugin | whoever installs it |
 | `shared/scripts/` | **payload** | **copied into strangers' repositories** |
-| `CLAUDE.md` `.claude/` `scripts/` `docs/` | our own harness | only us |
+| `CLAUDE.md` `.claude/` `scripts/` `docs/` `eval/` | our own harness | only us |
 
 ## Hard rules
 

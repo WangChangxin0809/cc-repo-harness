@@ -6,3 +6,7 @@ __pycache__/
 
 # Personal permission grants. Committed, they apply to everyone who clones.
 .claude/settings.local.json
+
+# Corpus checkouts. Pinned in eval/corpus.json and fetched, never committed:
+# nine of the twenty carry no licence, so redistributing them is not ours to do.
+eval/.work/
