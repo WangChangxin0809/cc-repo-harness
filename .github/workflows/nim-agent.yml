@@ -74,12 +74,16 @@ jobs:
           echo "fetching $url"
           curl -fsSL --retry 3 -o /tmp/ccs.tar.gz "$url"
           mkdir -p /tmp/ccs && tar -xzf /tmp/ccs.tar.gz -C /tmp/ccs
-          bin="$(find /tmp/ccs -type f -name 'cc-switch*' -perm -u+x | head -1)"
+          # No -perm test: this archive ships the binary without the executable
+          # bit, and `install -m755` is what grants it anyway. Filtering on a
+          # mode the tarball never carried rejected the file it was looking for.
+          bin="$(find /tmp/ccs -type f -name 'cc-switch*' | head -1)"
           if [ -z "$bin" ]; then
-            echo "the archive contained no executable; it holds:" >&2
+            echo "the archive contained no cc-switch binary; it holds:" >&2
             find /tmp/ccs -type f | head -20 >&2
             exit 1
           fi
+          file "$bin"
           install -m755 "$bin" /usr/local/bin/cc-switch
           cc-switch --version
 
