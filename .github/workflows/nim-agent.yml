@@ -18,10 +18,6 @@
 name: nim-agent
 
 on:
-  # TEMPORARY, removed before this branch merges -- see nim-smoke.yml.
-  push:
-    branches: [exec-plan-folders]
-    paths: [".github/workflows/nim-agent.yml", "eval/anthropic_smoke.py"]
   workflow_dispatch:
     inputs:
       model:

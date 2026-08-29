@@ -3,25 +3,22 @@
 # Run by hand only. It spends somebody's API quota and needs a secret, so it has
 # no business firing on every push.
 #
-# This exists because the question cannot be answered from every desk. A network
-# that permits `GET /v1/models` and drops `POST /v1/chat/completions` produces a
-# hang indistinguishable from a bad key; `eval/nim_smoke.py` returns 2 there
-# rather than guessing. A GitHub runner has no such filter, which makes it the
-# instrument rather than merely the host.
+# This exists because the question cannot be answered from every desk. Some
+# networks put a sixty-second ceiling on a request, which takes every SSE
+# stream and every model slower than a minute, and leaves a hang that looks
+# exactly like a bad key. `eval/nim_smoke.py` returns 2 there rather than
+# guessing. A runner has no such ceiling, which makes it the instrument rather
+# than merely the host: the streaming leg cannot be measured anywhere else.
 name: nim-smoke
 
 on:
-  # TEMPORARY, removed before this branch merges: workflow_dispatch is only
-  # triggerable once the file sits on the default branch, and the point of the
-  # run is to decide whether the file should go there at all.
-  push:
-    branches: [exec-plan-folders]
-    paths: [".github/workflows/nim-smoke.yml", "eval/nim_smoke.py"]
   workflow_dispatch:
     inputs:
       model:
         description: "Model id on the provider"
-        default: "deepseek-ai/deepseek-v4-pro-0813"
+        # Not deepseek-v4-pro: it accepts a sixteen-token request and
+        # then holds the connection open for 61s before resetting it.
+        default: "nvidia/nemotron-3-super-120b-a12b"
       base_url:
         description: "OpenAI-shaped endpoint"
         default: "https://integrate.api.nvidia.com"

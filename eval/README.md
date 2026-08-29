@@ -1,7 +1,7 @@
 # eval/ — twenty repositories nobody here has seen
 
-- **Covers**: the corpus, how it was selected, and the two scripts that fetch
-  and run it.
+- **Covers**: the corpus, how it was selected, the scripts that fetch and run
+  it, and the backend that will drive it.
 - **Does not cover**: whether the harness *helps*. Nothing here measures that.
   This answers the question that comes first — whether the harness survives
   contact with repositories it was not written against.
@@ -9,7 +9,48 @@
 ```bash
 python3 eval/fetch.py           # clone the corpus at its pinned commits
 python3 eval/run_corpus.py      # probe, scaffold, then every gate, one by one
+python3 eval/nim_smoke.py       # does the provider return a tool call?
+python3 eval/nim_smoke.py --compare        # which candidates do it reliably
+python3 eval/anthropic_smoke.py --base-url http://127.0.0.1:8788
 ```
+
+## A backend that is not Claude
+
+The corpus needs a model to drive it, and it should not be Claude — most people
+running Claude Code as a harness are not running Claude behind it, so measuring
+only Claude measures the wrong population. An OpenAI-shaped provider plus a
+translating proxy gets us one cheaply.
+
+That is a chain — **provider → proxy → agent** — and every link fails with the
+same symptom at the far end: the agent does little and explains less. So each
+link has its own probe and its own CI step, and a red run names the link:
+
+| | asks | fails when |
+|---|---|---|
+| `nim_smoke.py` | does the provider return an OpenAI tool call? | the model answers in prose |
+| `anthropic_smoke.py` | does the proxy turn that into an Anthropic `tool_use`? | the translation drops the tool |
+| `.github/workflows/nim-agent.yml` step 3 | does the agent read a file it was not handed? | anything above, plus the agent |
+
+The third is a task, not an assertion: the agent is dropped in a directory
+holding `needle.txt` and told to copy its contents into `answer.txt`. A
+summarise-this task would be passed by a model that ignored every tool. This one
+has a single observable outcome whose answer is nowhere in the prompt.
+
+Both workflows are `workflow_dispatch` only. They spend somebody's API quota.
+
+### Two things measured the hard way
+
+**One probe is not a measurement of tool calling.** `gpt-oss-120b` called the
+tool correctly on one machine and answered in prose on a runner minutes later,
+on the same prompt — and it was the fastest candidate, so a single sample would
+have promoted the one model that could not be relied on. `--compare` takes three
+samples and reports `flaky` as a verdict distinct from both pass and prose.
+
+**Silence has more than one cause, and only one of them is a verdict.** These
+scripts return 2 rather than 1 when a network will not carry the question, when
+a model accepts a request and never answers, or when a free tier spends every
+retry throttling. Scoring any of those as failure sends you debugging a key that
+was fine.
 
 ## Why a corpus at all
 
