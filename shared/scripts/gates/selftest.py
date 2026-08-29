@@ -347,6 +347,45 @@ CASES = [
                              "| a thing | [how](how-to/thing.md) | src/ |\n"
                              "| gone | [g](how-to/removed.md) | src/ |\n"),
     ),
+    dict(
+        gate="check_docs_index.py",
+        # The defect the folder shape invites. Routing an exec-plan reaches the
+        # steps its README links, so a step nobody linked is now invisible in a
+        # way a loose document never was -- it sits inside a folder that is
+        # routed, next to siblings that are reached. The needle is the step's
+        # own path: "does not route to" would also be printed for the README, so
+        # asserting only that would pass while the step went unreported.
+        why="an exec-plan step its README does not link",
+        needle="steps/02-unlinked.md",
+        plant=lambda t: (
+            write(t, "docs/index.md",
+                  "# docs\n\n| I want to | Read | Edit |\n|---|---|---|\n"
+                  "| a thing | [how](how-to/thing.md) | src/ |\n"
+                  "| a plan | [plan](exec-plans/demo/README.md) | src/ |\n"),
+            write(t, "docs/exec-plans/demo/README.md",
+                  "# Demo plan\n\n- [ ] todo [first](steps/01-first.md)\n"),
+            write(t, "docs/exec-plans/demo/steps/01-first.md", "# First\n"),
+            write(t, "docs/exec-plans/demo/steps/02-unlinked.md", "# Unlinked\n")),
+    ),
+
+    dict(
+        gate="check_docs_layout.py",
+        # The failure that actually happened to OpenStack's seventh repository:
+        # `configuration/` became `config/`, nothing broke that day, and both
+        # spellings accumulated documents. Here it is `decisions/` forking to
+        # `adr/` -- the most likely fork, since `docs/adr` is about twice as
+        # common on GitHub as `docs/decisions`.
+        why="a required bucket renamed to a common variant",
+        needle="fork a required name",
+        plant=lambda t: write(t, "docs/adr/0001-something.md",
+                              "# 0001 — Something\n\nStatus: accepted\n"),
+    ),
+    dict(
+        gate="check_docs_layout.py",
+        why="a document loose at the top of docs/",
+        needle="loose at the top",
+        plant=lambda t: write(t, "docs/notes.md", "# Notes\n\nStray.\n"),
+    ),
 
     # --- negative controls ---------------------------------------------------
     # Each gate needs at least one of these, and coverage_gaps() below enforces
@@ -372,6 +411,42 @@ CASES = [
                               "<!-- unrouted: a worked example kept for one "
                               "release, deliberately not in the table -->\n\n"
                               "# Scratch\n"),
+    ),
+    dict(
+        gate="check_docs_index.py",
+        # Pins the one hop. Without it every step file is unrouted, so the only
+        # way to keep the gate green would be a routing row per step -- and the
+        # table's job is answering "I am about to do X, what do I read", which
+        # ten rows for one plan destroys. The green direction is where that
+        # lives: nothing else here would notice the hop being removed.
+        why="exec-plan steps reached through the README the index routes",
+        needle=None,
+        plant=lambda t: (
+            write(t, "docs/index.md",
+                  "# docs\n\n| I want to | Read | Edit |\n|---|---|---|\n"
+                  "| a thing | [how](how-to/thing.md) | src/ |\n"
+                  "| a plan | [plan](exec-plans/demo/README.md) | src/ |\n"),
+            write(t, "docs/exec-plans/demo/README.md",
+                  "# Demo plan\n\n- [ ] todo [first](steps/01-first.md)\n"
+                  "- [ ] todo [second](steps/02-second.md)\n"),
+            write(t, "docs/exec-plans/demo/steps/01-first.md", "# First\n"),
+            write(t, "docs/exec-plans/demo/steps/02-second.md", "# Second\n")),
+    ),
+    dict(
+        gate="check_docs_layout.py",
+        # Pins the half of the rule that is easy to lose. Only the top level is
+        # fixed; additions are legitimate once routed, which is how OpenStack's
+        # conformers all carried project-specific directories alongside the
+        # mandated ones. A gate that rejected every addition would be enforcing
+        # a rule nobody agreed to, and would be switched off within a month.
+        why="an added top-level directory that the index routes",
+        needle=None,
+        plant=lambda t: (
+            write(t, "docs/index.md",
+                  "# docs\n\n| I want to | Read | Edit |\n|---|---|---|\n"
+                  "| a thing | [how](how-to/thing.md) | src/ |\n"
+                  "| the shape of it | [arch](explanation/shape.md) | src/ |\n"),
+            write(t, "docs/explanation/shape.md", "# Shape\n\nWhy it is so.\n")),
     ),
     dict(
         gate="check_layering.py",

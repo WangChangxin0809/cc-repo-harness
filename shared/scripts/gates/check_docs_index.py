@@ -31,6 +31,53 @@ EXEMPT = re.compile(r"<!--\s*unrouted:\s*\S+")
 SKIP_DIRS = {"generated"}
 
 
+PLANS = os.path.join("docs", "exec-plans")
+
+
+def plan_steps(root, routed):
+    """Files an already-routed exec-plan README links inside its own folder.
+
+    Multi-session work outgrows one file: the plan's state has to be readable at
+    a glance while a single step may carry pages of decisions. So a plan is a
+    folder -- `README.md` plus `steps/` -- and one row in the routing table has
+    to cover all of it. Ten steps meaning ten rows would bury the table's actual
+    job, which is answering "I am about to do X, what do I read".
+
+    Deliberately one hop, and deliberately confined to the plan's own folder. A
+    general transitive closure would make routing accidental: any document
+    mentioned in passing by any routed document would count as reached, and the
+    gate's whole subject is documents that nothing deliberately points at. Here
+    the README is the deliberate pointer, and it is itself routed from the index
+    or none of this applies.
+
+    A step file the README does not link stays unrouted and is reported -- the
+    same defect one level down, and the one this shape makes easy to create."""
+    reached = set()
+    for rel in routed:
+        parts = rel.split(os.sep)
+        if not (rel.startswith(PLANS + os.sep) and len(parts) == 4
+                and parts[3] == "README.md"):
+            continue
+        folder = os.path.dirname(rel)
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8") as fh:
+                body = fh.read()
+        except OSError:
+            continue
+        for m in LINK.finditer(body):
+            target = (m.group(1) or m.group(2) or "").strip()
+            if not target or target.startswith(("http://", "https://", "mailto:")):
+                continue
+            norm = os.path.normpath(
+                target if target.startswith("docs/")
+                else os.path.join(folder, target))
+            # Confined to the plan's own folder: a README may not route a
+            # document that belongs to somebody else's part of docs/.
+            if norm.startswith(folder + os.sep):
+                reached.add(norm)
+    return reached
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -54,6 +101,8 @@ def main():
         norm = os.path.normpath(os.path.join("docs", target)
                                 if not target.startswith("docs/") else target)
         routed.add(norm)
+
+    routed |= plan_steps(root, routed)
 
     present = set()
     for dirpath, dirnames, filenames in os.walk(docs):

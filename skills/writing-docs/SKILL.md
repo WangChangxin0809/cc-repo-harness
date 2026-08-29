@@ -1,6 +1,6 @@
 ---
 name: writing-docs
-description: Write or restructure documentation that agents and people actually read — choosing the right kind (how-to, reference, troubleshooting, decision record, exec plan, generated), giving each its required shape, and keeping the routing table honest. Use this whenever writing a doc, a runbook, a README, an ADR, a design doc, or a plan; whenever someone says the docs are stale, contradictory, ignored, or too long; whenever moving knowledge out of CLAUDE.md or out of agent memory into the repo; and whenever a document does not obviously belong to exactly one of those six kinds.
+description: Write or restructure documentation that agents and people actually read — choosing which of the four directories it belongs in (how-to, reference, decisions, exec-plans), knowing what belongs in a failure message instead of a file, and keeping the routing table honest. Use this whenever writing a doc, a runbook, a README, an ADR, a design doc, or a plan; whenever someone says the docs are stale, contradictory, ignored, or too long; whenever deciding where a convention or a prohibition should live; whenever moving knowledge out of CLAUDE.md or out of agent memory into the repo; and whenever a document does not obviously belong in exactly one of those four directories.
 ---
 
 # Writing docs an agent will actually use
@@ -12,20 +12,30 @@ trigger**, and it decides everything: where the file goes, how long it may be,
 and what shape it takes. Documents written without one become reference material
 nobody references.
 
-## Partition by trigger, then obey the shape
+## Fix the top level; leave the interior free
 
-| Kind | Trigger | Required shape |
+| Directory | Trigger | What it holds |
 |---|---|---|
-| `how-to/` | I am about to do a thing | Ordered steps. Each: **action → command → observable criterion** |
-| `reference/` | I need to look up a fact | Tables and rules, keyed for lookup, no narrative |
-| `troubleshooting/` | I hit a symptom | **Symptom → cause → action**, symptom first, verbatim |
-| `decisions/` | Why is it like this? | Numbered, dated, immutable. Context · Decision · Consequences |
+| `how-to/` | I am about to do a thing | Ordered steps, each ending in an observable criterion |
+| `reference/` | I need to look up a fact | Facts keyed for lookup, carried by working examples |
+| `decisions/` | Why is it like this? | Numbered from the PR, dated, superseded rather than edited |
 | `exec-plans/` | What are we in the middle of? | Goal · steps with state · what would abort it |
-| `generated/` | What is it *right now*? | Written from a truth source; regenerating leaves an empty diff |
 
-A file that does not fit exactly one of these is two files.
+Four directories, fixed. **Inside each one, organise however suits the
+material.** Both halves are evidence, not taste: a mandated shallow top level
+with a free interior is the arrangement that survived a decade across hundreds
+of OpenStack repositories, while two controlled studies — one on 65 people, one
+on 1,650 agent sessions — each found *no* effect from documentation shape. So
+the constraint sits where something was measured and stays off where nothing
+was. Templates in `references/kinds.md` are advice.
 
-## The how-to shape is not a suggestion
+Additions to the top level are fine once `docs/index.md` routes them. A
+directory that forks a required name (`adr/`, `howto/`, `plans/`) is an error
+either way — that fork is how one bucket silently becomes two.
+
+A file that does not fit any of the four is usually two files.
+
+## The one shape rule that is a requirement
 
 Three parts per step, all three present:
 
@@ -39,23 +49,27 @@ Criterion: `scripts/index/query.py --stats` reports a symbol count within 5% of
 skipped a language.
 ```
 
-The criterion is what makes the step checkable by someone who does not already
-know the answer. Steps without one are read as gestures and executed as
-gestures.
+This one is required while the rest of the shape guidance is advice, because it
+is **content rather than form**. Of five context signals measured against
+SWE-bench Verified, reproduction instructions were worth +56.3% — three times
+edit location and more than everything else combined. Steps without a criterion
+are read as gestures and executed as gestures.
 
-**Write the positive path.** The space of wrong ways to do something is
-unbounded; the right way is one path. A how-to that spends half its length on
-what not to do costs every reader that space and still fails to be exhaustive.
+**Write the positive path.** The space of wrong ways is unbounded; the right way
+is one path. And a prohibition has no reading trigger — nobody opens a document
+to find out what they were about to do wrong. They find out by doing it.
 
-This is not a stylistic preference — it follows from reading triggers. **A
-prohibition has no trigger.** Nobody opens a document to find out what they were
-about to do wrong; they find out by doing it. So a prohibition worth keeping
-belongs where it fires:
+So a prohibition worth keeping belongs where it fires. **This is also where
+troubleshooting content goes**, and it is why there is no `troubleshooting/`
+directory: agents open such documents 0.4% of the time and consult documentation
+after a failure 7.5% of the time, but structured guidance delivered *at* the
+error produced over 85% recovery against 17%.
 
-| The thing you want to forbid | Where it actually belongs |
+| The thing you want to forbid, or the symptom you want to explain | Where it belongs |
 |---|---|
 | An action that destroys work | A guard, with the reason in the block message |
 | A state the repo must not reach | A gate, with the fix in the failure output |
+| A symptom with a known cause | The failure output of whatever detects it |
 | A pattern that is wrong only here | That subtree's `CLAUDE.md` |
 | A road already tried and abandoned | A decision record — that is what they are for |
 
@@ -74,33 +88,73 @@ is the part that stops the same idea being re-litigated every six months.
 Record what you rejected. A decision that lists only the winner reads as
 inevitable, and the next person re-proposes the alternative you already killed.
 
-Numbering is sequential and never reused. `0001-agent-conventions.md` explains why
-the repository is shaped this way.
+**The number comes from the pull request, not a counter, and numbers are not
+continuous.** Write the file as `0000-<slug>.md` and rename it when the PR
+opens. A counter looks tidier and breaks under concurrent contribution: two
+people both take the next number, both are right when they write it, and both
+land — Open edX's decision directory carries four collided numbers from exactly
+that. Every scheme that survived at scale numbers from an identifier that
+already exists (Rust from the PR; Go and Kubernetes from the issue).
+
+Two honest notes. These are for people, not agents — in observed sessions agents
+opened decision and architecture documents 4.0% of the time, and no measured
+evidence says they help an agent at all. And the genre usually does not survive:
+about half of all repositories with decision records have five or fewer.
 
 ## Exec plans
 
 Multi-session work needs a file, because context does not survive the session
-and the plan is the only thing that does.
+and the plan is the only thing that does. Past a few steps it needs a folder —
+`docs/exec-plans/<name>/` with a `README.md` and a `steps/` directory — because
+the plan's state must be readable at a glance while one step may carry pages of
+decisions.
 
-- `docs/exec-plans/<name>.md` while active: goal, steps each marked
-  `todo | doing | done | dropped`, and the condition that would abort the whole
-  plan.
+- **`README.md` owns state**: goal, steps each marked `todo | doing | done |
+  dropped`, and the condition that would abort the whole plan. Step files never
+  restate status; nobody reopens a finished step to change `doing` to `done`.
+- **A step earns a file** when it has decisions to record or is worth handing to
+  a subagent — otherwise it is a line in the README, and the numbering gap
+  (`01, 03`) is how "no file needed" stays distinguishable from "file missing".
+- **A step file is written when the step is entered**, not upfront. Written in
+  advance it is fiction, and fiction in a plan is indistinguishable from a
+  decision that was actually made.
+- **Every step file carries `## Consulted`** — existing skills (`find-skill`),
+  prior art in other people's code, research. It may say "none, because this
+  step only executes what 01 decided"; it may not be absent. Same shape as
+  `<!-- unrouted: reason -->`: an exemption states its reason or becomes
+  blanket. Prior art means their **code**, not their documentation, and a
+  decision a paper drives is checked against that paper's implementation.
 - `docs/exec-plans/tech-debt-tracker.md` is permanent. Anything found in passing
   goes here with the reading that revealed it and the blast radius — never fixed
   inline, because a batch that grows while you work is a batch that never lands.
-- On completion the plan is deleted and a decision record replaces it, if
-  anything was decided. Finished plans left in place are read as active work.
+- On completion the folder is deleted and a decision record replaces it, if
+  anything was decided. Finished plans left in place are read as active work,
+  and deleting the folder takes the step files with it — so anything worth
+  keeping is promoted into the record, not left in `steps/`.
 
-## Reference and generated
+`docs/index.md` routes the `README.md` only; `check_docs_index.py` reaches the
+steps through the links the README already has.
 
-Reference is retrieval infrastructure. A glossary that pins the project's own
-vocabulary is worth more than it looks: it is the vocabulary every search
-depends on, and when it drifts, searches silently return less.
+## Reference, and the generated property
 
-Generated docs must state their source in the first line and be regenerable in
-one command. The gate is: regenerate, and `git diff` must be empty. Without that
-gate they are hand-edited within a month, and then they are lying with the
-authority of something that looks machine-produced.
+Reference is retrieval infrastructure, and **its value is carried by working
+examples rather than by the table**. Removing code examples from API
+documentation dropped answer accuracy from 0.66–0.82 to 0.22–0.39 in the one
+ablation that measured the components separately. A page that lists parameters
+and shows no working call has given away most of what it was worth. Write
+reference for what the model has no prior about — your APIs, your formats,
+uncommon libraries; restating what is widely known costs context and returns
+nothing.
+
+A glossary belongs here and is worth more than it looks: it pins the vocabulary
+every search depends on, and when it drifts, searches silently return less.
+
+**Generated is a property, not a directory.** A generated file lives wherever
+its content belongs and declares itself in its own first line — source, command,
+and the gate. Regenerate, then `git diff --exit-code`. The gate keys on the
+declaration rather than on the location, which is the dominant idiom in the
+wild; without it these files are hand-edited within a month and then lie with
+the authority of something that looks machine-produced.
 
 ## Keep the routing table honest
 
@@ -137,17 +191,33 @@ Governs: src/billing/, src/payments/gateway.py
 
 Plain text at the start of a line — despite being described elsewhere as
 frontmatter, it needs no `---` fence and works anywhere in the head of the file.
-Comma- or space-separated. It buys two things:
+Comma- or space-separated.
 
-- **Delivery.** A `PostToolUse` hook (`scripts/context/after_edit.py`) says
-  *"docs/billing.md governs this file — read it before assuming how this is
-  supposed to work"* the moment the file is edited. Nothing else in the harness
-  can deliver a document at that instant, which is the only instant it matters.
-- **Reachability.** `scripts/index/build.py` turns the line into weighted
-  `governs` edges. Without them documents and code are two disconnected
-  components of the graph and no ranking bridges them — a repository with no
-  `Governs:` anywhere has documents that rank zero from every code query, which
-  looks exactly like having no documents at all.
+**Its justification is freshness, not navigation, and that changed on evidence.**
+Navigation is unsupported: in a preregistered ablation the agent never loaded
+the catalog at all — it inferred the path from the question and read the file
+directly. Freshness is a different matter. Drift is not an occasional lapse but
+the normal state (of 3,000+ repositories surveyed, most carried a reference to a
+code element that no longer existed at some point in their history), and stale
+prose is measurably harmful rather than merely useless — misleading natural
+language around code degraded reasoning by 23.2%. Since a purely descriptive
+document's measured benefit is near zero, a *stale* one has negative expected
+value.
+
+A declared pair is the only thing that makes that mechanically detectable: this
+document claims to describe that path, so when the path moves and the document
+does not, something can say so. It buys two things:
+
+- **Delivery at the one instant it matters.** A `PostToolUse` hook
+  (`scripts/context/after_edit.py`) says *"docs/billing.md governs this file"*
+  the moment the file is edited. Nothing else in the harness can do that.
+- **A checkable claim.** See `drift.py` below.
+
+Be honest about the standing of this: **no measured work exists on declared
+doc-to-code relationships at all.** Of 70 major repositories surveyed, 8
+declared anything comparable and several of those left the declaration empty or
+scoped to everything; none verified it in CI. This is untested ground we chose
+deliberately, not a practice we adopted.
 
 Three rules that are easy to get wrong:
 
@@ -157,7 +227,7 @@ Three rules that are easy to get wrong:
    once plain prefix matching, and the trailing slash was load-bearing; both
    readers now agree and an index selftest case holds them there.
 2. **A target that resolves to nothing is drift, and is reported.** It lands in
-   `docs/generated/index-report.md` as a dangling target. This is the one signal
+   the generated index report as a dangling target. This is the one signal
    that catches a document still describing a path that was deleted — invisible
    from the document's side and from the code's side, both.
 3. **Do not govern what you do not describe.** The line is a claim that this
@@ -209,7 +279,7 @@ must never print the same.
 
 | File | Read when |
 |---|---|
-| `references/kinds.md` | Full template for each of the six kinds |
+| `references/kinds.md` | Templates for the four directories, and what is not a directory |
 
 Related skills: `writing-checks` (the gates named above),
 `consolidating-notes` (merging accumulated notes into these kinds),

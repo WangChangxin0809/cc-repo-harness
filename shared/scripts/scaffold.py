@@ -113,10 +113,28 @@ INDEX_MD = """\
 |---|---|---|
 | `how-to/` | I need to do a thing | Ordered steps: action → command → criterion |
 | `reference/` | I need to look up a fact | Tables and rules, keyed for lookup |
-| `troubleshooting/` | I hit a symptom | Symptom → cause → action |
-| `decisions/` | Why is it like this? | Numbered, immutable, superseded not edited |
-| `exec-plans/` | What are we in the middle of? | Goal, steps with state, abort condition |
-| `generated/` | What is it right now? | Written from a truth source, never by hand |
+| `decisions/` | Why is it like this? | Numbered from the PR, superseded not edited |
+| `exec-plans/` | What are we in the middle of? | One folder per plan: `README.md` owns state, `steps/` owns substance |
+
+**This top level is fixed; inside each directory, organise however suits the
+material.** `scripts/gates/check_docs_layout.py` holds the top level and checks
+nothing below it. A directory that forks a required name — `adr/`, `howto/`,
+`plans/` — is an error even when routed, because two spellings of one bucket
+both accumulate documents and merging them later is a migration. Additions are
+fine once a row below routes into them.
+
+Two things are deliberately not directories. **A symptom and its fix belong in
+the failure output** of the guard or gate that detects it, not in a file nobody
+opens while stuck. **Generated is a property**: such a file lives where its
+content belongs and declares its source in its own first line, and the gate is
+that regenerating leaves an empty `git diff`.
+
+A plan past a few steps is a folder, not a file. `README.md` carries the goal,
+the abort condition, and every step's state; a step earns its own file under
+`steps/` only when it has decisions to record. Step files never restate status —
+nobody reopens a finished one to change `doing` to `done` — and each opens with
+`## Consulted` saying what was searched before the work started, or why nothing
+was. The routing table below points at the `README.md` only.
 
 ## I want to X -> read Y -> then edit Z
 
@@ -345,6 +363,7 @@ run fast "gates can still turn red"  python3 scripts/gates/selftest.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
+run fast "docs top level"            python3 scripts/gates/check_docs_layout.py
 run fast "documented commands run"   python3 scripts/gates/check_docs_runnable.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
 
@@ -423,13 +442,29 @@ GUARDS_JSON = {
     "layering_allow": [],
 }
 
+# Every command references its script through ${CLAUDE_PROJECT_DIR}, never
+# relatively. A hook runs in whatever directory Claude is currently in, which
+# changes on a `cd` and again inside a worktree -- and `python3 <missing>.py`
+# exits 2, the same code Claude Code reads as *block*. So a relative path does
+# not quietly stop protecting: it blocks every matching tool call with an
+# unreadable "can't open file". For the Stop hook it is worse still, because the
+# stop_hook_active short-circuit lives inside the script that never runs, and
+# the session cannot be ended at all.
+#
+# Quoted because these are shell form; the docs ask for quotes around any path
+# placeholder there.
 HOOKS = {
     "PreToolUse": dict(matcher="Bash",
-                       command="python3 scripts/guards/dispatch.py"),
+                       command='python3 "${CLAUDE_PROJECT_DIR}/scripts/guards/dispatch.py"'),
     "SessionStart": dict(matcher="*",
-                         command="python3 scripts/context/session_brief.py"),
+                         command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py"'),
     "PostToolUse": dict(matcher="Edit|Write|MultiEdit",
-                        command="python3 scripts/context/after_edit.py"),
+                        command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/after_edit.py"'),
+    # The last moment anything can be said to an agent. Every other hook fires
+    # while work is happening; none covers finishing with the tree red, which
+    # is the failure a person discovers later, from CI, after the agent is gone.
+    "Stop": dict(matcher="*",
+                 command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/on_stop.py"'),
 }
 
 # rel path -> (template, mode, minimum tier)
@@ -453,10 +488,18 @@ PLAN = [
 DIRS = [
     ("docs/how-to", "A"),
     ("docs/reference", "A"),
-    ("docs/troubleshooting", "B"),
-    ("docs/generated", "B"),
     ("scripts/selftests", "B"),
     ("scripts/baselines", "B"),
+]
+
+# Context scripts: hook-wired, copied one file at a time rather than by
+# directory, because `context/` also holds things a target repository has no use
+# for. One list feeds the dry run, the writer and the hook wiring -- when this
+# was two code paths, a tier A `--dry-run` promised a file the real run never
+# wrote.
+CONTEXT_SCRIPTS = [
+    ("after_edit.py", "PostToolUse", "B"),
+    ("on_stop.py", "Stop", "B"),
 ]
 
 # source dir under this script -> destination under the repo, minimum tier
@@ -502,6 +545,50 @@ def write(path, body, made, root, mode=0o644):
     os.chmod(path, mode)
     made.append(("NEW", rel, ""))
     return True
+
+
+# Claude Code writes `.claude/settings.local.json` by itself when someone grants
+# a permission, and that file holds grants rather than preferences. Committed,
+# it does not merely leak one person's setup -- it *applies* to everyone who
+# clones, so one person's approval silently becomes the whole team's. The file
+# is personal by design and no repository should ever carry it.
+IGNORE_LINES = [
+    (".claude/settings.local.json",
+     "Personal permission grants. Committed, they apply to everyone who clones."),
+]
+
+
+def ensure_gitignore(root, made):
+    """Append what must never be committed, without disturbing what is there.
+
+    Appends rather than writes: a target repository almost always has a
+    .gitignore already, and replacing it would be the most destructive thing
+    this script could do."""
+    path = os.path.join(root, ".gitignore")
+    rel = ".gitignore"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            body = fh.read()
+    except OSError:
+        body = ""
+
+    existing = {ln.strip() for ln in body.splitlines()}
+    missing = [(pat, why) for pat, why in IGNORE_LINES if pat not in existing]
+    if not missing:
+        made.append(("SKIP", rel, "already ignores what it must"))
+        return
+
+    block = "" if not body or body.endswith("\n") else "\n"
+    for pat, why in missing:
+        block += f"\n# {why}\n{pat}\n"
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(block)
+    except OSError as exc:
+        made.append(("SKIP", rel, f"could not append: {exc}"))
+        return
+    made.append(("NEW" if not body else "APPEND", rel,
+                 f"+{len(missing)} pattern(s)"))
 
 
 def merge_settings(root, events, made):
@@ -564,8 +651,10 @@ def main():
             if at_least(a.tier, floor)]
     dirs = [d for d, floor in DIRS if at_least(a.tier, floor)]
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
-    events = ["PreToolUse", "SessionStart"] + (
-        ["PostToolUse"] if at_least(a.tier, "B") else [])
+    context_scripts = [(name, floor) for name, _, floor in CONTEXT_SCRIPTS
+                       if at_least(a.tier, floor)]
+    events = ["PreToolUse", "SessionStart"] + [
+        event for _, event, floor in CONTEXT_SCRIPTS if at_least(a.tier, floor)]
 
     if a.dry_run:
         print(f"would scaffold tier {a.tier} into {root}:")
@@ -578,12 +667,12 @@ def main():
             n = len([f for f in os.listdir(os.path.join(HERE, src))
                      if f.endswith(".py")])
             print(f"  {'COPY':<14} {dst}/  ({n} files)")
-        # Gated exactly as the real run below is. It was not, and printed this
-        # line at every tier -- so a tier A `--dry-run` promised a file the
-        # actual run never wrote. A preview whose only job is to be trusted
-        # before you approve it must not describe a different run.
-        if at_least(a.tier, "B"):
-            print(f"  {'NEW':<14} scripts/context/after_edit.py")
+        # Driven by the same list as the real run. A preview whose only job is
+        # to be trusted before you approve it must not describe a different run.
+        for name, _ in context_scripts:
+            print(f"  {'NEW':<14} scripts/context/{name}")
+        print(f"  {'APPEND':<14} .gitignore  "
+              f"(+{len(IGNORE_LINES)} pattern(s) that must never be committed)")
         print(f"  {'MERGE':<14} .claude/settings.json  (+{', '.join(events)})")
         return 0
 
@@ -613,16 +702,18 @@ def main():
             os.chmod(target, 0o755)
             made.append(("NEW", rel, ""))
 
-    if at_least(a.tier, "B"):
-        target = os.path.join(root, "scripts", "context", "after_edit.py")
+    for name, _ in context_scripts:
+        target = os.path.join(root, "scripts", "context", name)
+        rel = os.path.relpath(target, root)
         if os.path.exists(target):
-            made.append(("SKIP", os.path.relpath(target, root), "already exists"))
-        else:
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.copy(os.path.join(HERE, "context", "after_edit.py"), target)
-            os.chmod(target, 0o755)
-            made.append(("NEW", "scripts/context/after_edit.py", ""))
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(HERE, "context", name), target)
+        os.chmod(target, 0o755)
+        made.append(("NEW", rel, ""))
 
+    ensure_gitignore(root, made)
     merge_settings(root, events, made)
 
     width = max((len(p) for _, p, _ in made), default=10)

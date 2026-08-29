@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 shared/scripts/guards/dispatch.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/guards/dispatch.py\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/context/session_brief.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py\""
           }
         ]
       }
@@ -28,7 +28,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 shared/scripts/context/after_edit.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/after_edit.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/on_stop.py\"",
+            "timeout": 60
           }
         ]
       }
