@@ -177,11 +177,18 @@ jobs:
           ANTHROPIC_SMALL_FAST_MODEL: ${{ env.UPSTREAM_MODEL }}
           DISABLE_TELEMETRY: "1"
           DISABLE_ERROR_REPORTING: "1"
+          # Through the environment, never interpolated into the script.
+          # `${{ inputs.only }}` written inline is a shell injection: whoever
+          # dispatches the workflow chooses that string, and zizmor is right
+          # that a quoted expansion is not a defence.
+          ONLY: ${{ inputs.only }}
+          TURNS: ${{ inputs.turns || '40' }}
+          NO_AGENT: ${{ inputs.agent && '' || '--no-agent' }}
         run: |
           python3 eval/improve.py \
-            --only '${{ inputs.only }}' \
-            --turns '${{ inputs.turns || 40 }}' \
-            ${{ inputs.agent && ' ' || '--no-agent' }}
+            --only "$ONLY" \
+            --turns "$TURNS" \
+            $NO_AGENT
 
       - name: Everything this run learned, whatever happened to it
         if: always()
