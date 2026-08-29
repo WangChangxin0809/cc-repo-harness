@@ -16,7 +16,13 @@ ignored.
 
 Shallow, single-commit fetches: the corpus is about 30 MB of trees and nobody
 needs the history. Re-running is cheap and idempotent -- a repository already
-sitting at its pinned SHA is left alone.
+sitting at its pinned SHA *with a clean tree* is left alone.
+
+Both halves of that matter. `run_corpus.py` scaffolds these repositories in
+place, which writes seventeen files and edits two tracked ones and never makes
+a commit, so the SHA alone reported an untouched repository that was nothing of
+the kind. A dirty tree is re-cloned, and the summary calls it `restored` so that
+a run which quietly undid somebody else's work in progress says so.
 """
 
 from __future__ import annotations
@@ -43,13 +49,34 @@ def head_of(path):
     return out.stdout.strip() if out.returncode == 0 else None
 
 
+def is_clean(path):
+    """Whether the working tree matches the commit, untracked files included.
+
+    A pinned SHA is not the same claim as an untouched repository, and the
+    difference is not academic: `run_corpus.py` scaffolds these trees in place,
+    which writes seventeen files and edits two tracked ones without producing a
+    commit. HEAD still matched, so the old check called them cached and skipped
+    them, and the next thing to read one read our own scaffold back as if it
+    were the repository's. Anything that measures an untouched repository has to
+    be able to say the repository is untouched."""
+    out = sh(["git", "status", "--porcelain"], cwd=path)
+    return out.returncode == 0 and not out.stdout.strip()
+
+
 def fetch_one(entry):
     """(name, status, detail). Status is one of ok / cached / failed."""
     name, sha = entry["full_name"], entry["sha"]
     dest = os.path.join(WORK, name.replace("/", "__"))
 
     if os.path.isdir(os.path.join(dest, ".git")) and head_of(dest) == sha:
-        return (name, "cached", sha[:10])
+        if is_clean(dest):
+            return (name, "cached", sha[:10])
+        # Re-clone rather than `git clean -xfd`: the tree may hold an installed
+        # dependency directory that took ten minutes to build, and deciding
+        # which dirt is precious is not a decision a fetch should be making.
+        dirty = True
+    else:
+        dirty = False
 
     shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
@@ -70,7 +97,7 @@ def fetch_one(entry):
     got = head_of(dest)
     if got != sha:
         return (name, "failed", f"landed on {got} not {sha}")
-    return (name, "ok", sha[:10])
+    return (name, "restored" if dirty else "ok", sha[:10])
 
 
 def main():

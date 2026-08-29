@@ -11,6 +11,7 @@
 | Know what this plugin is and is not, and why it is named that | [0002](decisions/0002-the-name-states-the-scope.md) |
 | Know how the index extracts symbols, and what it used to claim | [0003](decisions/0003-the-extractor-is-regexes-and-says-so.md) |
 | See what is in flight | [collaboration harness](exec-plans/collaboration-harness/README.md) |
+| See whether the harness helps a repository we did not write | [field trial](exec-plans/field-trial/README.md) |
 | Know what was found in passing and deliberately not fixed | [tech debt](exec-plans/tech-debt-tracker.md) |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
