@@ -53,3 +53,11 @@ jobs:
             exit 2
           fi
           python3 eval/nim_smoke.py --stream
+
+      - name: Which candidates call tools, and how fast?
+        # Ranking is worth having even when the chosen model passed, and worth
+        # having *especially* when it did not.
+        if: always()
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: python3 eval/nim_smoke.py --compare --pause 8

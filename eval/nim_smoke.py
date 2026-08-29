@@ -21,12 +21,23 @@ to us. Everything else here is scaffolding around that one assertion.
 
 ## Why exit 2 is a distinct answer
 
-The first attempt to run this ran on a machine behind a proxy that permits
-`GET /v1/models` and holds `POST /v1/chat/completions` open for sixty seconds
-before resetting it. Both a blocked network and a broken key produce "no
-answer". Calling that a failure would have sent us debugging a key that was
-fine. A refused or filtered network is a thing this script *could not judge*,
-and it says so.
+Twice now the honest answer has been "no measurement was taken", and twice the
+tempting answer was "fail".
+
+`deepseek-v4-pro` is in the catalogue and accepts a sixteen-token request, then
+holds the connection open for sixty-one seconds and resets it. A model that
+cannot be reached and a key that is wrong both produce silence; scoring that as
+failure sends you debugging a key that is fine. The way to tell them apart is
+in the script: a request naming a model that cannot exist comes back 404 in a
+second, which proves the path is open and puts the silence on the model.
+
+Then `minimax-m3` answered, called the tool correctly -- and the next request
+came back 429, because a free tier does not serve three in a row. The first
+version of this script recorded that as "does not support streaming tool calls"
+about a model it had just watched make one. A throttled provider is declining
+to be measured, so `call()` backs off and retries, and gives up into exit 2.
+
+Exit 1 is reserved for the endpoint answering and the answer being unfit.
 """
 
 from __future__ import annotations
@@ -41,7 +52,24 @@ import urllib.error
 import urllib.request
 
 DEFAULT_BASE = "https://integrate.api.nvidia.com"
-DEFAULT_MODEL = "deepseek-ai/deepseek-v4-pro-0813"
+# Measured, not chosen: on one tool-calling prompt, nemotron-3-super answers in
+# 2.2s where minimax-m3 takes 10.3s and deepseek-v4-pro never answers at all --
+# it accepts a sixteen-token request and then holds the connection open for 61s
+# before resetting it. This is a default for a smoke test, where the only
+# requirement is that the endpoint reliably works; which model actually drives
+# the corpus is a question about agentic quality that latency cannot answer.
+DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+
+# Candidates worth re-checking when the provider changes. Catalogue membership
+# is not availability: nemotron-nano-3-30b-a3b is listed and returns 404
+# "Model not found", which is why `probe` reports a row instead of asserting.
+CANDIDATES = (
+    "openai/gpt-oss-120b",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "moonshotai/kimi-k3",
+    "minimaxai/minimax-m3",
+)
 
 # Long enough that a reasoning model's first token is not mistaken for a hang,
 # short enough that a filtered connection is not mistaken for slowness. The
@@ -63,11 +91,42 @@ TOOL = {
 }
 
 
+# A shared free tier answers three requests in a row with a rate limit, and a
+# rate limit is the provider declining to be measured -- not the provider
+# failing. The first version of this script scored a 429 as "does not support
+# streaming tool calls" about a model that had demonstrably just made one.
+RETRYABLE = frozenset((429, 500, 502, 503, 504))
+RETRIES = 4
+BACKOFF = 8  # seconds, then doubled
+
+
 class CannotJudge(Exception):
     """The network would not carry the question. Not a verdict on the endpoint."""
 
 
 def call(base, key, payload, timeout=TIMEOUT):
+    """(status, body_text, seconds), retrying a throttled or flapping upstream.
+
+    Raises CannotJudge if nothing ever came back, or if the provider spent every
+    attempt declining to serve one. Both mean the same thing to a caller: no
+    measurement was taken. Neither means the endpoint is unfit."""
+    delay = BACKOFF
+    for attempt in range(RETRIES):
+        status, body, secs = call_once(base, key, payload, timeout)
+        if status not in RETRYABLE:
+            return status, body, secs
+        if attempt == RETRIES - 1:
+            raise CannotJudge(
+                f"HTTP {status} on every one of {RETRIES} attempts -- the "
+                f"provider is throttling or unwell, not answering the question")
+        print(f"          HTTP {status}, waiting {delay}s "
+              f"({attempt + 1}/{RETRIES - 1})")
+        time.sleep(delay)
+        delay *= 2
+    raise AssertionError("unreachable")
+
+
+def call_once(base, key, payload, timeout=TIMEOUT):
     """(status, body_text, seconds). Raises CannotJudge if nothing came back."""
     req = urllib.request.Request(
         base.rstrip("/") + "/v1/chat/completions",
@@ -110,8 +169,63 @@ def tool_calls_in(body):
     return message.get("tool_calls") or []
 
 
+def probe(base, key, model):
+    """One model's row: (verdict, seconds, detail).
+
+    Verdict is pass / prose / error / unreachable. Kept separate from main()'s
+    exit codes because a comparison wants every row, not the first refusal."""
+    try:
+        status, body, secs = call(base, key, {
+            "model": model, "max_tokens": 300, "tools": [TOOL],
+            "messages": [{"role": "user", "content":
+                          "Read the file /etc/hostname. Use the tool; do not guess."}],
+        })
+    except CannotJudge as exc:
+        return ("unreachable", None, str(exc)[:90])
+    if status != 200:
+        return ("error", secs, f"HTTP {status}: {body[:80]}")
+    calls = tool_calls_in(body)
+    if calls is None:
+        return ("error", secs, "unparseable response")
+    if not calls:
+        return ("prose", secs, "answered in prose, never called the tool")
+    fn = calls[0].get("function", {})
+    return ("pass", secs, f"{fn.get('name')}({fn.get('arguments')})"[:70])
+
+
+def compare(base, key, names, pause):
+    """Rank candidates by whether they call tools, then by how fast.
+
+    A shared free tier rate-limits bursts, so this paces itself. That makes the
+    run slow and the numbers honest; a burst would measure the throttle."""
+    rows = []
+    for i, model in enumerate(names):
+        if i:
+            time.sleep(pause)
+        verdict, secs, detail = probe(base, key, model)
+        rows.append((model, verdict, secs, detail))
+        print(f"  {verdict:<11} {secs if secs is None else round(secs, 1):>6}s  "
+              f"{model:<40} {detail}")
+
+    ok = sorted((r for r in rows if r[1] == "pass"), key=lambda r: r[2])
+    print()
+    if not ok:
+        print("No candidate called a tool. None of these can drive a coding agent.")
+        return 1
+    print("Usable, fastest first:")
+    for model, _, secs, _ in ok:
+        print(f"  {secs:>6.1f}s  {model}")
+    print(f"\nPASS: {len(ok)}/{len(rows)} candidates call tools. "
+          f"Fastest is {ok[0][0]} at {ok[0][2]:.1f}s.")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--compare", nargs="?", const=",".join(CANDIDATES), default="",
+                    help="rank model ids against each other; bare flag uses CANDIDATES")
+    ap.add_argument("--pause", type=float, default=6.0,
+                    help="seconds between candidates, to stay under the rate limit")
     # `or`, not a get() default: CI sets these to the empty string when the
     # triggering event carries no inputs, and an empty string is present.
     ap.add_argument("--base-url", default=os.environ.get("NIM_BASE_URL") or DEFAULT_BASE)
@@ -126,6 +240,20 @@ def main():
         return 2
 
     print(f"endpoint  {a.base_url}")
+
+    if a.compare:
+        names = [n.strip() for n in a.compare.split(",") if n.strip()]
+        available = models(a.base_url, key)
+        if available is None:
+            print("cannot judge: could not list models", file=sys.stderr)
+            return 2
+        unknown = [n for n in names if n not in available]
+        if unknown:
+            print("FAIL: not in the catalogue: " + ", ".join(unknown), file=sys.stderr)
+            return 1
+        print(f"comparing {len(names)} candidates, {a.pause}s apart\n")
+        return compare(a.base_url, key, names, a.pause)
+
     print(f"model     {a.model}")
 
     available = models(a.base_url, key)
