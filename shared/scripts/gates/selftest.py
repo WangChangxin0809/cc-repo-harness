@@ -115,6 +115,32 @@ CASES = [
     dict(
         gate="check_context_budget.py",
         args=["--cap", "20"],
+        why="instructions parked in .claude/CLAUDE.md instead of the root",
+        # `./CLAUDE.md` **or** `./.claude/CLAUDE.md` -- both are first-party
+        # project locations and both load. Counting only the root one meant a
+        # repository following the documented layout returned "cannot judge"
+        # while carrying hundreds of always-on lines.
+        needle="cap is 20",
+        plant=lambda t: write(t, ".claude/CLAUDE.md",
+                              "# demo\n\n" + "".join(f"- rule {i}\n"
+                                                     for i in range(1, 40))),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
+        why="an unscoped .claude/rules file, which loads at launch",
+        # "Rules without `paths` frontmatter are loaded at launch with the same
+        # priority as `.claude/CLAUDE.md`." Not counting them made the whole
+        # directory a bypass: move a hundred lines there and the cost is
+        # identical while the cap goes quiet.
+        needle="cap is 20",
+        plant=lambda t: write(t, ".claude/rules/style.md",
+                              "# style\n\n" + "".join(f"- rule {i}\n"
+                                                      for i in range(1, 40))),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
         why="a CLAUDE.md left as an empty template",
         needle="almost no content",
         plant=lambda t: write(t, "CLAUDE.md", "# demo\n"),
@@ -402,6 +428,36 @@ CASES = [
         plant=lambda t: write(t, "src/api/CLAUDE.md",
                               "# api\n\n" + "".join(f"- rule {i}\n"
                                                     for i in range(1, 80))),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
+        why="a .claude/rules file that declares paths:, far over the cap",
+        # The escape hatch this gate exists to push work toward. Charging for a
+        # scoped rule would push it straight back into CLAUDE.md, which is the
+        # outcome the cap is trying to prevent.
+        needle=None,
+        plant=lambda t: write(t, ".claude/rules/api.md",
+                              '---\npaths:\n  - "src/**"\n---\n\n'
+                              + "".join(f"- rule {i}\n" for i in range(1, 80))),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
+        why="maintainer notes in an HTML comment, far over the cap",
+        # Block-level HTML comments are stripped before the content enters
+        # context, so they are free. The cap charged for them, which failed a
+        # file on lines that were never delivered to anyone.
+        needle=None,
+        # Enough real content to clear the "almost no content" assertion; the
+        # point of the case is the 90 commented lines, not the size of the rest.
+        plant=lambda t: write(t, "CLAUDE.md",
+                              "# demo\n\nA repository.\n\n## Hard rules\n\n"
+                              + "".join(f"{i}. rule -> docs/x.md\n"
+                                        for i in range(1, 9))
+                              + "\n<!--\n"
+                              + "".join(f"note {i}\n" for i in range(1, 90))
+                              + "-->\n"),
     ),
     dict(
         gate="check_docs_index.py",

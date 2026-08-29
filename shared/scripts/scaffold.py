@@ -514,6 +514,16 @@ PLAN = [
 # ran this script.
 DIRS = [
     ("docs/how-to", "A"),
+    # A `.gitkeep` and never a `.md`. Every `.md` in here is a rule, and one
+    # without `paths:` frontmatter loads at launch at the same priority as
+    # `.claude/CLAUDE.md` -- so a README explaining the directory would be a
+    # permanent context charge for a note aimed at whoever opened the folder.
+    #
+    # The directory ships empty because the cost of filling it is now visible:
+    # check_context_budget.py counts unscoped rules against the same cap as
+    # CLAUDE.md and reports scoped ones separately. Without that feedback this
+    # would be a bypass with a welcome mat.
+    (".claude/rules", "B"),
     ("docs/reference", "A"),
     ("scripts/selftests", "B"),
     ("scripts/baselines", "B"),

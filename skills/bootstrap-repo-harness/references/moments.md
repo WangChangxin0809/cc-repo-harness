@@ -53,8 +53,27 @@ the one-hop mode exists for exactly this moment.
 
 ## 4 · Reading a subtree — nested `CLAUDE.md`
 
-No wiring at all: a `CLAUDE.md` in any directory loads when files under it enter
-context.
+No wiring at all. Two mechanisms, and they load the same way:
+
+- a `CLAUDE.md` in any directory, when files under it enter context;
+- `.claude/rules/*.md` with `paths:` frontmatter, when Claude reads a file
+  matching the glob. Discovered recursively, so `rules/frontend/*.md` works.
+
+```markdown
+---
+paths:
+  - "src/api/**/*.ts"
+---
+- Every endpoint validates its input before touching the DB.
+```
+
+Prefer a rule over a nested `CLAUDE.md` when the scope is not exactly one
+directory, or when several unrelated conventions would otherwise pile into one
+file. **A rule with no `paths:` is not scoped at all** — it loads at launch at
+the same priority as `.claude/CLAUDE.md`, and is charged as such.
+
+Both load only on *Read*. Neither reaches a file created with `Write`, or one
+written through the shell; moment 5 covers that gap.
 
 This is the highest-leverage moment and the most under-used. A rule that is only
 true inside `src/billing/` costs every other session nothing, and arrives

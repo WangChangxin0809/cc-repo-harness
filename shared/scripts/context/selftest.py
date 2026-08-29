@@ -20,10 +20,11 @@ text" but "is the text in an envelope Claude Code delivers".
 `case_delivery_is_an_envelope_not_bare_stdout` is that check, and it is first on
 purpose.
 
-Known gap, deliberately recorded rather than quietly left: `on_stop.py` still
-has no coverage here, and neither of its two load-bearing
-properties is verified. It is written down in the repository's tech-debt
-tracker rather than left as an intention.
+`on_stop.py` is covered here too, and its two load-bearing properties are the
+ones nothing else could have caught: it **fails open**, which is the inverse of
+every other check in the tree, and it short-circuits on `stop_hook_active`. Both
+break silently -- a broken fail-open traps the session, a broken short-circuit
+makes it unstoppable -- and neither shows up in normal use until it does.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOOK = os.path.join(HERE, "before_write.py")
+ON_STOP = os.path.join(HERE, "on_stop.py")
 
 RULE = """\
 ---
@@ -110,6 +112,100 @@ def delivered(proc):
 
 
 # --------------------------------------------------------------------------
+# on_stop.py
+
+STUB = """\
+import sys
+sys.stderr.write({msg!r})
+sys.exit({code})
+"""
+
+
+def stop_repo(tmp, checks):
+    """A scaffolded layout with stub gates, because on_stop.py finds them by
+    walking up from its own file. Copied rather than run in place: the real
+    gates would judge this fixture, and the cases are about how their exit
+    codes are read, not about what they say."""
+    ctx = os.path.join(tmp, "scripts", "context")
+    gates = os.path.join(tmp, "scripts", "gates")
+    os.makedirs(ctx); os.makedirs(gates)
+    shutil.copy(ON_STOP, os.path.join(ctx, "on_stop.py"))
+    for name, (code, msg) in checks.items():
+        with open(os.path.join(gates, name), "w", encoding="utf-8") as fh:
+            fh.write(STUB.format(code=code, msg=msg))
+    subprocess.run(["git", "init", "-q"], cwd=tmp, capture_output=True)
+    return os.path.join(ctx, "on_stop.py")
+
+
+def stop(script, tmp, **payload):
+    return subprocess.run([sys.executable, script], input=json.dumps(payload),
+                          cwd=tmp, capture_output=True, text=True)
+
+
+def case_a_judged_failure_blocks_the_stop(t):
+    """Exit 1 from a check is a judged failure and must hold the turn open,
+    with the check's own output handed back -- the remedy is in there, and a
+    block with no reason is a block the agent cannot act on."""
+    script = stop_repo(t, {"check_docs_index.py": (1, "ROUTING IS BROKEN")})
+    proc = stop(script, t)
+    if proc.returncode != 2:
+        return f"a red tree did not block the stop: exit {proc.returncode}"
+    if "ROUTING IS BROKEN" not in proc.stderr:
+        return f"the check's own output was swallowed: {proc.stderr.strip()!r}"
+    return None
+
+
+def case_cannot_judge_never_blocks_a_stop(t):
+    """**The inversion.** Everywhere else in this tree exit 2 means "could not
+    judge" and is never a pass. Here it must pass, because a Stop hook that
+    blocks on something it cannot see makes the session impossible to end. The
+    two costs are not comparable: a false block is an agent that cannot stop, a
+    false pass is a red tree CI catches minutes later."""
+    script = stop_repo(t, {"check_docs_index.py": (2, "cannot see the docs")})
+    proc = stop(script, t)
+    if proc.returncode != 0:
+        return (f"exit 2 from a check blocked the stop (exit "
+                f"{proc.returncode}) — that traps the session on a condition "
+                f"nobody can see")
+    return None
+
+
+def case_stop_hook_active_short_circuits(t):
+    """Without it, an unfixable defect is an unbreakable loop: the agent is
+    asked to fix it, stops, is blocked again, forever."""
+    script = stop_repo(t, {"check_docs_index.py": (1, "STILL BROKEN")})
+    proc = stop(script, t, stop_hook_active=True)
+    if proc.returncode != 0:
+        return (f"blocked a stop that was already this hook's own retry: exit "
+                f"{proc.returncode} — this is the unbreakable-loop case")
+    return None
+
+
+def case_a_missing_check_is_not_a_failure(t):
+    """Tiers. A repository can carry this hook and not every gate it names, and
+    an absent file must not read as a red one."""
+    script = stop_repo(t, {})
+    proc = stop(script, t)
+    if proc.returncode != 0:
+        return f"an absent gate was treated as a failure: exit {proc.returncode}"
+    return None
+
+
+def case_a_green_tree_ends_the_turn(t):
+    """The other direction. A hook that blocks on everything is switched off in
+    a week and takes the working half with it."""
+    script = stop_repo(t, {"check_docs_index.py": (0, ""),
+                           "check_docs_layout.py": (0, "")})
+    proc = stop(script, t)
+    if proc.returncode != 0:
+        return f"a green tree still blocked the stop: exit {proc.returncode}"
+    if proc.stderr.strip():
+        return f"spoke on a green tree: {proc.stderr.strip()[:100]!r}"
+    return None
+
+
+# --------------------------------------------------------------------------
+# before_write.py
 
 def case_delivery_is_an_envelope_not_bare_stdout(t):
     """Output must arrive as `hookSpecificOutput.additionalContext`.
@@ -300,6 +396,11 @@ def case_a_crash_never_costs_a_tool_call(t):
 
 
 CASES = [
+    ("a judged failure blocks the stop", case_a_judged_failure_blocks_the_stop),
+    ("could not judge never blocks a stop", case_cannot_judge_never_blocks_a_stop),
+    ("stop_hook_active short-circuits", case_stop_hook_active_short_circuits),
+    ("a missing check is not a failure", case_a_missing_check_is_not_a_failure),
+    ("a green tree ends the turn", case_a_green_tree_ends_the_turn),
     ("delivery is an envelope, not bare stdout",
      case_delivery_is_an_envelope_not_bare_stdout),
     ("a path-scoped rule reaches a bash write",
@@ -329,9 +430,10 @@ def main():
     if shutil.which("git") is None:
         print("cannot run: git not on PATH", file=sys.stderr)
         return 2
-    if not os.path.exists(HOOK):
-        print(f"cannot run: {HOOK} is missing", file=sys.stderr)
-        return 2
+    for path in (HOOK, ON_STOP):
+        if not os.path.exists(path):
+            print(f"cannot run: {path} is missing", file=sys.stderr)
+            return 2
 
     failures = []
     for label, fn in CASES:
