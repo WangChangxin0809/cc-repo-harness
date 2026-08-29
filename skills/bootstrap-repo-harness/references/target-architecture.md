@@ -56,7 +56,7 @@ repo/
 | Tier | Adds |
 |---|---|
 | **A** | `CLAUDE.md` · `.claude/` · `docs/index.md` · `how-to/` · `reference/` · `guards/` |
-| **B** | + `ARCHITECTURE.md` · `SECURITY.md` · `ci.sh` · `0001` · the rest of `docs/` · `gates/` · `context/after_edit.py` |
+| **B** | + `ARCHITECTURE.md` · `SECURITY.md` · `ci.sh` · `0001` · the rest of `docs/` · `gates/` · `context/before_write.py` |
 | **C** | + `scripts/index/` · consolidation · a gold set for the harness itself |
 
 Installing above tier leaves machinery nobody needs. It rots, and its rot

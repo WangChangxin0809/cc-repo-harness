@@ -360,6 +360,7 @@ run() {  # run <lane-floor> <name> <command...>
 # --- fast: seconds -----------------------------------------------------------
 run fast "guards can still turn red" python3 scripts/guards/selftest.py
 run fast "gates can still turn red"  python3 scripts/gates/selftest.py
+run fast "hooks reach the model"     python3 scripts/context/selftest.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
@@ -453,19 +454,45 @@ GUARDS_JSON = {
 #
 # Quoted because these are shell form; the docs ask for quotes around any path
 # placeholder there.
-HOOKS = {
-    "PreToolUse": dict(matcher="Bash",
-                       command='python3 "${CLAUDE_PROJECT_DIR}/scripts/guards/dispatch.py"'),
-    "SessionStart": dict(matcher="*",
-                         command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py"'),
-    "PostToolUse": dict(matcher="Edit|Write|MultiEdit",
-                        command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/after_edit.py"'),
+# Context scripts: hook-wired, copied one file at a time rather than by
+# directory, because `context/` also holds things a target repository has no use
+# for. One list feeds the dry run, the writer and the hook wiring -- when this
+# was two code paths, a tier A `--dry-run` promised a file the real run never
+# wrote.
+#
+# A script declares *every* event it answers, because two of them need two. The
+# pair on before_write.py is not a convenience: `InstructionsLoaded` is how it
+# learns which rules Claude Code already delivered, and without that half it
+# would inject a second copy of every rule the native loader had just loaded.
+CONTEXT_SCRIPTS = [
+    ("before_write.py", [("PreToolUse", "Bash|Write|Edit|MultiEdit"),
+                         ("InstructionsLoaded", "path_glob_match")], "B"),
     # The last moment anything can be said to an agent. Every other hook fires
     # while work is happening; none covers finishing with the tree red, which
     # is the failure a person discovers later, from CI, after the agent is gone.
-    "Stop": dict(matcher="*",
-                 command='python3 "${CLAUDE_PROJECT_DIR}/scripts/context/on_stop.py"'),
-}
+    ("on_stop.py", [("Stop", "*")], "B"),
+    # Ships with them and answers to no event. A hook nobody can watch fail is
+    # how `after_edit.py` spent its whole life printing to a channel the model
+    # never reads, with a passing test that asserted on the wrong boundary.
+    ("selftest.py", [], "B"),
+]
+
+# (event, matcher, command, minimum tier). A list and not a dict keyed by event,
+# because one event legitimately carries more than one hook: `PreToolUse` runs
+# both the guard dispatcher, which can refuse a call, and before_write.py, which
+# only informs. They stay two processes on purpose -- folded into one, a crash
+# in the informer would take the guards down with it, and guards failing open is
+# a decision that belongs to dispatch.py alone.
+HOOKS = [
+    ("PreToolUse", "Bash",
+     'python3 "${CLAUDE_PROJECT_DIR}/scripts/guards/dispatch.py"', "A"),
+    ("SessionStart", "*",
+     'python3 "${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py"', "A"),
+] + [
+    (event, matcher,
+     'python3 "${CLAUDE_PROJECT_DIR}/scripts/context/%s"' % name, floor)
+    for name, pairs, floor in CONTEXT_SCRIPTS for event, matcher in pairs
+]
 
 # rel path -> (template, mode, minimum tier)
 PLAN = [
@@ -490,16 +517,6 @@ DIRS = [
     ("docs/reference", "A"),
     ("scripts/selftests", "B"),
     ("scripts/baselines", "B"),
-]
-
-# Context scripts: hook-wired, copied one file at a time rather than by
-# directory, because `context/` also holds things a target repository has no use
-# for. One list feeds the dry run, the writer and the hook wiring -- when this
-# was two code paths, a tier A `--dry-run` promised a file the real run never
-# wrote.
-CONTEXT_SCRIPTS = [
-    ("after_edit.py", "PostToolUse", "B"),
-    ("on_stop.py", "Stop", "B"),
 ]
 
 # source dir under this script -> destination under the repo, minimum tier
@@ -591,7 +608,7 @@ def ensure_gitignore(root, made):
                  f"+{len(missing)} pattern(s)"))
 
 
-def merge_settings(root, events, made):
+def merge_settings(root, wanted, made):
     path = os.path.join(root, ".claude", "settings.json")
     rel = os.path.relpath(path, root)
     cfg, existed = {}, os.path.exists(path)
@@ -606,13 +623,15 @@ def merge_settings(root, events, made):
 
     hooks = cfg.setdefault("hooks", {})
     added = []
-    for event in events:
-        spec = HOOKS[event]
-        if spec["command"] in json.dumps(hooks.get(event, [])):
+    for event, matcher, command in wanted:
+        # Keyed on the command, not the event: an event can hold several hooks
+        # and re-running the scaffolder must add each missing one without
+        # duplicating the ones already there.
+        if command in json.dumps(hooks.get(event, [])):
             continue
         hooks.setdefault(event, []).append({
-            "matcher": spec["matcher"],
-            "hooks": [{"type": "command", "command": spec["command"]}],
+            "matcher": matcher,
+            "hooks": [{"type": "command", "command": command}],
         })
         added.append(event)
 
@@ -623,8 +642,12 @@ def merge_settings(root, events, made):
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2)
         fh.write("\n")
+    # De-duplicated for the report only. One event legitimately gains more than
+    # one hook, and printing "PreToolUse, ..., PreToolUse" reads as a bug in the
+    # scaffolder rather than as two hooks on one event.
+    shown = list(dict.fromkeys(added))
     made.append(("MERGE" if existed else "NEW", rel,
-                 f"+{', '.join(added)}" + (" (.bak saved)" if existed else "")))
+                 f"+{', '.join(shown)}" + (" (.bak saved)" if existed else "")))
 
 
 def main():
@@ -653,8 +676,9 @@ def main():
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
     context_scripts = [(name, floor) for name, _, floor in CONTEXT_SCRIPTS
                        if at_least(a.tier, floor)]
-    events = ["PreToolUse", "SessionStart"] + [
-        event for _, event, floor in CONTEXT_SCRIPTS if at_least(a.tier, floor)]
+    wanted_hooks = [(event, matcher, command)
+                    for event, matcher, command, floor in HOOKS
+                    if at_least(a.tier, floor)]
 
     if a.dry_run:
         print(f"would scaffold tier {a.tier} into {root}:")
@@ -673,7 +697,8 @@ def main():
             print(f"  {'NEW':<14} scripts/context/{name}")
         print(f"  {'APPEND':<14} .gitignore  "
               f"(+{len(IGNORE_LINES)} pattern(s) that must never be committed)")
-        print(f"  {'MERGE':<14} .claude/settings.json  (+{', '.join(events)})")
+        print(f"  {'MERGE':<14} .claude/settings.json  "
+              f"(+{', '.join(sorted({e for e, _, _ in wanted_hooks}))})")
         return 0
 
     made = []
@@ -714,7 +739,7 @@ def main():
         made.append(("NEW", rel, ""))
 
     ensure_gitignore(root, made)
-    merge_settings(root, events, made)
+    merge_settings(root, wanted_hooks, made)
 
     width = max((len(p) for _, p, _ in made), default=10)
     for state, path, note in made:

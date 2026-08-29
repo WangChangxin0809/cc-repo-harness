@@ -174,7 +174,7 @@ of the result, not that it did not crash:
 | an unmatched seed cannot judge | a silent degrade to the global ranking looks like an answer |
 | a bare symbol name still resolves as a seed | path-keying the nodes nearly broke seeding by name |
 | the benchmark separates signal from noise | a benchmark whose floor is level with its subject reports artefacts |
-| both readers of `Governs:` scan the same window | `build.py` read 60 lines and `after_edit.py` read 40, so a line between them made an edge with no hint |
+| both readers of `Governs:` scan the same window | `build.py` read 60 lines and the delivering hook read 40, so a line between them made an edge with no hint |
 
 Two of those cases passed *vacuously* when first written — the fixture used a
 trailing slash, and put the definer earlier in sort order, so the broken and

@@ -197,7 +197,7 @@ is why it carries no phase letter — the letters mean "in this order".**
 
 - [ ] todo    [D1 · Dispose of `index/`](steps/D1-dispose-of-index.md)
 - [ ] todo    One implementation of `Governs:`. Three exist (`index/build.py`,
-              `context/after_edit.py`, `drift.py`), pinned by a selftest, and
+              `context/before_write.py`, `drift.py`), pinned by a selftest, and
               the one defect that escaped was a disagreement between two of them.
 - [ ] todo    `probe_repo.py` reports `gates / guards 0 / 0` here because it
               looks under `scripts/` while ours are payload under

@@ -175,7 +175,7 @@ def case_tier_a_ships_working_guards():
 def case_dry_run_describes_the_run_that_happens():
     """`--dry-run` must name exactly the files the real run creates.
 
-    It did not. The preview printed `NEW scripts/context/after_edit.py`
+    It did not. The preview printed `NEW scripts/context/<a context script>`
     unconditionally while the writer gated that copy on tier B, so a tier A
     `--dry-run` promised a file the actual run never wrote. Found by scaffolding
     this repository onto itself -- nothing here scaffolds a *tier A* repo and

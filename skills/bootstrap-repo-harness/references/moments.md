@@ -75,20 +75,59 @@ path. See `writing-checks` for the full contract.
 
 `matcher` takes a regex over tool names: `Bash`, `Edit|Write|MultiEdit`, `.*`.
 
+**The same moment also delivers, and that is a separate hook.** `dispatch.py`
+can refuse; `before_write.py` only informs — what `.claude/rules/` is scoped to
+this path, and what document declares `Governs:` over it:
+
+```json
+{"matcher": "Bash|Write|Edit|MultiEdit", "hooks": [{"type": "command",
+ "command": "python3 scripts/context/before_write.py"}]}
+```
+
+Two processes on purpose. Folded into one, a crash in the informer takes the
+guards down with it.
+
+It belongs *before* the write and not after, because creating a file is when a
+convention is worth most — there is no existing code to copy the shape from.
+It advises rather than prevents: measured, the first write lands wrong and the
+agent corrects on the retry, because `PreToolUse` hands its context to the model
+together with the result of the call that triggered it. What must not be
+violated goes in a guard.
+
 ## 6 · After an action — `PostToolUse`
 
 ```json
 {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command",
- "command": "python3 scripts/context/after_edit.py"}]}
+ "command": "python3 scripts/context/<your hook>.py"}]}
 ```
 
 Receives the call and its result. The action already happened, so this is
 delivery, not judgment — a hook here should always exit 0.
 
-The unique thing it knows is what the agent *actually did*, rather than what it
-said it would do. Two things are worth saying: that a document governs the path
-just edited, and what is adjacent to it in the repo graph. If neither applies,
-print nothing; a hook that speaks after every edit stops being read.
+**Return `hookSpecificOutput.additionalContext`, never plain stdout.** This is
+the single most expensive mistake available in this document. Plain stdout is
+context only on `UserPromptSubmit`, `UserPromptExpansion` and `SessionStart`;
+on every other event it goes to the debug log. A hook that prints its finding
+looks correct in a terminal, exits 0, passes a test that reads its stdout, and
+delivers nothing to the model. This harness shipped one for months.
+
+```json
+{"hookSpecificOutput": {"hookEventName": "PostToolUse",
+ "additionalContext": "what you want the agent to know"}}
+```
+
+The unique thing this moment knows is what the agent *actually did* rather than
+what it said it would. That makes it the right home for **what a change just
+affected** — callers of an edited function, a config key read elsewhere, a
+document that may have just gone stale. Nothing is wired here by default, on
+purpose: such a hook always has something to say, and one that speaks after
+every edit stops being read. Give it a reason to stay quiet before you give it
+a voice.
+
+Neither this moment nor moment 5 sees a file written by a subprocess. Nothing
+in Claude Code does — checkpointing, `/rewind` and path-scoped rules all draw
+the same line at the built-in file tools. `git status --porcelain` is the only
+thing that answers "what actually changed".
 
 ## 7 · On demand — skills and subagents
 

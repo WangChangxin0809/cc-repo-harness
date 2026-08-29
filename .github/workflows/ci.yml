@@ -70,6 +70,13 @@ jobs:
       - name: gates can still turn red
         run: python3 shared/scripts/gates/selftest.py --verbose
 
+      # Delivery is the one thing here that fails *silently in the passing
+      # direction*: a hook that writes to the wrong channel produces text, exits
+      # 0, and reaches nobody. `after_edit.py` did exactly that for its whole
+      # life, with a test that read its stdout and was satisfied.
+      - name: the context hooks still reach the model
+        run: python3 shared/scripts/context/selftest.py --verbose
+
       # The index is the one component whose defects are invisible: a broken
       # gate turns red, a broken guard fails open and its selftest catches it,
       # but a graph that ranks the wrong file returns a confident wrong answer
