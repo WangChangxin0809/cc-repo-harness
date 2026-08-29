@@ -185,10 +185,12 @@ jobs:
           TURNS: ${{ inputs.turns || '40' }}
           NO_AGENT: ${{ inputs.agent && '' || '--no-agent' }}
         run: |
-          python3 eval/improve.py \
-            --only "$ONLY" \
-            --turns "$TURNS" \
-            $NO_AGENT
+          # An array, because the flag has to vanish when it is empty and a
+          # quoted empty string is an argument. Unquoted $NO_AGENT does vanish
+          # and is a shellcheck finding for the reason that it also word-splits.
+          args=(--only "$ONLY" --turns "$TURNS")
+          [ -n "$NO_AGENT" ] && args+=("$NO_AGENT")
+          python3 eval/improve.py "${args[@]}"
 
       - name: Everything this run learned, whatever happened to it
         if: always()
