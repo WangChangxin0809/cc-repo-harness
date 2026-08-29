@@ -244,7 +244,7 @@ def compare(base, key, names, pause, samples):
     if flaky:
         print("Flaky -- called the tool sometimes. Not usable as a harness "
               "backend, and the reason one sample is not enough:")
-        for model, _, secs, hits, _ in flaky:
+        for model, _, _secs, hits, _ in flaky:
             print(f"  {hits}/{samples}  {model}")
         print()
     if not ok:
