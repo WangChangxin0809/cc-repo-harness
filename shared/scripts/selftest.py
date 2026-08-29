@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import collections
 import os
 import re
 import shutil
@@ -369,6 +370,55 @@ def case_survives_the_plugin_being_deleted():
         shutil.rmtree(repo, ignore_errors=True)
 
 
+def case_scaffolding_twice_changes_nothing():
+    """Re-running the scaffolder must add nothing it already added.
+
+    The docstring at the top of scaffold.py has always claimed "additive and
+    idempotent", and the second half stopped being true the day the wired
+    commands gained quotes around `${CLAUDE_PROJECT_DIR}`. The duplicate check
+    was a substring test against `json.dumps` of the stored hooks, and
+    serialising turns a stored `"` into `\\"` -- so the raw command was never a
+    substring of its own serialised form, and every re-run appended a copy of
+    every hook. Two guard dispatchers on one Bash call, two Stop hooks on one
+    turn, and a settings.json that still reads as plausible.
+
+    Nothing caught it because every case here scaffolds once, into a fresh
+    repository. Upgrading is the whole reason this plugin persists after the
+    first run, so the second run is the case that was missing.
+    """
+    repo = fresh_repo()
+    try:
+        first = scaffold(repo, "B")
+        if first.returncode != 0:
+            return f"the first scaffold failed: {first.stderr.strip()[:300]}"
+        settings = os.path.join(repo, ".claude", "settings.json")
+        with open(settings, encoding="utf-8") as fh:
+            before = json.load(fh)
+
+        second = scaffold(repo, "B")
+        if second.returncode != 0:
+            return f"the second scaffold failed: {second.stderr.strip()[:300]}"
+        with open(settings, encoding="utf-8") as fh:
+            after = json.load(fh)
+
+        seen = collections.Counter()
+        for event, entries in after.get("hooks", {}).items():
+            for entry in entries:
+                for hook in entry.get("hooks", []):
+                    seen[(event, hook.get("command"))] += 1
+        dupes = [f"{e} -> {c}" for (e, c), n in sorted(seen.items()) if n > 1]
+        if dupes:
+            return ("re-running the scaffolder duplicated wired hooks, so each "
+                    "fires twice per event:\n    " + "\n    ".join(dupes))
+        if json.dumps(before, sort_keys=True) != json.dumps(after,
+                                                            sort_keys=True):
+            return ("the second run changed settings.json without adding a "
+                    "hook — it must be a no-op")
+        return None
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+
 CASES = [
     ("tier B scaffold reaches green from a clean worktree",
      case_scaffold_reaches_green("B")),
@@ -382,6 +432,8 @@ CASES = [
      case_hooks_survive_the_working_directory_moving),
     ("personal permission grants cannot be committed",
      case_personal_permission_grants_cannot_be_committed),
+    ("scaffolding twice changes nothing the second time",
+     case_scaffolding_twice_changes_nothing),
     ("the repository survives the plugin being deleted",
      case_survives_the_plugin_being_deleted),
 ]
