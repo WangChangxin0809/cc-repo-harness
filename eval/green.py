@@ -218,9 +218,16 @@ def dirt(path):
             f"-- run eval/fetch.py to restore")
 
 
-def classify(path, samples):
-    """(verdict, detail, seconds, ecosystem, command) for one repository."""
-    soiled = dirt(path)
+def classify(path, samples, require_clean=True):
+    """(verdict, detail, seconds, ecosystem, command) for one repository.
+
+    `require_clean` is the corpus survey's question, not everybody's. Here an
+    unexpected diff means we are about to measure our own scaffold and call it
+    the repository. In `improve.py` the tree is *supposed* to be dirty -- it has
+    just been scaffolded and edited by an agent -- and refusing there reported
+    `contaminated` for every subject, which read as harm and was a refusal to
+    look."""
+    soiled = dirt(path) if require_clean else ""
     if soiled:
         return ("contaminated", soiled, None, "-", "-")
 
