@@ -209,6 +209,57 @@ def case_dry_run_describes_the_run_that_happens():
     return None
 
 
+def case_personal_permission_grants_cannot_be_committed():
+    """A scaffolded repository must never be able to commit settings.local.json.
+
+    Claude Code writes that file by itself the moment someone grants a
+    permission, and it holds grants rather than preferences. Committed, it does
+    not merely leak one person's setup -- it *applies* to everyone who clones,
+    so one approval silently becomes the whole team's.
+
+    This was found by opening our own `.claude/`. It looked safe, and it was:
+    the file was ignored by the developer's *global* gitignore, on one machine.
+    The repository itself had no such line and neither did anything we
+    scaffolded. That is the worst shape a defect can have -- invisible exactly
+    to whoever would notice it, and present for everybody else.
+
+    `core.excludesFile=/dev/null` is what makes this test mean anything; without
+    it, the machine running the suite would pass on its own configuration."""
+    for existing in (None, "node_modules/\n*.log\n"):
+        repo = fresh_repo()
+        try:
+            sh(["git", "config", "core.excludesFile", os.devnull], repo)
+            if existing is not None:
+                with open(os.path.join(repo, ".gitignore"), "w",
+                          encoding="utf-8") as fh:
+                    fh.write(existing)
+            if scaffold(repo, "B").returncode != 0:
+                return "scaffold --tier B failed"
+
+            local = os.path.join(repo, ".claude", "settings.local.json")
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            with open(local, "w", encoding="utf-8") as fh:
+                fh.write('{"permissions": {"allow": ["Bash(curl evil.sh)"]}}\n')
+
+            sh(["git", "add", "-A"], repo)
+            staged = sh(["git", "diff", "--cached", "--name-only"], repo).stdout
+            if "settings.local.json" in staged:
+                return ("settings.local.json is staged for commit — one "
+                        "person's permission grants would apply to everyone")
+
+            # And the pre-existing content must survive: appending is the only
+            # safe thing to do to a file a stranger's repository already owns.
+            if existing:
+                with open(os.path.join(repo, ".gitignore"), encoding="utf-8") as fh:
+                    body = fh.read()
+                for line in existing.strip().splitlines():
+                    if line not in body:
+                        return f".gitignore lost a pre-existing line: {line}"
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+    return None
+
+
 def case_survives_the_plugin_being_deleted():
     """The acceptance criterion, mechanised.
 
@@ -285,6 +336,8 @@ CASES = [
      case_tier_a_ships_working_guards),
     ("--dry-run describes the run that actually happens",
      case_dry_run_describes_the_run_that_happens),
+    ("personal permission grants cannot be committed",
+     case_personal_permission_grants_cannot_be_committed),
     ("the repository survives the plugin being deleted",
      case_survives_the_plugin_being_deleted),
 ]

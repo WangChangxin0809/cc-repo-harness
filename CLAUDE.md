@@ -36,10 +36,12 @@ the first question, because the answer changes who is affected.
    makes the repository behave differently for teammates who have not installed
    it. The plugin holds what protects a person from a repository, and what
    teaches a person. Nothing else.
-5. **We wire to `shared/`, not `scripts/`.** A scaffolded repository gets
-   copies under `scripts/`; we are the repository those copies come from, so
-   `.claude/settings.json` points at the source. This is the one place we
-   deliberately differ from what we install elsewhere -> docs/index.md
+5. **We wire to `shared/` for payload, `scripts/` for templates.** A scaffolded
+   repository gets *copies* of payload under `scripts/`; we are where those
+   copies come from, so `.claude/settings.json` points at the source. The one
+   hook pointing at `scripts/` is `session_brief.py`, which is generated per
+   repository rather than copied — ours is our own instance of it, not a stale
+   duplicate -> docs/index.md
 
 ## Commands
 

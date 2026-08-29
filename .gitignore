@@ -3,3 +3,6 @@ __pycache__/
 .index/
 .drift/
 .consolidation/
+
+# Personal permission grants. Committed, they apply to everyone who clones.
+.claude/settings.local.json

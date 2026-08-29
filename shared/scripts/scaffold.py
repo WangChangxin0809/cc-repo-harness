@@ -536,6 +536,50 @@ def write(path, body, made, root, mode=0o644):
     return True
 
 
+# Claude Code writes `.claude/settings.local.json` by itself when someone grants
+# a permission, and that file holds grants rather than preferences. Committed,
+# it does not merely leak one person's setup -- it *applies* to everyone who
+# clones, so one person's approval silently becomes the whole team's. The file
+# is personal by design and no repository should ever carry it.
+IGNORE_LINES = [
+    (".claude/settings.local.json",
+     "Personal permission grants. Committed, they apply to everyone who clones."),
+]
+
+
+def ensure_gitignore(root, made):
+    """Append what must never be committed, without disturbing what is there.
+
+    Appends rather than writes: a target repository almost always has a
+    .gitignore already, and replacing it would be the most destructive thing
+    this script could do."""
+    path = os.path.join(root, ".gitignore")
+    rel = ".gitignore"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            body = fh.read()
+    except OSError:
+        body = ""
+
+    existing = {ln.strip() for ln in body.splitlines()}
+    missing = [(pat, why) for pat, why in IGNORE_LINES if pat not in existing]
+    if not missing:
+        made.append(("SKIP", rel, "already ignores what it must"))
+        return
+
+    block = "" if not body or body.endswith("\n") else "\n"
+    for pat, why in missing:
+        block += f"\n# {why}\n{pat}\n"
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(block)
+    except OSError as exc:
+        made.append(("SKIP", rel, f"could not append: {exc}"))
+        return
+    made.append(("NEW" if not body else "APPEND", rel,
+                 f"+{len(missing)} pattern(s)"))
+
+
 def merge_settings(root, events, made):
     path = os.path.join(root, ".claude", "settings.json")
     rel = os.path.relpath(path, root)
@@ -616,6 +660,8 @@ def main():
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
             print(f"  {'NEW':<14} scripts/context/{name}")
+        print(f"  {'APPEND':<14} .gitignore  "
+              f"(+{len(IGNORE_LINES)} pattern(s) that must never be committed)")
         print(f"  {'MERGE':<14} .claude/settings.json  (+{', '.join(events)})")
         return 0
 
@@ -656,6 +702,7 @@ def main():
         os.chmod(target, 0o755)
         made.append(("NEW", rel, ""))
 
+    ensure_gitignore(root, made)
     merge_settings(root, events, made)
 
     width = max((len(p) for _, p, _ in made), default=10)
