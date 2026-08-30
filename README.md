@@ -201,7 +201,6 @@ repo/
 └── scripts/                        judgement — every pass/fail decision
     ├── guards/                ◆ A  one proposed action, before it runs
     │   ├── dispatch.py             add a rule = add a file · fails open
-    │   ├── _recurrence.py          counts refusals by shape, in .git/
     │   ├── selftest.py             must be seen failing before you trust it
     │   └── no_*.py                 three universal starters
     ├── gates/                 ◆ B  the worktree, at CI time
@@ -247,7 +246,7 @@ flowchart TD
     end
 
     M4 --> ACT
-    WHY -.->|"the third time the same rule is hit"| GROW["a new guard file, or a gate<br/>never another paragraph in CLAUDE.md"]
+    WHY -.->|"when the same rule turns out to be a real problem"| GROW["a new guard file, or a gate<br/>never another paragraph in CLAUDE.md"]
     GROW -.-> G
 
     M1 -.->|"③ ⑥ never wired · read only if the agent thinks to"| OD["docs/index.md · docs/decisions/ · scripts/index/query.py"]
@@ -262,8 +261,16 @@ flowchart TD
 
 The loop in the bottom right is the only part that compounds. Everything else
 holds a line that was already drawn; that one is how a new line gets drawn —
-a rule that keeps being hit stops being prose and becomes a file, and the
+a rule that keeps causing trouble stops being prose and becomes a file, and the
 harness a repository has two years in is mostly made of those.
+
+Nothing counts the hits. That was built and removed: no mainstream agent product
+counts repetitions either — Cursor, Devin, Claude Code and Copilot all have a
+model notice and a person approve — and the number this arrow used to carry
+("the third time") had nothing behind it. See
+[0023](docs/decisions/0023-nothing-counts-how-often-a-rule-is-hit.md), which is
+mostly about what reading four counting implementations taught, since that
+outlived the code.
 
 ## Trust
 

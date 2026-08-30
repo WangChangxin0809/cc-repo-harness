@@ -178,7 +178,6 @@ ones that get skipped:
 | takes a rule out of prose | routing it to one of the seven moments, **and deleting the paragraph** |
 | runs `scaffold.py` | filling `CLAUDE.md` and `ARCHITECTURE.md` by hand — nothing generates them |
 | adds a guard or a gate | watching it block something you typed, and watching its selftest go red |
-| finds the same refusal recurring | `scripts/guards/_recurrence.py --report` — three of one shape in a fortnight means the rule belongs earlier than a guard, or the matcher is too narrow |
 | touches accumulated notes | freezing the snapshot read-only *before* anything reads it |
 | any of the above | a decision record naming one alternative that was rejected, and why |
 
@@ -231,12 +230,11 @@ Then **break one on purpose** and confirm the selftest goes red. See
 `writing-checks`, including why a broken guard is deliberately made to fail
 *open*.
 
-**A guard that keeps refusing the same thing is not a guard working.**
-`_recurrence.py` counts refusals by shape in `.git/` — never in the tree, so no
-diff and no merge conflict — and appends one paragraph when the same shape is
-refused three times inside a fortnight. It says it once. A habit is cheaper to
-move than to keep stopping, and the two places to move it to are
-`permissions.deny` and the server.
+**A guard that keeps refusing the same thing is not a guard working**, it is a
+habit meeting a speed bump — and habits are cheaper to move than to keep
+stopping, to `permissions.deny` or to the server. Nothing counts that for you;
+notice it, or find it in the next assessment. See `0023` for why a counter was
+built for this and then removed.
 
 **Criterion**: `./ci.sh --fast` is green because the files were written rather
 than because a gate was exempted, and you have watched a guard block a command

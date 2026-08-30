@@ -15,11 +15,11 @@ lands.
 - **`no_piped_outbound.py` reads the body of a heredoc as a command.** Writing
   a Python patch script whose *text* contains `git push ... | tail` is refused
   as a piped outbound action. It happened four times in one session while
-  building the recurrence counter, and it is what the counter recorded first in
-  this repository — its own guard's false positive, which is a fair test of the
-  instrument and a real cost to whoever hits it.
+  building a refusal counter, and it was the first thing that counter recorded
+  in this repository — its own guard's false positive, found within minutes.
 
-  Found by: `_recurrence.py --report`, on the day it was written.
+  Found by: the refusal counter that `0023` then removed. The finding outlived
+  the tool, which is why it is written down here instead of left in one.
   Would touch: `shared/scripts/guards/no_piped_outbound.py`, plus cases in
   `guards/selftest.py` — the near-misses matter more than the hits here.
 
