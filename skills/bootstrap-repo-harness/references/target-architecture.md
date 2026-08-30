@@ -36,7 +36,6 @@ repo/
 └── scripts/                     judgment — every pass/fail decision
     ├── guards/                  reads one proposed action, before it runs
     │   ├── dispatch.py        ◆ add a rule = add a file; broken guards fail open
-    │   ├── _recurrence.py     ◆ counts refusals by shape in .git/ · says it once
     │   ├── selftest.py        ◆ must be seen failing before you trust it
     │   └── no_*.py            ◆ three universal starters
     ├── gates/                   reads the worktree, at CI time
