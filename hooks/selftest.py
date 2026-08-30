@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Prove the trust gate lets nothing run until it has been trusted, and stops
-running it the moment the code changes.
+"""Prove the two plugin hooks do nothing to a repository they were not asked to.
+
+Both fail in the same direction. The trust gate lets nothing run until it has
+been trusted, and stops running it the moment the code changes; the first-look
+notice reads a repository and must never execute any part of it.
 
     python3 hooks/selftest.py [--verbose]
 
@@ -17,7 +20,9 @@ hostile.
 So the cases below assert the negative space, not the happy path. That an
 untrusted repo's guards do NOT run matters more than that a trusted repo's do,
 and it is the assertion that would survive somebody "simplifying" the digest
-check.
+check. The first-look cases are built the same way: the one that matters is
+that a repository carrying a hook and a guard which write files ends the run
+with neither file written.
 
 ## Isolation
 
@@ -25,7 +30,9 @@ Every case runs with `CLAUDE_CONFIG_DIR` pointed at a throwaway directory. That
 is not tidiness: the trust store is the file that records "the human read this
 code". A selftest that wrote to the real one would be granting trust on the
 developer's behalf, which is the exact thing the gate exists to prevent -- and
-it would do it while printing PASS.
+it would do it while printing PASS. The same isolation covers the first-look
+marker, whose real store would otherwise be told this developer had already
+seen the notice in a directory that no longer exists.
 """
 
 from __future__ import annotations
@@ -41,6 +48,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 HOOK = os.path.join(HERE, "run_repo_guards.py")
+LOOK = os.path.join(HERE, "first_look.py")
 GUARD_SRC = os.path.join(ROOT, "shared", "scripts", "guards")
 
 BLOCKING = json.dumps(
@@ -228,6 +236,199 @@ def case_malformed_payload_allows(c):
             f"    {(p.stdout + p.stderr).strip()[:300]}")
 
 
+# --------------------------------------------------------------------------
+# the first-look notice
+# --------------------------------------------------------------------------
+
+STARTUP = json.dumps({"hook_event_name": "SessionStart", "source": "startup"})
+COMPACT = json.dumps({"hook_event_name": "SessionStart", "source": "compact"})
+
+# A repository that writes a file the moment anything executes any part of it.
+# `probe_repo.py` reads; `blast.py` fires hooks and `catch.py` runs the suite,
+# and neither may be reached from a SessionStart notice nobody asked for.
+LOUD_GUARD = ('import os\n'
+              'open(os.path.join(os.path.dirname(__file__), "..", "..",\n'
+              '                  "GUARD_RAN"), "w").close()\n')
+LOUD_HOOK = json.dumps({"hooks": {"PreToolUse": [
+    {"matcher": "Bash", "hooks": [
+        {"type": "command", "command": "touch HOOK_RAN"}]}]}})
+
+
+def make_loud_repo():
+    """A repo whose guard writes on import and whose hook writes when fired."""
+    tmp = make_repo(with_guards=False)
+    os.makedirs(os.path.join(tmp, "scripts", "guards"))
+    for name in ("dispatch.py", "loud.py"):
+        with open(os.path.join(tmp, "scripts", "guards", name), "w",
+                  encoding="utf-8") as fh:
+            fh.write(LOUD_GUARD)
+    os.makedirs(os.path.join(tmp, ".claude"), exist_ok=True)
+    with open(os.path.join(tmp, ".claude", "settings.json"), "w",
+              encoding="utf-8") as fh:
+        fh.write(LOUD_HOOK + "\n")
+    sh(["git", "add", "-A"], cwd=tmp)
+    return tmp
+
+
+class Look:
+    """One throwaway repo, one throwaway marker store."""
+
+    def __init__(self, repo, config):
+        self.repo, self.config = repo, config
+        self.env = dict(os.environ, CLAUDE_CONFIG_DIR=config)
+        self.failures = []
+
+    def start(self, payload=STARTUP, cwd=None):
+        p = sh([sys.executable, LOOK], cwd=cwd or self.repo, env=self.env,
+               stdin=payload)
+        return p.returncode, p.stdout + p.stderr
+
+    def manage(self, *flags):
+        return sh([sys.executable, LOOK, *flags], cwd=self.repo, env=self.env)
+
+    def want_notice(self, what):
+        rc, out = self.start()
+        if rc != 0:
+            self.failures.append(f"{what}\n    a SessionStart hook must exit 0, "
+                                 f"got {rc}\n    {out.strip()[:300]}")
+        elif "tokens/turn" not in out or "delivery moments" not in out:
+            # "it printed something" is reached by an error banner too. The
+            # notice exists to carry numbers; assert the numbers.
+            self.failures.append(
+                f"{what}\n    no measured notice was printed\n"
+                f"    {out.strip()[:300]!r}")
+
+    def want_silence(self, what):
+        rc, out = self.start()
+        if rc != 0 or out.strip():
+            self.failures.append(f"{what}\n    exit {rc}, output "
+                                 f"{out.strip()[:200]!r}")
+
+
+def case_speaks_once(look):
+    look.want_notice("the first session in a repository gets the notice")
+    look.want_silence("the second session must get nothing")
+
+
+def case_executes_nothing(look):
+    """The one that matters. Everything else here is about noise."""
+    look.start()
+    for sentinel, what in (("GUARD_RAN", "imported the repository's guards"),
+                           ("HOOK_RAN", "fired the repository's hooks")):
+        if os.path.exists(os.path.join(look.repo, sentinel)):
+            look.failures.append(
+                f"the notice {what}\n    a read-only first look must execute "
+                f"no part of a repository nobody has read")
+
+
+def case_forget_speaks_again(look):
+    look.want_notice("first session")
+    look.want_silence("second session")
+    look.manage("--forget")
+    look.want_notice("after --forget the notice must come back")
+
+
+def case_marker_covers_subdirectories(look):
+    """Deliberately the subdirectory first.
+
+    Root-then-subdirectory cannot tell the two failures apart: a hook that
+    walked up correctly is silent the second time because the repository was
+    marked, and a hook that never walks up is silent because it thinks a
+    subdirectory is not a repository at all. Starting in the subdirectory
+    separates them -- it must speak there, and the root must then be quiet.
+    """
+    sub = os.path.join(look.repo, "src")
+    rc, out = look.start(cwd=sub)
+    if rc != 0 or "tokens/turn" not in out:
+        look.failures.append(
+            "a session started in a subdirectory must find the repository "
+            f"above it\n    exit {rc}, output {out.strip()[:200]!r}")
+    look.want_silence("and the root is then the same repository, already seen")
+
+
+def case_compaction_is_silent(look):
+    rc, out = look.start(payload=COMPACT)
+    if rc != 0 or out.strip():
+        look.failures.append(
+            "a compaction is mid-session; the notice must not appear in it\n"
+            f"    exit {rc}, output {out.strip()[:200]!r}")
+    look.want_notice("and the next real start still gets it")
+
+
+def case_outside_a_repo_is_silent(look):
+    plain = tempfile.mkdtemp(prefix="not-a-repo-")
+    try:
+        rc, out = look.start(cwd=plain)
+        if rc != 0 or out.strip():
+            look.failures.append(
+                "outside a git repository there is nothing to say\n"
+                f"    exit {rc}, output {out.strip()[:200]!r}")
+        # Silence alone does not prove it declined: a hook that tried to probe
+        # a directory with no git in it is also silent, and has meanwhile
+        # written a marker for somebody's home directory.
+        store = os.path.join(look.config, "repo-agent-harness", "first-look.json")
+        if os.path.exists(store):
+            with open(store, encoding="utf-8") as fh:
+                if plain in fh.read():
+                    look.failures.append(f"a marker was recorded for {plain}, "
+                                         f"which is not a repository")
+    finally:
+        shutil.rmtree(plain, ignore_errors=True)
+
+
+def case_malformed_payload_is_not_an_error(look):
+    p = sh([sys.executable, LOOK], cwd=look.repo, env=look.env,
+           stdin="not json{{")
+    if p.returncode != 0:
+        look.failures.append(
+            f"an unfamiliar payload must not become an error at the top of "
+            f"every session; exit {p.returncode}\n"
+            f"    {(p.stdout + p.stderr).strip()[:300]}")
+
+
+def case_unmeasurable_repo_is_marked_anyway(look):
+    """A repository the probe cannot read must not be retried forever.
+
+    A worktree whose main repository was deleted still has a `.git`, so this
+    hook still fires in it and the probe still fails. Nagging every session
+    about it is the exact noise the once-only rule exists to prevent, and it
+    would fall on the person with the least to gain from the notice.
+    """
+    shutil.rmtree(os.path.join(look.repo, ".git"))
+    with open(os.path.join(look.repo, ".git"), "w", encoding="utf-8") as fh:
+        fh.write("gitdir: /nonexistent/wherever-it-used-to-be\n")
+
+    rc, out = look.start()
+    if rc != 0:
+        look.failures.append(f"a probe failure must not become an error at the "
+                             f"top of a session; exit {rc}\n    {out[:300]}")
+    # Not "the second run is silent" -- an unmeasurable repository is silent
+    # either way, so that assertion holds just as well when nothing was
+    # recorded. The marker is the only thing that separates them.
+    st = look.manage("--status")
+    if "not seen yet" in st.stdout:
+        look.failures.append(
+            "a repository that could not be measured was not marked, so this "
+            "runs the probe again at the top of every session forever")
+
+
+# (label, case, how to build the repository it runs against)
+LOOK_CASES = [
+    ("the notice executes nothing from the repository",
+     case_executes_nothing, make_loud_repo),
+    ("it speaks once and then stops", case_speaks_once, make_repo),
+    ("--forget makes it speak again", case_forget_speaks_again, make_repo),
+    ("a subdirectory is the same repository",
+     case_marker_covers_subdirectories, make_repo),
+    ("a compaction gets silence", case_compaction_is_silent, make_repo),
+    ("outside a repository, silence", case_outside_a_repo_is_silent, make_repo),
+    ("a malformed payload is not an error",
+     case_malformed_payload_is_not_an_error, make_repo),
+    ("a repo it cannot measure is still marked",
+     case_unmeasurable_repo_is_marked_anyway, make_repo),
+]
+
+
 CASES = [
     ("untrusted guards do not run", case_untrusted_does_not_run, True),
     ("the warning is said once", case_warning_is_said_once, True),
@@ -271,15 +472,32 @@ def main():
         elif a.verbose:
             print(f"  ok  {label}")
 
+    for label, fn, factory in LOOK_CASES:
+        repo = factory()
+        config = tempfile.mkdtemp(prefix="look-store-")
+        look = Look(repo, config)
+        try:
+            fn(look)
+        except Exception as exc:  # a raising case is a failing case
+            look.failures.append(f"{label}\n    raised {exc!r}")
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+            shutil.rmtree(config, ignore_errors=True)
+        if look.failures:
+            failures.extend(f"{label}: {f}" for f in look.failures)
+        elif a.verbose:
+            print(f"  ok  {label}")
+
     if failures:
-        print(f"{len(failures)} trust-gate assertion(s) failed:\n",
+        print(f"{len(failures)} plugin-hook assertion(s) failed:\n",
               file=sys.stderr)
         for f in failures:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     if a.verbose:
-        print(f"{len(CASES)} cases: nothing runs until it is trusted, and "
-              f"editing it stops it running")
+        print(f"{len(CASES) + len(LOOK_CASES)} cases: nothing runs until it is "
+              f"trusted, editing it stops it running, and the first look reads "
+              f"without executing")
     return 0
 
 

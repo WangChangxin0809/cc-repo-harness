@@ -64,10 +64,11 @@ actually get enforced"* — or invoke `bootstrap-repo-harness` directly.
 | `repo-index` | Large repo; an agent cannot find the relevant code |
 | `consolidating-notes` | Notes have accumulated, drifted, or contradicted |
 
-Plus one subagent (`repo-explorer`, small model, own context) and one hook that
-runs a repository's own guards during the window before it has wired them — see
-[Trust](#trust), because that hook executes code from the repository and
-therefore asks first.
+Plus one subagent (`repo-explorer`, small model, own context) and two hooks:
+the once-per-repository notice described below, and one that runs a repository's
+own guards during the window before it has wired them — see [Trust](#trust),
+because that second one executes code from the repository and therefore asks
+first.
 
 ## The argument
 
@@ -92,59 +93,68 @@ and after server-side branch protection. What it adds is the paragraph
 explaining why, delivered at the moment of the attempt, which is the one place
 prose is guaranteed to be read.
 
-## The morning's work
+## What happens after you install it
 
-Installing the plugin changes nothing by itself. The bootstrap is a skill, and a
-skill needs a trigger: it starts when somebody says *the agent keeps making the
-same mistake*, or *context is full before I have typed anything*, or asks for
-`CLAUDE.md` and hooks outright.
-
-What follows is nine steps, and **four of them are deliberately not automated**.
-Same convention as the diagram in the next section — solid is wired and
-automatic, dashed is the agent's own judgement. The dashed steps here are 1, 3,
-5 and 8, which are also the only ones that cost tokens. That is a decision and
-not a gap: judgement that becomes a gate gets switched off within a week, and a
-plan that writes itself is a plan nobody read.
+Installing changes nothing. The first session in a repository gets one
+paragraph — the standing per-turn cost, which of the seven delivery moments are
+wired, what checks exist — and then never speaks again in that repository. That
+paragraph reads files and asks git for a list; it executes nothing, because the
+rest of the assessment fires a repository's own hooks and runs its test suite,
+and doing either because somebody installed a plugin helps itself to a machine
+that was never offered.
 
 ```mermaid
 flowchart LR
-    T(["the agent keeps making the same mistake"]) --> S0
-    S0["0 · measure<br/>probe_repo · blast · history<br/>catch · drift"] --> CJ{"can this repo's<br/>tests run?"}
-    CJ -->|no| AB["cannot judge<br/>abstains — does not score zero"]
-    CJ -->|yes| LAD["replay a real defect<br/>L0 … L4"]
-    AB --> FS
-    LAD --> FS["one page of facts<br/>+ 3 questions it cannot answer"]
-    FS -.-> S1["1 · write the plan<br/>absent / wrong / fine<br/>+ not doing"]
-    S1 -.-> S2["2 · choose a tier"]
-    S2 -.-> S3["3 · classify every rule<br/>into one of the seven moments"]
-    S3 --> S4["4 · scaffold<br/>existing files skipped,<br/>never overwritten"]
-    S4 -.-> S5["5 · fill CLAUDE.md<br/>and docs/index.md"]
-    S5 -.-> S6["6 · watch a guard block"]
-    S6 --> S7["7 · freeze the snapshot"]
-    S7 -.-> S8["8 · write down why"]
-    S8 --> RM["re-measure<br/>same units as step 0"]
-    RM --> ACC(["uninstall it and the repository still teaches.<br/>that is independence, not the end"])
-    ACC -. "months later, when you want to know<br/>whether it rotted" .-> S0
+    I(["install"]) --> N["first session in a repository<br/>standing cost · which moments are wired · what checks exist<br/>reads files, executes nothing, said once and never again"]
+    N --> Q0{"assess it?"}
+    Q0 -->|"not now"| Z(["it sits there.<br/>nothing else runs until it is asked"])
+    Q0 -->|"yes"| A["assess · one step<br/>measure the standing cost and what is wired<br/>aim six irreversible actions at it, unexecuted<br/>replay a real defect from its own history, or abstain<br/>then the agent reads the docs and hooks, holding the numbers"]
+    A --> L["the assessment checklist<br/>one row per finding<br/>what was found · the evidence · the proposed change · measured or judged"]
+    L --> Q1{"worth changing?"}
+    Q1 -->|"no"| Z2(["write that down and stop.<br/>an outcome, not a failed run"])
+    Q1 -->|"yes"| P["docs/exec-plans/&lt;name&gt;/<br/>the README owns the state, the steps own the substance<br/>and one section says what is deliberately not being done"]
+    P --> W["work the steps"]
+    W --> R["re-measure<br/>in the units the checklist was written in"]
+    R --> C(["rows close, or they do not"])
+    C -->|"months later, to find out whether it rotted"| A
 ```
 
-Three things the shape is arguing.
+Four things the shape is arguing.
 
-**Step 0 measures before anything is touched, and it costs nothing.** Five
-probes: what is wired, which irreversible actions are already refused, what
-defects this repository's own history can supply, how late those are caught, and
-which documents have fallen behind the code they claim. The page ends by naming
-the three questions it *could not* answer, and that list is the entire brief for
-the steps that spend anything.
+**Assessing is one step, not a procedure.** It runs five probes and it is still
+one command and one answer, because which probes ran is this plugin's business
+and not the reader's. The step ends when there is a checklist, and the only
+thing between the command and the checklist is an agent reading.
+
+**The agent is in that step, and it is handed the numbers rather than asked for
+them.** It reads what the probes cannot: whether the standing context earns its
+tokens or restates the file next to it, which sentences are waffle, whether each
+wired hook addresses a mistake *this* repository actually makes. It does not
+count, because a model cannot count tokens, will not produce the same figure
+twice, and — the part that matters — if the agent produces the numbers then
+comparing before with after compares two opinions.
+
+So every row of the checklist carries which kind it is:
+
+| Finding | Evidence | Proposed change | Basis |
+|---|---|---|---|
+| Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
+| 612 tokens/turn restate the directory layout | `CLAUDE.md:14-31`, against `docs/index.md` | cut to the routing table | judged |
+
+A **judged** row must quote. A claim you cannot quote is one nobody can check,
+and "the docs are verbose" has never once caused a deletion.
+
+**"Nothing here is worth changing" is an outcome.** It is written down, not
+treated as a run that failed to find work. A harness that cannot say *this is
+theirs, and it is fine* will rewrite everything it touches — and in this
+plugin's corpus, seventeen of twenty repositories have no `Requirements` section
+in their README, which is a fact about README conventions rather than seventeen
+defects.
 
 **`cannot judge` is a branch, not a score.** A repository whose tests will not
-run here gets an abstention, never a zero. Scoring a missing toolchain as a
-failure is how an instrument starts lying — and it discards exactly the
+run here abstains; it never scores zero. Scoring a missing toolchain as a
+failure is how an instrument starts lying, and it discards exactly the
 repositories whose suites are fine.
-
-**It ends in a question.** The only claims allowed about what changed are in the
-units step 0 already measured: *two of six irreversible actions were refused,
-now five are, and nothing legitimate became blocked.* Never *we added five
-guards*, which is a claim about us rather than about the repository.
 
 ## A day in a repository that has it
 

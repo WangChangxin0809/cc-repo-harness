@@ -19,7 +19,7 @@ plugin is present was built in the wrong place.
 
 That is independence, not disposal. A harness decays — the standing cost creeps
 up, a guard stops matching, a document falls behind the code it claims — and a
-repository cannot notice that about itself. Step 0 is worth re-running months
+repository cannot notice that about itself. Step 1 is worth re-running months
 later for exactly that, which is why the assessment is never copied into the
 tree: it reports on the repository rather than being part of it.
 
@@ -74,61 +74,93 @@ things end up, and where they must keep working after the plugin is gone.
 
 ## Steps
 
-Each step has one observable criterion. If the criterion cannot be checked, the
-step is not done — move on only when it reads true.
+Five. The first two happen before anything in the repository changes, and the
+second one is allowed to end the whole thing. Each has one observable
+criterion; if the criterion cannot be checked, the step is not done.
 
-### 0. Measure before touching anything
+### 1. Assess — one step, ending in a checklist
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo>
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --full
 ```
 
-One page, every line of it measured: the standing per-turn cost and where it
-comes from, which of the seven moments are wired, which irreversible actions are
+One page, every line measured: the standing per-turn cost and where it comes
+from, which of the seven moments are wired, which irreversible actions are
 refused *before they happen* — and whether any legitimate action is refused
 along with them — how many defects the repository's own history can supply, and,
-with `--full`, how late those defects are actually caught.
+with `--full`, how late those defects are actually caught. A repository whose
+tests will not run here **abstains**; it does not score zero.
 
-The page ends by naming the three questions it could not answer. **Those are
-yours, and they are the only part of this that costs anything:**
+Then you read, **holding those numbers rather than producing them**. A model
+cannot count tokens, will not give the same figure twice, and if it produces the
+numbers then the comparison at step 5 compares two opinions. The page ends by
+naming the three questions it could not answer, and they are the whole of your
+brief:
 
 1. Is the standing cost earning its tokens, or restating the code next to it?
-2. Which sentences in the docs are waffle? **Quote them.** A claim you cannot
-   quote is a claim nobody can check, and "the docs are verbose" has never once
-   caused a deletion.
+2. Which sentences in the docs are waffle? **Quote them.**
 3. Does each wired hook address a mistake *this* repository actually makes?
 
-**Criterion**: you can state the tier, name one convention the repository
-already has, and quote one sentence you would delete. Bolting a second
-convention onto a repo that already has one is how you get two that are both
-half-followed.
+The step ends in one artefact — **the assessment checklist**, one row per
+finding:
 
-### 1. Write the plan, and put in it what you will not do
+| Finding | Evidence | Proposed change | Basis |
+|---|---|---|---|
+| Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
+| 612 tokens/turn restate the directory layout | `CLAUDE.md:14-31`, against `docs/index.md` | cut to the routing table | judged |
+| Commit messages follow a house convention | 40 of the last 50 | none — leave it | measured |
 
-The fact sheet says where the repository stands; the plan says what changes. A
-plan that lists only additions is not a plan. Three columns, and a refusal:
+Three rules make it a checklist rather than a list of opinions:
 
-| Column | What goes in it |
+- **Basis is `measured` or `judged`, and never blank.** Those are the two kinds
+  of claim in here and they age differently: a measured row can be re-run, a
+  judged one has to be re-argued.
+- **A `judged` row quotes.** A claim you cannot quote is one nobody can check,
+  and "the docs are verbose" has never once caused a deletion.
+- **Things that are present and fine get rows too**, with *none* as the proposed
+  change. This is the row that gets skipped and the one that matters: in this
+  plugin's corpus, seventeen of twenty repositories have no `Requirements`
+  section in their README — a fact about README conventions, not seventeen
+  defects. A harness that cannot say *this is theirs, and it is fine* rewrites
+  everything it touches.
+
+**Criterion**: the checklist has at least one row proposing *none*, and every
+`judged` row quotes something.
+
+### 2. Decide whether any of it is worth changing
+
+One question, asked of the checklist as a whole. **"No" is a real answer**, and
+it is written down in `docs/decisions/` rather than treated as a run that failed
+to find work — the next person needs to know this was looked at and left.
+
+If the answer is yes, it is yes to *specific rows*. A decision to "improve the
+repo" is how a bounded piece of work becomes a rewrite.
+
+**Criterion**: you can name the rows you are acting on, and the rows you are
+leaving, and say why for both.
+
+### 3. Open the exec-plan
+
+`docs/exec-plans/<name>/README.md` owns the state — what is done, what is next,
+what is blocked. The steps beside it own the substance. Keep it short enough
+that somebody finishes it; a plan nobody finishes is a plan nobody follows.
+
+Then a `## Not doing, and why` section, listing the checklist rows you decided
+against. Without it, the next person re-proposes them.
+
+The plan is built from the checklist, so its shape is this repository's, not a
+fixed procedure. But some steps drag obligations behind them, and these are the
+ones that get skipped:
+
+| If the plan | it must also contain |
 |---|---|
-| **Absent** | scaffold copies it in |
-| **Present and wrong** | change it — and say what it should read like after |
-| **Present and fine** | say so explicitly, and leave it alone |
-
-The third column is the one that gets skipped and the one that matters. In this
-plugin's corpus, seventeen of twenty repositories have no `Requirements` section
-in the README. That is a fact about README conventions, not about seventeen
-defective repositories — and the inverse holds too: something being common does
-not make it right. A harness that cannot say *this is theirs, and it is fine*
-will rewrite everything it touches.
-
-Then a `## Not doing, and why` section. Keep the whole plan short enough that
-somebody reads it; an exec-plan nobody finishes is a plan nobody follows.
-
-**Criterion**: the plan has a non-empty **Present and fine** column and a
-non-empty **Not doing**.
-
-### 2. Choose a tier and stay in it
+| installs anything | choosing a tier below, and naming what you deliberately did *not* install |
+| takes a rule out of prose | routing it to one of the seven moments, **and deleting the paragraph** |
+| runs `scaffold.py` | filling `CLAUDE.md` and `ARCHITECTURE.md` by hand — nothing generates them |
+| adds a guard or a gate | watching it block something you typed, and watching its selftest go red |
+| touches accumulated notes | freezing the snapshot read-only *before* anything reads it |
+| any of the above | a decision record naming one alternative that was rejected, and why |
 
 | Tier | Repo | Install |
 |---|---|---|
@@ -137,125 +169,101 @@ non-empty **Not doing**.
 | **C** | larger, or several agents in parallel | + `scripts/index/` · consolidation · a gold set for the harness itself |
 
 Installing above tier leaves machinery nobody needs. It rots, and its rot
-teaches everyone that the machinery is decorative. **Criterion**: you can say
-what you deliberately did *not* install and why.
+teaches everyone that the machinery is decorative.
 
-### 3. Classify every existing rule by moment
+**Criterion**: the plan has a non-empty `## Not doing, and why`, and every
+obligation its steps triggered is in it as a step.
 
-Take the rules already written down — in `CLAUDE.md`, in a wiki, in someone's
-head — and route each one:
+### 4. Work it
 
-- Can a script detect the violating action before it runs? → guard (moment 5)
-- Can a script detect it in the worktree? → gate, and delete the prose
-- Is it true only inside one directory? → that directory's `CLAUDE.md` (moment 4)
-- Is it a procedure with a trigger phrase? → a skill (moment 7)
-- None of the above, and a miss is expensive? → keep it in `CLAUDE.md`
-
-**Criterion**: at least one rule left `CLAUDE.md`. If nothing moved, the
-classification was performed as a formality.
-
-### 4. Scaffold
+Three things about the machinery, in the order they surprise people.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A|B|C> --dry-run
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A|B|C>
 ```
 
-Additive and idempotent; nothing existing is overwritten; `settings.json` is
-merged after a `.bak`. It also creates empty directories — `docs/how-to/`,
-`docs/decisions/`, `scripts/selftests/`, `scripts/baselines/`. That is
-deliberate: **a directory is itself a trigger.** An agent that sees
-`docs/exec-plans/` writes a plan there; an agent that sees nothing invents a
-location.
+**The red list is the to-do list.** `./ci.sh --fast` is red immediately after
+scaffolding and is supposed to be: `check_templates_filled.py` names every
+placeholder still sitting in a scaffolded file. That red list is the only form
+of to-do list that cannot be forgotten, so do not go looking for a way to make
+it green early — green here would mean the gate cannot see the thing it exists
+to see. The scaffolder is additive and idempotent; nothing existing is
+overwritten, and `settings.json` is merged after a `.bak`.
 
-`./ci.sh --fast` is **red** immediately after this, and it is supposed to be:
-`check_templates_filled.py` names every placeholder still sitting in a scaffolded
-file. That red list *is* the fill-in list, and it is the only form of to-do list
-that cannot be forgotten. Do not go looking for a way to make it green early —
-green here would mean the gate cannot see the thing it exists to see.
+**Empty directories are deliberate.** `docs/how-to/`, `docs/decisions/`,
+`scripts/selftests/`, `scripts/baselines/` are created empty because **a
+directory is itself a trigger**: an agent that sees `docs/exec-plans/` writes a
+plan there, and an agent that sees nothing invents a location.
 
-**Criterion**: `git status` shows the tree, and `./ci.sh --fast` is red naming
-placeholders rather than red for any other reason.
-
-### 5. Fill the two files that cannot be generated
-
-`CLAUDE.md` — **hard cap 100 lines**, enforced by a gate. Scope it: say what it
-covers and what it does not, so the next person knows where new material goes
-instead of appending here. Every line is paid on every turn of every session.
-
-`ARCHITECTURE.md` — bird's-eye view, codemap, and the invariants that are not
-visible in the code. It answers *"how does this work"* for someone who does not
-yet know what to ask, which is the one reading trigger `docs/` has no home for.
-Written by hand: a generated rollup describes the current accident, a written
-one describes the intent. It is read on demand, so it may be long.
-
-**Criterion**: neither file contains a sentence that was true of a generic
-repository.
-
-### 6. Read the guards, then watch one block
-
-```bash
-python3 scripts/guards/selftest.py
-```
-
-Three starters ship: destructive restore, piped outbound commands, protected
-branch pushes. Adding a rule means adding a file — the dispatcher discovers it.
-
-**Read them first.** Step 3 wired `scripts/guards/dispatch.py` as a `PreToolUse`
-hook, which means every `.py` in that directory now executes before every Bash
-call in this repository — including files a teammate adds in a later pull
-request, and files that were already there when you cloned. That is a code path
-worth one careful look, and a diff worth reviewing like any other. It is also
-why this plugin's own hook will not run a repository's guards until you have
-explicitly trusted them:
+**Read the guards before trusting them.** Wiring `scripts/guards/dispatch.py`
+as a `PreToolUse` hook means every `.py` in that directory executes before every
+Bash call in this repository — including files a teammate adds later, and files
+that were already there when you cloned. That is a code path worth one careful
+look, and it is why this plugin's own hook will not run a repository's guards
+until you have said so:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/hooks/run_repo_guards.py --status
 ```
 
-Then **break one on purpose** and confirm the selftest goes red. A guard you
-have never seen fail is a file, not a check. See `writing-checks` for the
-discipline, including why a broken guard is deliberately made to fail *open*.
+Then **break one on purpose** and confirm the selftest goes red. See
+`writing-checks`, including why a broken guard is deliberately made to fail
+*open*.
 
-**Criterion**: you have watched a guard block a command you typed, watched a
-near-miss go through, and watched the selftest turn red under injection.
+**Criterion**: `./ci.sh --fast` is green because the files were written rather
+than because a gate was exempted, and you have watched a guard block a command
+you typed, watched a near-miss go through, and watched its selftest turn red
+under injection.
 
-### 7. Make the snapshot immutable before any consolidation
+### 5. Re-measure, and close the rows
 
-If the repository has an accumulated pile of agent notes, they are input to
-consolidation and must be frozen before anything reads them. See
-`consolidating-notes`. **Criterion**: the snapshot directory is read-only on
-disk, and the synthesis wrote to a *different* path that you diffed.
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --full
+```
 
-### 8. Close by writing down why
+Same command, same units. Every `measured` row on the checklist now closes or
+does not, and the only claims allowed are in those units: *two of six
+irreversible actions were refused, now five are, and nothing legitimate became
+blocked.* Never *we added five guards* — that is a claim about us.
 
-`docs/decisions/0001-agent-conventions.md` — what was chosen, what was rejected,
-what would have to become true to revisit it. Without it the conventions survive
-as folklore, and folklore gets routed around within a quarter. With it, the next
-person argues with the design instead of quietly abandoning it.
+`judged` rows do not close by re-running anything. They close by someone reading
+the file again, which is why they had to quote in the first place.
 
-**Criterion**: the record names at least one alternative that was considered and
-rejected, with the reason.
+**Criterion**: at least one measured number moved, no false block appeared, and
+every row on the checklist is closed, open with a reason, or in `## Not doing`.
 
 ## Acceptance
 
-1. Every hook in `settings.json` is one line invoking a script, and nothing
+The first three hold however small the plan was. The rest apply only if the plan
+went there — a repository that needed two rows changed does not owe you a tier.
+
+1. **Every row of the checklist is closed, open with a reason, or in `## Not
+   doing`.** A row that quietly disappeared is the failure mode this whole shape
+   exists to prevent.
+2. **The fact sheet was taken again, and the claims are in its units.** Not "we
+   added three gates" — that is a claim about us. `blast.py` refuses more than it
+   did, no legitimate action became blocked, and defects that used to reach CI
+   are caught before the write.
+3. **Uninstall the plugin.** The repository still teaches — same guards, same
+   gates, same `ci.sh`, nothing missing but the trust prompt and the ability to
+   measure itself. Then reinstall it: the instrument is worth keeping.
+
+If the plan installed anything:
+
+4. Every hook in `settings.json` is one line invoking a script, and nothing
    under `.claude/` explains why anything is true.
-2. At least one rule moved out of `CLAUDE.md`.
-3. A guard has been seen blocking, and its selftest has been seen red.
-4. A fresh session's first screen states something no file could have contained.
 5. No scaffolded template still carries a placeholder — `check_templates_filled`
    is green because the files were written, not because it was exempted.
 6. `ci.sh` runs green from a clean worktree, and disconnecting a hook on purpose
    turns it red. A suite that survives that is measuring nothing.
-7. The fact sheet was taken again afterwards, and the numbers moved. Not "we
-   added three gates" — that is a claim about us. `blast.py` refuses more than
-   it did, no legitimate action became blocked, and defects that used to be
-   caught at CI are caught before the write.
-8. Uninstall the plugin. The repository still teaches — same guards, same gates,
-   same `ci.sh`, nothing missing but the trust prompt and the ability to measure
-   itself. Then reinstall it: the instrument is worth keeping, and the fact
-   sheet is the thing to re-run in three months.
+
+If the plan moved a rule, or added a check:
+
+7. At least one rule left `CLAUDE.md`, and its paragraph is gone rather than
+   duplicated.
+8. A guard has been seen blocking, and its selftest has been seen red.
+9. A fresh session's first screen states something no file could have contained.
 
 ## References
 
