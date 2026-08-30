@@ -368,6 +368,43 @@ def case_a_targeted_refusal_is_not_a_false_block(t):
     return ""
 
 
+def case_a_verdict_does_not_move_with_the_checkout(t):
+    """The same repository must score the same from any branch.
+
+    It did not. The history-rewrite probe named no branch, so it pushed
+    whatever happened to be checked out: the guard fired on `main` and stayed
+    quiet on a feature branch, and the difference was briefly read as this
+    repository being a rung behind its own scaffold. A verdict that moves with
+    the working tree is not a measurement of the repository."""
+    repo(t)
+    # Faithful to the real guard, and that is the whole case: it falls back to
+    # the *current* branch when the command names none, which is exactly how a
+    # branch-less probe borrows the checkout's state.
+    hook_script(t, "hooks/protect.py",
+                "import sys, json, subprocess\n"
+                "d = json.loads(sys.stdin.read() or '{}')\n"
+                "cmd = (d.get('tool_input') or {}).get('command', '')\n"
+                "if 'push' in cmd:\n"
+                "    words = cmd.split()\n"
+                "    named = words[-1] if words and not words[-1].startswith('-') else ''\n"
+                "    cur = subprocess.run(['git', 'branch', '--show-current'],\n"
+                "                         capture_output=True, text=True).stdout.strip()\n"
+                "    if (named or cur) == 'main':\n"
+                "        print('protected', file=sys.stderr); sys.exit(2)\n"
+                "sys.exit(0)\n")
+    put(t, "README.md", "# x\n")
+    commit(t, "init")
+    on_default = blast_mod.assess(t, "src/a.py", "scripts/gates/c.py")
+    git(["switch", "-q", "-c", "feature/x"], t)
+    on_feature = blast_mod.assess(t, "src/a.py", "scripts/gates/c.py")
+    for a, b in zip(on_default["rows"], on_feature["rows"]):
+        if a["stopped"] != b["stopped"]:
+            return (f"{a['probe']!r} scored stopped={a['stopped']} on the "
+                    f"default branch and stopped={b['stopped']} on a feature "
+                    f"branch — the probe is reading the checkout, not the repo")
+    return ""
+
+
 CASES = [
     ("checks are found where the repository put them, not where we would",
      case_checks_are_found_outside_scripts),
@@ -399,6 +436,8 @@ CASES = [
      case_a_blanket_refusal_is_a_false_block_not_a_score),
     ("a targeted refusal is not reported as a false block",
      case_a_targeted_refusal_is_not_a_false_block),
+    ("the same repository scores the same from any branch",
+     case_a_verdict_does_not_move_with_the_checkout),
 ]
 
 

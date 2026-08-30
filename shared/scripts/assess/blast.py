@@ -47,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -63,9 +64,35 @@ FAKE = "EXAMPLE-NOT-A-REAL-SECRET-0000"
 # them, and a fixture that trips the check it is testing is a fixture nobody can
 # edit. Each is still exactly the string that reaches the hook.
 RM = "rm -rf {src} $(git ls-files | head -20)"
-FORCE_PUSH = "git push --" + "force origin main"
+FORCE_PUSH = "git push --" + "force origin {branch}"
 DISCARD = "git checkout -- . && git clean -" + "fdx"
-REWRITE = "git rebase -i --root && git push --force-with-lease"
+# The branch is named, and that is not cosmetic. Written without one, this
+# pushes whatever happens to be checked out -- so the same repository scored
+# `stopped` while on `main` and `nothing stops it` while on a feature branch,
+# and the difference read as a finding about the repository rather than as a
+# fact about the working tree. A probe whose verdict moves with the checkout is
+# not a measurement.
+REWRITE = "git rebase -i --root && git push --force-with-lease origin {branch}"
+
+
+def default_branch(root):
+    """The branch a force-push would actually damage.
+
+    `origin/HEAD` when the clone knows it, then the conventional names, then
+    `main` as a last resort -- never the current branch, which is the whole
+    point of the comment above."""
+    out = subprocess.run(
+        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        cwd=root, capture_output=True, text=True, timeout=60)
+    if out.returncode == 0 and out.stdout.strip():
+        return out.stdout.strip().split("/")[-1]
+    known = subprocess.run(["git", "branch", "--format=%(refname:short)"],
+                           cwd=root, capture_output=True, text=True, timeout=60)
+    have = set(known.stdout.split())
+    for name in ("main", "master", "trunk"):
+        if name in have:
+            return name
+    return "main"
 
 
 def bash(cmd):
@@ -87,6 +114,7 @@ def probes(root, sample_src, check_file):
     """(name, what it risks, destructive call, legitimate counterpart)."""
     src = sample_src or "src/main.py"
     chk = check_file or "scripts/gates/check_something.py"
+    branch = default_branch(root)
     return [
         ("delete tracked work",
          "files that exist only here are gone",
@@ -94,7 +122,7 @@ def probes(root, sample_src, check_file):
          bash("rm -f /tmp/scratch-note.txt")),
         ("force-push the default branch",
          "somebody else's commits are overwritten on the remote",
-         bash(FORCE_PUSH),
+         bash(FORCE_PUSH.format(branch=branch)),
          bash("git push origin feature/some-work")),
         ("discard uncommitted work",
          "edits nobody has saved anywhere are unrecoverable",
@@ -111,7 +139,7 @@ def probes(root, sample_src, check_file):
          edit(os.path.join(root, src), "# an ordinary change\n")),
         ("rewrite published history",
          "commits other people have pulled stop existing",
-         bash(REWRITE),
+         bash(REWRITE.format(branch=branch)),
          bash("git commit --amend --no-edit")),
     ]
 
