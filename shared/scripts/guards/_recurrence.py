@@ -68,6 +68,20 @@ THRESHOLD = 3
 WINDOW_DAYS = 14
 STORE = "recurrence.json"
 
+# How many tokens of a command survive into its shape.
+#
+# The operand rule caps operands at three; nothing capped the flags, and a
+# heredoc is one enormous "command" whose body is full of things that start
+# with a dash. The first refusal this counter recorded in its own repository
+# produced a shape three hundred characters long made of `-rf` and `--force`
+# taken from the *text* of a script, which is unreadable in --report and
+# groups nothing with anything.
+#
+# Truncating can only ever over-group, and over-grouping here is the harmless
+# direction: two commands sharing their first dozen tokens are the same habit
+# for the purpose of "you keep doing this".
+KEEP = 12
+
 # A run of hex long enough to be an object id, a number, and a quoted string.
 # Normalising these is what stops `git reset --hard a1b2c3d` and the same
 # command tomorrow from looking like two unrelated events.
@@ -120,6 +134,9 @@ def normalize(command):
             seen_operand += 1
             if seen_operand <= 3:            # keep the arity, drop the values
                 out.append("<arg>")
+        if len(out) >= KEEP:
+            out.append("…")
+            break
     return " ".join(out)
 
 
@@ -280,7 +297,10 @@ def cmd_report(root):
     for r in rows:
         n = len(r["hits"])
         flag = "  <-- at the threshold" if n >= THRESHOLD else ""
-        print(f"  {n:>3}x  {r['guard']:<28} {r['shape']}{flag}")
+        shape = r["shape"]
+        if len(shape) > 60:
+            shape = shape[:59] + "…"
+        print(f"  {n:>3}x  {r['guard']:<28} {shape}{flag}")
     print(f"\n{store_path(root)}")
     return 0
 

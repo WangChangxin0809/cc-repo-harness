@@ -87,6 +87,15 @@ SHAPES = [
      "rm -rf build", "rm -rf build dist", False),
 ]
 
+# Found by the counter's first real refusal in its own repository. The operand
+# rule caps operands at three; nothing capped the flags, and a heredoc is one
+# enormous "command" whose body is full of tokens beginning with a dash. The
+# shape came out three hundred characters of `-rf` and `--force` scraped from
+# the *text* of a script -- unreadable, and grouping nothing with anything.
+LONG_A = "python3 - " + " ".join(["--flag-%d" % i for i in range(40)]) + " end"
+LONG_B = "python3 - " + " ".join(["--flag-%d" % i for i in range(40)]) + " other"
+
+
 
 def check_recurrence(verbose):
     """The fingerprint, then the threshold, then that it is said once."""
@@ -127,6 +136,20 @@ def check_recurrence(verbose):
     elif verbose:
         print(f"  ok  {'_recurrence.py':<34} a guard may declare its own "
               f"fingerprint")
+
+    shape = _recurrence.normalize(LONG_A)
+    if len(shape.split()) > _recurrence.KEEP + 1:
+        failures.append(
+            f"_recurrence: a long command produced a {len(shape.split())}-token "
+            f"shape; --report is unreadable and nothing groups")
+    elif _recurrence.fingerprint("g.py", {"command": LONG_A})[0] != \
+            _recurrence.fingerprint("g.py", {"command": LONG_B})[0]:
+        failures.append(
+            "_recurrence: two runs of the same long command did not group; "
+            "truncation must happen at the same point for both")
+    elif verbose:
+        print(f"  ok  {'_recurrence.py':<34} a long command is truncated to "
+              f"{_recurrence.KEEP} tokens, and still groups")
 
     tmp = tempfile.mkdtemp(prefix="recurrence-selftest-")
     subprocess.run(["git", "init", "-q", "."], cwd=tmp, capture_output=True,
