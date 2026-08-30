@@ -38,7 +38,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -50,7 +49,7 @@ WORK = os.path.join(HERE, ".work")
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "shared", "scripts",
                                 "assess"))
 from history import (  # noqa: E402
-    FIX_SUBJECT, REVERT_SUBJECT, SMALL, SOURCE_EXT, TEST_PATH, is_source,
+    FIX_SUBJECT, REVERT_SUBJECT, SMALL, TEST_PATH, is_source,
 )
 
 

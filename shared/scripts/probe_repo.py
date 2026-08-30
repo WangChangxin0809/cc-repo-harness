@@ -334,7 +334,7 @@ def render(r):
         f"{d['selftests']}"
         + (f"   in {', '.join(d['check_dirs'])}" if d["check_dirs"] else ""),
         f"  CI entry               {', '.join(d['ci_entry']) or 'none found'}",
-        f"  retrieval layer        "
+        "  retrieval layer        "
         + (d["retrieval_at"] if d["retrieval"] else "absent"),
         f"  always-on skill cost   ~{r['always_on_skill_tokens']} tokens/turn"
         + (f"   ({by['repo']} this repo, {by['plugin']} installed plugins)"

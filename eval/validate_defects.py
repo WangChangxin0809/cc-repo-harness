@@ -40,7 +40,7 @@ sys.path.insert(0, HERE)
 
 from defects import TEST_PATH, WORK, classify as classify_commits, is_source  # noqa: E402
 from green import (  # noqa: E402
-    ECOSYSTEMS, INSTALL_TIMEOUT, TEST_TIMEOUT, classify as run_tests, sh,
+    ECOSYSTEMS, INSTALL_TIMEOUT, TEST_TIMEOUT, sh,
 )
 
 SCRATCH = os.path.join(HERE, ".defects")
