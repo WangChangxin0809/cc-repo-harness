@@ -24,6 +24,7 @@ across the twenty:
 |---|---|
 | carry test files | 16 / 20 |
 | declare a runnable test command | 10 / 20 |
+| are recognised by an ecosystem detector | 11 / 20 |
 | have CI | 14 / 20 |
 
 A repository's own test suite was written by somebody with no stake in this
@@ -95,17 +96,33 @@ not be absent.
 
 **A · An instrument that can tell before from after**
 
-- [ ] doing   [A1 · How many of the twenty are green untouched](steps/A1-green-untouched.md)
+- [x] done    [A1 · How many of the twenty are green untouched](steps/A1-green-untouched.md).
+              On the machine it was written on: **2 green, 4 red, 14
+              could-not-run**. The count was not the finding. `cargo is not on
+              PATH`, `bun: not found`, node 20 against a repository wanting 22,
+              gcc 14 against a Makefile wanting 15 — eleven languages need
+              eleven toolchains, and almost every could-not-run was a fact about
+              one laptop. So the instrument moved to a runner, where the
+              toolchains are installed rather than assumed, and A1's real answer
+              is whatever `corpus-improve.yml` reports.
+- [x] done    Do no harm, built rather than run: `eval/improve.py` records each
+              repository's own test verdict before and after, and reports a
+              green suite turned red ahead of everything else. It is the one
+              result that would stop the plugin being offered to anyone.
+- [ ] doing   [The improvement loop](steps/A3-improvement-loop.md) —
+              `.github/workflows/corpus-improve.yml`, dispatched by hand, 350
+              minutes, twenty repositories deep rather than wide.
+- [ ] todo    Detector gaps, deliberately not yet closed: `sai3000pro/ScaleUp`
+              keeps its manifests one level down (`backend/`, `frontend/`),
+              `Sanne/incus-spawn` is Maven and `alraiani/aeria-seller-app` is
+              .NET. Three ecosystems and a monorepo case, worth perhaps three
+              subjects. Held until the runner says which could-not-runs were
+              really about the laptop, because building for a guess is how a
+              detector grows branches nothing exercises.
 - [ ] todo    History, which the corpus does not currently have. `eval/fetch.py`
               clones `--depth 1` because nobody needed the history and 30 MB was
-              the point. Task generation needs it. Deepening the fetch is a
-              small change and a large download, so it waits until A1 says how
-              many repositories are worth downloading.
-- [ ] todo    Do no harm: scaffold every green repository, re-run its own tests,
-              and assert nothing went red. A harness that breaks a stranger's
-              build has a defect of a different order from one that fails to
-              help. Cheap once A1 exists, and it is the one result that would
-              stop the plugin being offered to anyone at all.
+              the point. Task generation needs it, and deepening the fetch is a
+              small change and a large download.
 
 **B · Something a maintainer would accept**
 
@@ -180,7 +197,9 @@ not be absent.
 |---|---|
 | The harness survives contact with unseen repositories | **Established**, weakly: 20/20 scaffolded with no crash. Says nothing about effect |
 | Four gates judge a stranger's existing content on day one | **Established**: 19/20, 13/20, 11/20, 11/20, first corpus run |
-| The corpus carries usable outside graders | **Partial**: 16/20 have test files, 10/20 declare a command. Whether they *run green* is A1 and is unknown |
+| The corpus carries usable outside graders | **Partial and machine-bound**: 16/20 have test files, 10/20 declare a command, 11/20 are recognised by an ecosystem. Two ran green on one laptop, and fourteen could-not-run were mostly missing toolchains rather than broken repositories |
+| Every repository already has a `CLAUDE.md`, and almost none has a hook | **Established**: moment 1 filled 20/20; moments 2, 3 and 5 empty 20/20; 4 and 6 empty 19/20. The plugin's most-discussed artefact is the one `scaffold.py` never writes, and its own territory is unoccupied |
+| Scaffolding is net red-adding on contact | **Established**, one repository, one instrument at every stage: 2 gates red before, 4 after. It installs judges the repository now has to answer to |
 | A non-Claude backend can drive the harness | **Established** end to end on a runner, one model, one trivial task |
 | Scaffolding does not break a working repository | **Untested.** Phase A |
 | Scaffolding changes task outcomes | **Untested**, and it is the whole plan |
