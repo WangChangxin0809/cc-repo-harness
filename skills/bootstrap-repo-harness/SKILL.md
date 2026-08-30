@@ -102,8 +102,22 @@ brief:
 2. Which sentences in the docs are waffle? **Quote them.**
 3. Does each wired hook address a mistake *this* repository actually makes?
 
-The step ends in one artefact — **the assessment checklist**, one row per
-finding:
+The step ends in one artefact — **the assessment checklist**. Its shape is
+fixed, so that two assessments of the same repository months apart can be laid
+side by side; everything else about it is yours.
+
+**Five sections, in this order** — the order in which ignoring something costs
+you:
+
+| | Section | Means |
+|---|---|---|
+| 1 | **Irreversible** | work can be destroyed. Nothing below matters until this is empty |
+| 2 | **Silent** | wrong, and produces no symptom |
+| 3 | **Late** | caught at CI, or never |
+| 4 | **Expensive** | paid every turn and not earning it |
+| 5 | **Fine** | present, correct, deliberately left alone |
+
+**One row per finding**, four columns:
 
 | Finding | Evidence | Proposed change | Basis |
 |---|---|---|---|
@@ -111,22 +125,27 @@ finding:
 | 612 tokens/turn restate the directory layout | `CLAUDE.md:14-31`, against `docs/index.md` | cut to the routing table | judged |
 | Commit messages follow a house convention | 40 of the last 50 | none — leave it | measured |
 
-Three rules make it a checklist rather than a list of opinions:
+**Four rules, and then use your judgement:**
 
-- **Basis is `measured` or `judged`, and never blank.** Those are the two kinds
-  of claim in here and they age differently: a measured row can be re-run, a
-  judged one has to be re-argued.
+- **Basis is `measured` or `judged`, never blank.** They age differently: a
+  measured row can be re-run, a judged one has to be re-argued.
 - **A `judged` row quotes.** A claim you cannot quote is one nobody can check,
   and "the docs are verbose" has never once caused a deletion.
+- **A section with nothing in it says *none*.** That is a result. An empty
+  **Irreversible** section is the best news in the document, and going looking
+  for something to put there is how an assessment starts inventing findings.
 - **Things that are present and fine get rows too**, with *none* as the proposed
-  change. This is the row that gets skipped and the one that matters: in this
-  plugin's corpus, seventeen of twenty repositories have no `Requirements`
-  section in their README — a fact about README conventions, not seventeen
-  defects. A harness that cannot say *this is theirs, and it is fine* rewrites
-  everything it touches.
+  change. In this plugin's corpus, seventeen of twenty repositories have no
+  `Requirements` section in their README — a fact about README conventions, not
+  seventeen defects. A harness that cannot say *this is theirs, and it is fine*
+  rewrites everything it touches.
 
-**Criterion**: the checklist has at least one row proposing *none*, and every
-`judged` row quotes something.
+The sections are where a finding belongs, not a quota. A repository whose whole
+checklist is two rows in **Expensive** and eleven in **Fine** has been assessed
+properly.
+
+**Criterion**: five sections in order, at least one row proposing *none*, and
+every `judged` row quoting something.
 
 ### 2. Decide whether any of it is worth changing
 
@@ -159,6 +178,7 @@ ones that get skipped:
 | takes a rule out of prose | routing it to one of the seven moments, **and deleting the paragraph** |
 | runs `scaffold.py` | filling `CLAUDE.md` and `ARCHITECTURE.md` by hand — nothing generates them |
 | adds a guard or a gate | watching it block something you typed, and watching its selftest go red |
+| finds the same refusal recurring | `scripts/guards/_recurrence.py --report` — three of one shape in a fortnight means the rule belongs earlier than a guard, or the matcher is too narrow |
 | touches accumulated notes | freezing the snapshot read-only *before* anything reads it |
 | any of the above | a decision record naming one alternative that was rejected, and why |
 
@@ -210,6 +230,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/hooks/run_repo_guards.py --status
 Then **break one on purpose** and confirm the selftest goes red. See
 `writing-checks`, including why a broken guard is deliberately made to fail
 *open*.
+
+**A guard that keeps refusing the same thing is not a guard working.**
+`_recurrence.py` counts refusals by shape in `.git/` — never in the tree, so no
+diff and no merge conflict — and appends one paragraph when the same shape is
+refused three times inside a fortnight. It says it once. A habit is cheaper to
+move than to keep stopping, and the two places to move it to are
+`permissions.deny` and the server.
 
 **Criterion**: `./ci.sh --fast` is green because the files were written rather
 than because a gate was exempted, and you have watched a guard block a command
