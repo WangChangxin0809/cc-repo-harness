@@ -15,6 +15,7 @@
 | Know what was found in passing and deliberately not fixed | [tech debt](exec-plans/tech-debt-tracker.md) |
 | Know why the plugin stays installed instead of leaving | [0021](decisions/0021-the-repository-keeps-the-harness-the-plugin-keeps-the-instrument.md) |
 | Know why the assessment measures behaviour rather than resemblance | [0020](decisions/0020-the-assessment-measures-behaviour-not-resemblance.md) |
+| Know why assessing is one step, and why the plugin speaks once | [0022](decisions/0022-one-assessment-step-that-may-end-in-nothing.md) |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
 and checked by `check_docs_layout.py`. **Inside each one, organise however suits

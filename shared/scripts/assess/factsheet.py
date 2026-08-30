@@ -131,8 +131,8 @@ def render(r):
     by = r["probe"]["skill_tokens_by_origin"]
     entry = p["moments"]["1_always"]
     moments = sorted(k for k in p["moments"] if k[0].isdigit())
-    filled = [k.split("_")[0] for k in moments if _filled(p, k)]
-    empty = [k.split("_")[0] for k in moments if not _filled(p, k)]
+    filled = [k.split("_")[0] for k in moments if filled_moment(p, k)]
+    empty = [k.split("_")[0] for k in moments if not filled_moment(p, k)]
 
     out = ["",
            f"REPO   {p['root']}",
@@ -204,7 +204,13 @@ def render(r):
     return "\n".join(out)
 
 
-def _filled(p, key):
+def filled_moment(p, key):
+    """Does this delivery moment carry anything?
+
+    Public because `hooks/first_look.py` asks the same question in its
+    once-per-repository notice. Two implementations of it would let the
+    notice and the assessment disagree about one repository, and the
+    notice is the one nobody would check."""
     v = p["moments"][key]
     if key == "5_before_action":
         return v["PreToolUse"] > 0 or v["permissions_deny"] > 0
