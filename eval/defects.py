@@ -44,40 +44,18 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(HERE, ".work")
-
-SOURCE_EXT = {
-    "py", "js", "ts", "tsx", "jsx", "go", "rs", "java", "kt", "rb", "php",
-    "c", "h", "cc", "cpp", "hpp", "cs", "swift", "m", "mm", "scala", "ex",
-    "exs", "gd", "lua", "sh", "bash", "sql", "vue", "svelte",
-}
-
-# Anchored at a path segment or a filename affix. A bare `in` test matches
-# `src/contest/` and `latest.json`, and both were in the corpus.
-TEST_PATH = re.compile(
-    r"(^|/)(tests?|spec|specs|__tests__|testing|e2e)(/|$)"
-    r"|(^|/)conftest\.py$"
-    r"|(^|[._-])(test|spec)s?\.[a-z]+$"
-    r"|(^|/)test_[^/]+$"
-    r"|[._-](test|spec)\.[a-z]+$",
-    re.I,
+# One definition of what a defect is, and it lives in the payload. This file is
+# the corpus-wide tally on top of it; when the two carried their own copies, a
+# fix to the test-path pattern landed in one and not the other within a day.
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "shared", "scripts",
+                                "assess"))
+from history import (  # noqa: E402
+    FIX_SUBJECT, REVERT_SUBJECT, SMALL, SOURCE_EXT, TEST_PATH, is_source,
 )
 
-# Conventional-commit `fix:` first, then the words people use when they are not
-# using conventional commits. `fixup!` is excluded: it is a rebase instruction,
-# not a claim that anything was broken.
-FIX_SUBJECT = re.compile(
-    r"^\s*(fix|bugfix|hotfix|patch)\s*(\([^)]*\))?\s*!?:"          # fix(scope):
-    r"|\b(bug\s?fix|hotfix|regression|broken|crash(es|ed|ing)?"
-    r"|off.by.one|race condition|memory leak|null pointer)\b"
-    r"|\bfix(e[sd])?\b(?!up)",
-    re.I,
-)
-REVERT_SUBJECT = re.compile(r"^\s*revert\b|\bthis reverts commit\b", re.I)
 
-# A defect instance has to be small enough to be one defect. Above this a
-# revert is a refactor with a bug somewhere inside it, and nothing that goes
-# red afterwards can be attributed.
-SMALL = 3
+
+
 
 
 def sh(args, cwd):
@@ -88,11 +66,6 @@ def sh(args, cwd):
         return None
     return out.stdout if out.returncode == 0 else None
 
-
-def is_source(path):
-    return ("." in path
-            and path.rsplit(".", 1)[-1].lower() in SOURCE_EXT
-            and not TEST_PATH.search(path))
 
 
 def commits(repo):
