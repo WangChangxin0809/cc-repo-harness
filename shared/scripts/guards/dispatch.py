@@ -59,6 +59,19 @@ Each guard module in this directory exposes:
 
     CASES: list[tuple[str, dict, bool]]
         # (tool_name, tool_input, should_block) -- read by selftest.py
+
+    def fingerprint(tool_input: dict) -> str        # optional
+        # collapse the spellings of one mistake into one identity, so that
+        # _recurrence.py counts the habit rather than the wording
+
+## Counting
+
+Every refusal is counted by shape in `.git/agent-harness/`, and when the same
+shape is refused three times inside a fortnight one paragraph is appended to
+the reason. A guard that keeps refusing the same thing is not a guard working;
+it is a habit meeting a speed bump, and habits are cheaper to move than to keep
+stopping. See `_recurrence.py`, which is underscored so this file does not try
+to load it as a guard, and which fails open like everything else here.
 """
 
 from __future__ import annotations
@@ -69,6 +82,20 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _recurrence():
+    """Optional. A repository that deleted the counter keeps its guards."""
+    path = os.path.join(HERE, "_recurrence.py")
+    if not os.path.exists(path):
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("guard_recurrence", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:                                    # noqa: BLE001
+        return None
 
 
 def load_guards(directory=HERE):
@@ -107,7 +134,8 @@ def main():
     tool_input = payload.get("tool_input") or {}
 
     guards, broken = load_guards()
-    reasons = []
+    counter = _recurrence()
+    reasons, notes = [], []
     for name, mod in guards:
         try:
             reason = mod.check(tool_name, tool_input)
@@ -116,12 +144,22 @@ def main():
             continue
         if reason:
             reasons.append(reason.strip())
+            if counter is not None:
+                # Ask the counter where the repository is rather than assuming
+                # scripts/guards/ is two levels below it. In this plugin's own
+                # tree the guards live at shared/scripts/guards/, and a fixed
+                # depth would count into a directory with no .git in it --
+                # silently, which is the worst way for a counter to be wrong.
+                note = counter.observe(counter.repo_root(HERE), name,
+                                       tool_input, mod)
+                if note:
+                    notes.append(note)
 
     for name, why in broken:
         print(f"guards: {name} is broken and did not run ({why})", file=sys.stderr)
 
     if reasons:
-        print("\n\n".join(reasons), file=sys.stderr)
+        print("\n\n".join(reasons + notes), file=sys.stderr)
         return 2
     return 0
 

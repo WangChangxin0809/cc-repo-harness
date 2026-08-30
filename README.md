@@ -104,12 +104,12 @@ and doing either because somebody installed a plugin helps itself to a machine
 that was never offered.
 
 ```mermaid
-flowchart LR
+flowchart TD
     I(["install"]) --> N["first session in a repository<br/>standing cost · which moments are wired · what checks exist<br/>reads files, executes nothing, said once and never again"]
     N --> Q0{"assess it?"}
     Q0 -->|"not now"| Z(["it sits there.<br/>nothing else runs until it is asked"])
     Q0 -->|"yes"| A["assess · one step<br/>measure the standing cost and what is wired<br/>aim six irreversible actions at it, unexecuted<br/>replay a real defect from its own history, or abstain<br/>then the agent reads the docs and hooks, holding the numbers"]
-    A --> L["the assessment checklist<br/>one row per finding<br/>what was found · the evidence · the proposed change · measured or judged"]
+    A --> L["the assessment checklist<br/>five sections, fixed order, one row per finding"]
     L --> Q1{"worth changing?"}
     Q1 -->|"no"| Z2(["write that down and stop.<br/>an outcome, not a failed run"])
     Q1 -->|"yes"| P["docs/exec-plans/&lt;name&gt;/<br/>the README owns the state, the steps own the substance<br/>and one section says what is deliberately not being done"]
@@ -134,15 +134,28 @@ count, because a model cannot count tokens, will not produce the same figure
 twice, and — the part that matters — if the agent produces the numbers then
 comparing before with after compares two opinions.
 
-So every row of the checklist carries which kind it is:
+**The checklist has a fixed shape, so two assessments can be compared.** Five
+sections in one order — the order in which ignoring something costs you:
+
+| | Section | Means |
+|---|---|---|
+| 1 | **Irreversible** | work can be destroyed. Nothing below matters until this is empty |
+| 2 | **Silent** | wrong, and produces no symptom |
+| 3 | **Late** | caught at CI, or never |
+| 4 | **Expensive** | paid every turn and not earning it |
+| 5 | **Fine** | present, correct, deliberately left alone |
+
+One row per finding: *finding · evidence · proposed change · basis*.
 
 | Finding | Evidence | Proposed change | Basis |
 |---|---|---|---|
 | Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
 | 612 tokens/turn restate the directory layout | `CLAUDE.md:14-31`, against `docs/index.md` | cut to the routing table | judged |
 
-A **judged** row must quote. A claim you cannot quote is one nobody can check,
-and "the docs are verbose" has never once caused a deletion.
+**Basis** is `measured` or `judged`, never blank, and a **judged** row must
+quote. A claim you cannot quote is one nobody can check, and "the docs are
+verbose" has never once caused a deletion. A section with nothing in it says
+*none* — that is a result, not a gap to go and fill.
 
 **"Nothing here is worth changing" is an outcome.** It is written down, not
 treated as a run that failed to find work. A harness that cannot say *this is
@@ -155,6 +168,57 @@ defects.
 run here abstains; it never scores zero. Scoring a missing toolchain as a
 failure is how an instrument starts lying, and it discards exactly the
 repositories whose suites are fine.
+
+## What the repository ends up with
+
+Every path below is in the target repository, under version control, working
+with this plugin uninstalled. `◆` is written by `scaffold.py`, `◇` is authored
+by hand because nothing can generate it, and **A/B/C is the tier that installs
+it** — installing above tier leaves machinery nobody needs, and its rot teaches
+everyone that the machinery is decorative.
+
+```
+repo/
+├── CLAUDE.md                  ◆ A  cap 100 lines, gate-enforced · moment 1
+├── ARCHITECTURE.md            ◇ B  bird's eye · codemap · invariants
+├── SECURITY.md                ◆ B  how to report; the rules live in the checks
+├── ci.sh                      ◆ B  the one acceptance entry · three lanes
+│
+├── .claude/                        wiring only — never knowledge
+│   ├── settings.json          ◆ A  each hook is one line calling scripts/
+│   └── guards.json            ◆ A  protected branches · layers · exceptions
+│
+├── src/<subtree>/CLAUDE.md    ◇ B  loads only when that subtree is read · moment 4
+│
+├── docs/
+│   ├── index.md               ◆ A  routing table: task → read → edit
+│   ├── how-to/  reference/    ◇ A  action → command → criterion · lookup tables
+│   ├── troubleshooting/       ◇ B  symptom → cause → action
+│   ├── decisions/             ◆ B  numbered · immutable · superseded, never edited
+│   ├── exec-plans/<name>/     ◇ B  README owns the state, steps own the substance
+│   └── generated/             ◇ B  regenerate, then git diff must be empty
+│
+└── scripts/                        judgement — every pass/fail decision
+    ├── guards/                ◆ A  one proposed action, before it runs
+    │   ├── dispatch.py             add a rule = add a file · fails open
+    │   ├── _recurrence.py          counts refusals by shape, in .git/
+    │   ├── selftest.py             must be seen failing before you trust it
+    │   └── no_*.py                 three universal starters
+    ├── gates/                 ◆ B  the worktree, at CI time
+    ├── context/               ◆ B  what the hooks call · moments 2 and 6
+    ├── selftests/ baselines/  ◇ B  one per gate you add · readings record a commit
+    └── index/                 ◆ C  build.py · query.py, plus a gold set
+```
+
+Two of these cannot be generated and are the ones people skip. `CLAUDE.md` is
+paid on every turn of every session, so it is scoped by hand — what it covers
+and what it does not, so the next person knows where new material goes instead
+of appending. `ARCHITECTURE.md` answers *how does this work* for someone who
+does not yet know what to ask; a generated rollup describes the current
+accident, a written one describes the intent.
+
+The full annotated tree, and what each directory is for, is in
+[`references/target-architecture.md`](skills/bootstrap-repo-harness/references/target-architecture.md).
 
 ## A day in a repository that has it
 

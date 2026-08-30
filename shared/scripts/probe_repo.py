@@ -37,6 +37,9 @@ SKIP_DIRS = {
     ".next", ".gradle", "Pods", "bower_components",
 }
 CHECK_DIRNAMES = {"gates", "guards", "selftests"}
+# Files that live in a check directory and are not checks. Counting these is
+# how a repository with three guards reports five, forever and consistently.
+MACHINERY = {"dispatch.py", "__init__.py", "conftest.py", "run.py"}
 WALK_CAP = 6000
 
 HOOK_EVENTS = [
@@ -239,10 +242,38 @@ def probe(root):
          for h, _d, f in _walk(root)
          if os.path.basename(h) == "index" and "build.py" in f), "")
 
-    def count(*parts):
-        p = os.path.join(root, *parts)
-        return len([f for f in os.listdir(p)
-                    if not f.startswith(("_", "."))]) if os.path.isdir(p) else 0
+    def tally(*parts):
+        """(checks, selftests) in one check directory.
+
+        Three things this has to get right, each of which it got wrong:
+
+        A selftest is a *file*, not a directory. `find_check_dirs` looks for a
+        directory called `selftests/`, which is where this harness would put
+        them; almost everyone -- including this repository -- writes
+        `guards/selftest.py` instead, and was reported as having none.
+
+        `dispatch.py` and `selftest.py` are machinery, not checks. Counting
+        them inflated this repository's own guard count from three to five,
+        and would inflate every scaffolded repository's by exactly the same
+        two, which is the kind of error that survives because it is consistent.
+
+        Only `.py` files. A README sitting in `guards/` is not a guard.
+        """
+        d = os.path.join(root, *parts)
+        if not os.path.isdir(d):
+            return 0, 0
+        checks = selftests = 0
+        for f in os.listdir(d):
+            if f.startswith((".", "_")) or not f.endswith(".py"):
+                continue
+            if f.startswith("selftest"):
+                selftests += 1
+            elif f not in MACHINERY:
+                checks += 1
+        return checks, selftests
+
+    def total(kind, index):
+        return sum(tally(d)[index] for d in check_dirs[kind])
 
     r["discipline"].update({
         "docs_dir": has("docs"),
@@ -250,9 +281,12 @@ def probe(root):
             d for d in os.listdir(os.path.join(root, "docs"))
             if os.path.isdir(os.path.join(root, "docs", d))
         ) if has("docs") else [],
-        "gates": sum(count(d) for d in check_dirs["gates"]),
-        "guards": sum(count(d) for d in check_dirs["guards"]),
-        "selftests": sum(count(d) for d in check_dirs["selftests"]),
+        "gates": total("gates", 0),
+        "guards": total("guards", 0),
+        # Both spellings: a `selftests/` directory, and the `selftest.py` that
+        # sits beside the checks it proves. Most repositories write the second.
+        "selftests": (total("selftests", 0) + total("selftests", 1)
+                      + total("gates", 1) + total("guards", 1)),
         "check_dirs": sorted(d for v in check_dirs.values() for d in v),
         "git_hooks": has(".githooks") or os.path.isdir(
             os.path.join(root, ".git", "hooks")),

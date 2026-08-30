@@ -1,7 +1,7 @@
 # Target architecture — what "finished" looks like
 
-Read this **before Step 0**, so the probe has something to compare against. The
-steps describe motion; this describes the destination.
+Read this **before step 1**, so the assessment has something to compare
+against. The steps describe motion; this describes the destination.
 
 Legend: `◆` written by `scaffold.py` · `◇` authored by hand, shape prescribed here.
 
@@ -36,6 +36,7 @@ repo/
 └── scripts/                     judgment — every pass/fail decision
     ├── guards/                  reads one proposed action, before it runs
     │   ├── dispatch.py        ◆ add a rule = add a file; broken guards fail open
+    │   ├── _recurrence.py     ◆ counts refusals by shape in .git/ · says it once
     │   ├── selftest.py        ◆ must be seen failing before you trust it
     │   └── no_*.py            ◆ three universal starters
     ├── gates/                   reads the worktree, at CI time
