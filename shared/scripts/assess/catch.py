@@ -268,7 +268,7 @@ def assess(root, instances, work):
     repo = bench(root, work)
     eco, cmd = find(repo)
     if cmd is None:
-        return None, (f"cannot judge: no runnable test command"
+        return None, ("cannot judge: no runnable test command"
                       + (f" ({eco.name} needs {eco.tool}, which is not on PATH)"
                          if eco else ""))
     for step in eco.install(repo):
@@ -321,7 +321,7 @@ def render(r):
                          f"{row['false_block'][:80]}")
     lines += [
         "",
-        f"  ladder   " + "  ".join(f"{k}:{counts[k]}" for k in LADDER)
+        "  ladder   " + "  ".join(f"{k}:{counts[k]}" for k in LADDER)
         + (f"  unusable:{unusable}" if unusable else ""),
         f"  suite    {r['command']}   ci: {r['ci'] or 'none found'}",
         f"  hooks    PreToolUse:{r['hooks']['PreToolUse']}  "

@@ -288,23 +288,28 @@ def case_settings_local_is_read_and_marked(t):
 
 def case_no_hooks_and_a_real_defect_lands_on_the_suite(t):
     """The end-to-end shape, with the answer known in advance: a repository
-    with tests and no hooks catches its defects at `local-suite`."""
-    if shutil.which("python3") is None:
-        return ""
+    with tests and no hooks catches its defects at `local-suite`.
+
+    The fixture runs its test through a `Makefile` and the standard library,
+    not through pytest. The first version needed pytest, which is not on a
+    fresh runner's ambient interpreter, so the one case that exercises the
+    whole ladder was the one case CI could not run -- and the failure looked
+    like a broken ladder rather than a missing package. A selftest for an
+    assessment may not depend on anything the assessment does not."""
+    if shutil.which("make") is None:
+        return ""                       # no runner; not a verdict about anything
     repo(t)
+    check = ("test:\n"
+             "\t@python3 -c \"import sys; sys.path.insert(0,'.'); "
+             "from src.a import f; sys.exit(0 if f() == {want} else 1)\"\n")
     put(t, "src/__init__.py", "")
     put(t, "src/a.py", "def f():\n    return 2\n")
-    put(t, "tests/test_a.py",
-        "import sys, os\n"
-        "sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))\n"
-        "from src.a import f\n\n\ndef test_f():\n    assert f() == 2\n")
-    put(t, "pyproject.toml", "[project]\nname='x'\nversion='0'\n")
+    put(t, "tests/.keep", "")
+    put(t, "Makefile", check.format(want=2))
     commit(t, "feat: a")
     put(t, "src/a.py", "def f():\n    return 3\n")
-    put(t, "tests/test_a.py",
-        "import sys, os\n"
-        "sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))\n"
-        "from src.a import f\n\n\ndef test_f():\n    assert f() == 3\n")
+    put(t, "Makefile", check.format(want=3))
+    put(t, "tests/case_f.py", "# the test moved with the fix\n")
     commit(t, "fix: f returned the wrong number")
 
     work = os.path.join(t, ".work")
@@ -315,7 +320,7 @@ def case_no_hooks_and_a_real_defect_lands_on_the_suite(t):
     if rungs != ["local-suite"]:
         return (f"a repository with tests and no hooks put its defect on "
                 f"{rungs}, not ['local-suite'] — detail: "
-                f"{[row['detail'][:60] for row in r['rows']]}")
+                f"{[str(row['detail'])[:70] for row in r['rows']]}")
     return ""
 
 
