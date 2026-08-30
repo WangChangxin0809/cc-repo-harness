@@ -173,34 +173,41 @@ repositories whose suites are fine.
 
 Every path below is in the target repository, under version control, working
 with this plugin uninstalled. `◆` is written by `scaffold.py`, `◇` is authored
-by hand because nothing can generate it. Tier A installs the first block, B
-adds the second, C the third — installing above tier leaves machinery nobody
-needs, and its rot teaches everyone that the machinery is decorative.
+by hand because nothing can generate it, and **A/B/C is the tier that installs
+it** — installing above tier leaves machinery nobody needs, and its rot teaches
+everyone that the machinery is decorative.
 
 ```
 repo/
-├── CLAUDE.md                  ◆ A   cap 100 lines, gate-enforced · moment 1
-├── .claude/
-│   ├── settings.json          ◆ A   each hook is one line calling scripts/
-│   └── guards.json            ◆ A   protected branches · layer stack · exceptions
-├── docs/index.md              ◆ A   routing table: task → read → edit
-├── docs/how-to/  reference/   ◇ A
-└── scripts/guards/            ◆ A   one file per rule; the dispatcher finds them
-    ├── dispatch.py                  add a rule = add a file · fails open
-    ├── _recurrence.py               counts refusals by shape, in .git/
-    ├── selftest.py                  must be seen failing before you trust it
-    └── no_*.py                      three universal starters
-
-├── ARCHITECTURE.md            ◇ B   bird's eye · codemap · invariants
-├── SECURITY.md                ◆ B   how to report; the rules live in checks
-├── ci.sh                      ◆ B   the one acceptance entry · three lanes
-├── src/<subtree>/CLAUDE.md    ◇ B   loads only when that subtree is read · moment 4
-├── docs/decisions/            ◆ B   numbered · immutable · superseded, never edited
-├── docs/exec-plans/<name>/    ◇ B   README owns state, steps own substance
-├── docs/troubleshooting/ generated/ ◇ B
-└── scripts/gates/ context/ selftests/ baselines/   ◆ B
-
-└── scripts/index/             ◆ C   build.py · query.py, plus a gold set
+├── CLAUDE.md                  ◆ A  cap 100 lines, gate-enforced · moment 1
+├── ARCHITECTURE.md            ◇ B  bird's eye · codemap · invariants
+├── SECURITY.md                ◆ B  how to report; the rules live in the checks
+├── ci.sh                      ◆ B  the one acceptance entry · three lanes
+│
+├── .claude/                        wiring only — never knowledge
+│   ├── settings.json          ◆ A  each hook is one line calling scripts/
+│   └── guards.json            ◆ A  protected branches · layers · exceptions
+│
+├── src/<subtree>/CLAUDE.md    ◇ B  loads only when that subtree is read · moment 4
+│
+├── docs/
+│   ├── index.md               ◆ A  routing table: task → read → edit
+│   ├── how-to/  reference/    ◇ A  action → command → criterion · lookup tables
+│   ├── troubleshooting/       ◇ B  symptom → cause → action
+│   ├── decisions/             ◆ B  numbered · immutable · superseded, never edited
+│   ├── exec-plans/<name>/     ◇ B  README owns the state, steps own the substance
+│   └── generated/             ◇ B  regenerate, then git diff must be empty
+│
+└── scripts/                        judgement — every pass/fail decision
+    ├── guards/                ◆ A  one proposed action, before it runs
+    │   ├── dispatch.py             add a rule = add a file · fails open
+    │   ├── _recurrence.py          counts refusals by shape, in .git/
+    │   ├── selftest.py             must be seen failing before you trust it
+    │   └── no_*.py                 three universal starters
+    ├── gates/                 ◆ B  the worktree, at CI time
+    ├── context/               ◆ B  what the hooks call · moments 2 and 6
+    ├── selftests/ baselines/  ◇ B  one per gate you add · readings record a commit
+    └── index/                 ◆ C  build.py · query.py, plus a gold set
 ```
 
 Two of these cannot be generated and are the ones people skip. `CLAUDE.md` is
