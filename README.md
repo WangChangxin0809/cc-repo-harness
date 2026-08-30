@@ -81,6 +81,51 @@ and after server-side branch protection. What it adds is the paragraph
 explaining why, delivered at the moment of the attempt, which is the one place
 prose is guaranteed to be read.
 
+## A day in a repository that has it
+
+The bootstrap is a morning's work and it happens once. This is what the months
+after it look like: a fresh agent, an ordinary task, and what reaches it at each
+moment. **Solid arrows are wired and automatic. Dashed arrows are the agent's
+own initiative** — moments 3 and 6 are never wired by the scaffolder, so
+retrieval and the decision record are read because an agent thought to, or not
+at all.
+
+```mermaid
+flowchart TD
+    S(["a fresh agent · an ordinary task"])
+    S --> M2["② SessionStart · automatic<br/>branch state · who else is working here · which plan is in flight"]
+    M2 --> M1["① CLAUDE.md · paid every turn · capped at 100 lines by a gate"]
+    M1 --> M4["④ opening a subtree<br/>that directory's CLAUDE.md loads, and cost nothing until now"]
+
+    subgraph TC ["every tool call"]
+        ACT{"about to act"}
+        ACT -->|"Write · Edit"| ADV["before_write.py · what governs this path<br/>advisory — it never blocks"]
+        ACT -->|"Bash"| G{"⑤ guards/dispatch.py<br/>one file per rule"}
+        G -->|"exit 0 · or the guard itself crashed"| RUN["it runs"]
+        G -->|"exit 2"| WHY["blocked, with the reason attached<br/>the one moment prose is certain to be read"]
+        ADV --> RUN
+        WHY --> ACT
+    end
+
+    M4 --> ACT
+    WHY -.->|"the third time the same rule is hit"| GROW["a new guard file, or a gate<br/>never another paragraph in CLAUDE.md"]
+    GROW -.-> G
+
+    M1 -.->|"③ ⑥ never wired · read only if the agent thinks to"| OD["docs/index.md · docs/decisions/ · scripts/index/query.py"]
+    OD -.-> ACT
+
+    RUN --> STOP{"tries to finish · Stop hook · automatic"}
+    STOP -->|"the tree is red"| BACK["the failures are handed back<br/>and the turn does not end"]
+    STOP -->|"green"| CI["./ci.sh --fast while working · --unit before pushing<br/>exit 2 = COULD NOT JUDGE = never a pass"]
+    CI --> PR(["pull request"])
+    CI -.->|"not finished this session"| PLAN["docs/exec-plans/&lt;name&gt;/README.md<br/>the context does not survive the session · this does"]
+```
+
+The loop in the bottom right is the only part that compounds. Everything else
+holds a line that was already drawn; that one is how a new line gets drawn —
+a rule that keeps being hit stops being prose and becomes a file, and the
+harness a repository has two years in is mostly made of those.
+
 ## Trust
 
 The plugin's `PreToolUse` hook runs `scripts/guards/dispatch.py` from whatever
