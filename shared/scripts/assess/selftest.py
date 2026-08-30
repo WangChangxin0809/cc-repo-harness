@@ -113,6 +113,38 @@ def case_checks_are_found_outside_scripts(t):
     return ""
 
 
+def case_machinery_is_not_counted_as_checks(t):
+    """Three guards plus a dispatcher plus a selftest is three guards.
+
+    The two files that run the checks are not checks, and counting them added
+    exactly two to every repository this scaffolder has ever touched -- an
+    error that survives precisely because it is consistent, and that shows up
+    in the one number `first_look.py` prints unasked.
+
+    And a selftest is a file. `find_check_dirs` looks for a directory called
+    `selftests/`, which is where this harness would put them and where almost
+    nobody does; every repository writing `guards/selftest.py` -- this one
+    included -- was reported as having none at all.
+    """
+    repo(t)
+    for name in ("no_a.py", "no_b.py", "no_c.py"):
+        put(t, f"scripts/guards/{name}", "def check(n, i):\n    return None\n")
+    put(t, "scripts/guards/dispatch.py", "x = 1\n")
+    put(t, "scripts/guards/selftest.py", "x = 1\n")
+    put(t, "scripts/guards/_helper.py", "x = 1\n")
+    put(t, "scripts/guards/README.md", "# not a guard\n")
+    put(t, "README.md", "# x\n")
+    commit(t, "init")
+    d = load_probe().probe(t)["discipline"]
+    if d["guards"] != 3:
+        return (f"three guards, a dispatcher, a selftest, a private helper and "
+                f"a README were counted as {d['guards']} guards")
+    if d["selftests"] != 1:
+        return (f"scripts/guards/selftest.py was counted as {d['selftests']} "
+                f"selftest(s) — a selftest is a file, not a directory")
+    return ""
+
+
 def case_vendored_checks_are_not_this_repos(t):
     """A dependency's discipline is not the repository's."""
     repo(t)
@@ -413,6 +445,8 @@ def case_a_verdict_does_not_move_with_the_checkout(t):
 CASES = [
     ("checks are found where the repository put them, not where we would",
      case_checks_are_found_outside_scripts),
+    ("a dispatcher and a selftest are not themselves checks",
+     case_machinery_is_not_counted_as_checks),
     ("a dependency's gates are not counted as this repository's",
      case_vendored_checks_are_not_this_repos),
     ("an installed plugin's standing skill cost is counted",
