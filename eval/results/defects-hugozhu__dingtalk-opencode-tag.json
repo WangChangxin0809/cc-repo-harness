@@ -1,0 +1,205 @@
+{
+  "repo": "hugozhu__dingtalk-opencode-tag",
+  "tally": {
+    "validated": 9,
+    "could-not-run": 1
+  },
+  "rows": [
+    {
+      "sha": "4fe705507d",
+      "subject": "fix(#117): flash \u8f6e\u8d70\u72ec\u7acb\u4e00\u6b21\u6027 session\uff0c\u4e0d\u518d\u6c61\u67d3\u590d\u7528\u4e3b\u4f1a\u8bdd",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_brain_flash_model.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_brain_flash_model.py"
+      ],
+      "verdict": "validated",
+      "detail": "4 failed, 21 passed in 0.14s",
+      "restored": [
+        "config/constants.sh",
+        "src/custom/brain.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "eb14eee555",
+      "subject": "fix: serve \u56de\u5408\u5e26\u9519\u6536\u5c3e\u4e14\u65e0\u4ea7\u51fa\u65f6\u629b failed\uff0c\u4e0d\u518d\u9759\u9ed8\u541e\u6210\u7a7a\u56de\u590d",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_brain_turn_error.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_brain_turn_error.py"
+      ],
+      "verdict": "validated",
+      "detail": "4 failed, 2 passed in 0.11s",
+      "restored": [
+        "src/custom/brain.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "70ca011753",
+      "subject": "fix: question \u80fd\u529b\u81ea\u95ee\u81ea\u7b54\u2014\u2014\u673a\u5668\u4eba\u81ea\u5df1\u7684\u95ee\u9898\u6b63\u6587\u88ab\u5f53\u6210\u7528\u6237\u7b54\u6848 (#116)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_question_capability.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_question_capability.py"
+      ],
+      "verdict": "validated",
+      "detail": "3 failed, 17 passed in 0.16s",
+      "restored": [
+        "src/core/builtin_caps/question.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "85262e78d3",
+      "subject": "fix: \u957f\u4efb\u52a1\u8fdb\u5ea6\u8868\u60c5\u539f\u5730\u66f4\u65b0 (#95)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_ack_capability.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_ack_capability.py"
+      ],
+      "verdict": "validated",
+      "detail": "13 failed, 34 passed in 1.14s",
+      "restored": [
+        "src/custom/capabilities/ack.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "62cb7fa7cd",
+      "subject": "fix: ack \u72b6\u6001\u8868\u60c5\u7528 update-text-emotion \u539f\u5730\u66f4\u65b0\uff0c\u66ff\u4ee3 remove+add (#85) (#86)",
+      "src": 1,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/e2e_llm_unavailable_test.py tests/custom/test_ack_capability.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/e2e_llm_unavailable_test.py",
+        "tests/custom/test_ack_capability.py"
+      ],
+      "verdict": "could-not-run",
+      "detail": "at the fix: could-not-run \u2014 no tests ran in 0.68s"
+    },
+    {
+      "sha": "2cbcc8a016",
+      "subject": "fix: \u4fee\u590d image \u4e34\u65f6\u76ee\u5f55\u6cc4\u6f0f\u548c ack \u8868\u60c5\u7f13\u5b58\u65e0\u754c\u589e\u957f (#82) (#84)",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_image_capability.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_image_capability.py"
+      ],
+      "verdict": "validated",
+      "detail": "3 failed, 8 passed in 0.10s",
+      "restored": [
+        "src/custom/capabilities/ack.py",
+        "src/custom/capabilities/image.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "b486b9a91e",
+      "subject": "fix: split handler thread pool to prevent long-task starvation (#82) (#8",
+      "src": 3,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/core/test_agent_common.py tests/custom/test_digital_employee.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/core/test_agent_common.py",
+        "tests/custom/test_digital_employee.py"
+      ],
+      "verdict": "validated",
+      "detail": "6 failed, 52 passed in 0.38s",
+      "restored": [
+        "config/constants.sh",
+        "src/core/agent_common.py",
+        "src/core/builtin_caps/text_reply.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "342a8d335b",
+      "subject": "fix: \u4f1a\u8bdd\u4e2d\u6bd2\u81ea\u6108 \u2014\u2014 \u590d\u7528\u4f1a\u8bdd\u56de\u7a7a\u4e22\u5f03\u91cd\u8bd5 + \u574f\u56de\u5408\u5feb\u901f abort",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_digital_employee.py"
+      ],
+      "verdict": "validated",
+      "detail": "5 failed, 37 passed in 0.51s",
+      "restored": [
+        "config/constants.sh",
+        "src/custom/brain.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "a037380e50",
+      "subject": "fix: \u957f\u56de\u590d\u5206\u7247\u53d1\u9001\uff0c\u4e0d\u518d\u622a\u65ad\u5230\u5343\u5b57 (#79) (#80)",
+      "src": 3,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_reply_chunk.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_reply_chunk.py"
+      ],
+      "verdict": "validated",
+      "detail": "7 failed, 2 passed in 0.32s",
+      "restored": [
+        "config/constants.sh",
+        "src/custom/brain.py",
+        "src/custom/replier.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "c2a4238189",
+      "subject": "fix(custom): harden against two deploy pitfalls (PATH, AGENT_PROFILE)",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/custom/test_digital_employee.py"
+      ],
+      "verdict": "validated",
+      "detail": "1 failed, 17 passed in 0.13s",
+      "restored": [
+        "config/constants.sh",
+        "src/custom/replier.py"
+      ],
+      "removed": []
+    }
+  ]
+}

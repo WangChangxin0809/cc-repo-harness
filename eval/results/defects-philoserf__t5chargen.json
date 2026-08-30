@@ -1,0 +1,171 @@
+{
+  "repo": "philoserf__t5chargen",
+  "tally": {
+    "validated": 8
+  },
+  "rows": [
+    {
+      "sha": "017fa136f6",
+      "subject": "fix: say what a row costs, not that it is out of reach (#77)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./interactive/...",
+      "scope": "touched tests",
+      "tests": [
+        "interactive/interactive_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "interactive/interactive.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "9ad293d932",
+      "subject": "fix: stop offering schooling nobody at step C could qualify for (#76)",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "chargen/ladder_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "chargen/character.go",
+        "chargen/education.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "44d9c7aaef",
+      "subject": "fix: close a ceiling that cannot be waived, and a rung already climbed (",
+      "src": 2,
+      "test": 2,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "chargen/ladder_test.go",
+        "chargen/latereducation_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "chargen/character.go",
+        "chargen/education.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "8e2b01e0f3",
+      "subject": "fix: a program is attempted once, which is what stops the Edu ratchet (#",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "chargen/repeats_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "chargen/character.go",
+        "chargen/education.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "e87d27eb31",
+      "subject": "fix: a Service Academy is entered once, before a career, or not at all (",
+      "src": 3,
+      "test": 1,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "chargen/academy_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "chargen/character.go",
+        "chargen/latereducation.go",
+        "education/education.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "8d1b7a74d6",
+      "subject": "fix: ask for the DM the chart prints, not the field the data names (#65)",
+      "src": 3,
+      "test": 2,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./audit/...",
+      "scope": "touched tests",
+      "tests": [
+        "audit/deaddata_test.go",
+        "audit/prompts_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "career/career.go",
+        "chargen/character.go",
+        "chargen/musterout.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "956f4ba9d7",
+      "subject": "fix: read back what batch writes (#61)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./cmd/t5chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "cmd/t5chargen/main_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "cmd/t5chargen/main.go"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "9f6a6df5d6",
+      "subject": "fix: reroll duplicate benefits until they differ, and stop calling miles",
+      "src": 2,
+      "test": 2,
+      "small": true,
+      "ecosystem": "go",
+      "command": "go test ./chargen/...",
+      "scope": "touched tests",
+      "tests": [
+        "chargen/entitlement_test.go",
+        "chargen/musterout_test.go"
+      ],
+      "verdict": "validated",
+      "detail": "FAIL",
+      "restored": [
+        "chargen/character.go",
+        "chargen/musterout.go"
+      ],
+      "removed": []
+    }
+  ]
+}

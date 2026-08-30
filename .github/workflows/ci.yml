@@ -85,6 +85,15 @@ jobs:
       - name: the repo graph still says what it claims
         run: python3 shared/scripts/index/selftest.py --verbose
 
+      # An assessment that stops working is worse than a gate that stops
+      # working, because it keeps printing numbers. A probe gone blind reports
+      # a repository as safe, and that report is indistinguishable from the
+      # report on a repository that is safe. Half these cases build a
+      # repository that must score *badly* -- a measurement that cannot go down
+      # has not measured anything.
+      - name: the assessment can still tell a good repository from a bad one
+        run: python3 shared/scripts/assess/selftest.py --verbose
+
       # The trust gate decides whether an unread repository's code executes on
       # someone's machine. It is the only component here that fails silently
       # and in the safe-looking direction: a check that wrongly concludes

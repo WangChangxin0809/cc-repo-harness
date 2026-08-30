@@ -1,10 +1,27 @@
 # shared/scripts/ — this is payload
 
-Every `.py` under this directory is **copied into other people's repositories**
-by `scaffold.py`. You are not editing our tooling; you are editing a stranger's.
+Everything here is **written for a repository you have never seen**. You are not
+editing our tooling; you are editing a stranger's. Two ways that happens, and
+the difference decides what you may depend on:
 
-(This file is not: `COPY` takes `.py` only, so the note you are reading stays
-here. It is the one thing in this directory written for us.)
+| | Reaches a stranger by | Examples |
+|---|---|---|
+| **copied** | `scaffold.py`'s `COPY` table writes it into their tree | `gates/` `guards/` `index/` `context/` |
+| **run from here** | the plugin runs it against their repo | `probe_repo.py` `drift.py` `assess/` |
+
+Copied code has to keep working after this plugin is uninstalled, so it may
+depend on nothing but the tree it lands in. Code run from here may import its
+siblings, but must never assume the *subject* repository is shaped like ours --
+`probe_repo.py` looked for gates under `scripts/gates` and reported this
+repository's own as absent, which is the failure this distinction exists to
+prevent.
+
+A diagnostic is not repository behaviour and does not belong in `COPY`.
+Uninstalling the plugin must not change what a repository *does*, and a repo
+that never asked for a per-commit defect replay should not find one in its tree.
+
+(This file is neither: `COPY` takes `.py` only, so the note you are reading
+stays here. It is the one thing in this directory written for us.)
 
 - Write for a repository you have never seen. No path, name, or convention from
   this repository may be assumed.

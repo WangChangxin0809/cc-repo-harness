@@ -5,7 +5,7 @@ description: Lay the foundation that makes a repository teach coding agents how 
 
 # Bootstrap a repository harness
 
-Governs: shared/scripts/scaffold.py, shared/scripts/probe_repo.py
+Governs: shared/scripts/scaffold.py, shared/scripts/probe_repo.py, shared/scripts/assess
 
 A harness is the machinery that puts the right knowledge in front of an agent at
 the moment it acts, and stops the actions that are cheaper to prevent than to
@@ -71,19 +71,58 @@ things end up, and where they must keep working after the plugin is gone.
 Each step has one observable criterion. If the criterion cannot be checked, the
 step is not done — move on only when it reads true.
 
-### 0. Survey before touching anything
+### 0. Measure before touching anything
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/probe_repo.py --root <repo>
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo>
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --full
 ```
 
-It reports which of the seven moments are wired, what discipline already exists,
-the standing per-turn cost of installed skill descriptions, and a suggested
-tier. **Criterion**: you can state the tier and name at least one convention the
-repository already has. Bolting a second convention onto a repo that has one is
-how you get two that are both half-followed.
+One page, every line of it measured: the standing per-turn cost and where it
+comes from, which of the seven moments are wired, which irreversible actions are
+refused *before they happen* — and whether any legitimate action is refused
+along with them — how many defects the repository's own history can supply, and,
+with `--full`, how late those defects are actually caught.
 
-### 1. Choose a tier and stay in it
+The page ends by naming the three questions it could not answer. **Those are
+yours, and they are the only part of this that costs anything:**
+
+1. Is the standing cost earning its tokens, or restating the code next to it?
+2. Which sentences in the docs are waffle? **Quote them.** A claim you cannot
+   quote is a claim nobody can check, and "the docs are verbose" has never once
+   caused a deletion.
+3. Does each wired hook address a mistake *this* repository actually makes?
+
+**Criterion**: you can state the tier, name one convention the repository
+already has, and quote one sentence you would delete. Bolting a second
+convention onto a repo that already has one is how you get two that are both
+half-followed.
+
+### 1. Write the plan, and put in it what you will not do
+
+The fact sheet says where the repository stands; the plan says what changes. A
+plan that lists only additions is not a plan. Three columns, and a refusal:
+
+| Column | What goes in it |
+|---|---|
+| **Absent** | scaffold copies it in |
+| **Present and wrong** | change it — and say what it should read like after |
+| **Present and fine** | say so explicitly, and leave it alone |
+
+The third column is the one that gets skipped and the one that matters. In this
+plugin's corpus, seventeen of twenty repositories have no `Requirements` section
+in the README. That is a fact about README conventions, not about seventeen
+defective repositories — and the inverse holds too: something being common does
+not make it right. A harness that cannot say *this is theirs, and it is fine*
+will rewrite everything it touches.
+
+Then a `## Not doing, and why` section. Keep the whole plan short enough that
+somebody reads it; an exec-plan nobody finishes is a plan nobody follows.
+
+**Criterion**: the plan has a non-empty **Present and fine** column and a
+non-empty **Not doing**.
+
+### 2. Choose a tier and stay in it
 
 | Tier | Repo | Install |
 |---|---|---|
@@ -95,7 +134,7 @@ Installing above tier leaves machinery nobody needs. It rots, and its rot
 teaches everyone that the machinery is decorative. **Criterion**: you can say
 what you deliberately did *not* install and why.
 
-### 2. Classify every existing rule by moment
+### 3. Classify every existing rule by moment
 
 Take the rules already written down — in `CLAUDE.md`, in a wiki, in someone's
 head — and route each one:
@@ -109,7 +148,7 @@ head — and route each one:
 **Criterion**: at least one rule left `CLAUDE.md`. If nothing moved, the
 classification was performed as a formality.
 
-### 3. Scaffold
+### 4. Scaffold
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A|B|C> --dry-run
@@ -132,7 +171,7 @@ green here would mean the gate cannot see the thing it exists to see.
 **Criterion**: `git status` shows the tree, and `./ci.sh --fast` is red naming
 placeholders rather than red for any other reason.
 
-### 4. Fill the two files that cannot be generated
+### 5. Fill the two files that cannot be generated
 
 `CLAUDE.md` — **hard cap 100 lines**, enforced by a gate. Scope it: say what it
 covers and what it does not, so the next person knows where new material goes
@@ -147,7 +186,7 @@ one describes the intent. It is read on demand, so it may be long.
 **Criterion**: neither file contains a sentence that was true of a generic
 repository.
 
-### 5. Read the guards, then watch one block
+### 6. Read the guards, then watch one block
 
 ```bash
 python3 scripts/guards/selftest.py
@@ -175,14 +214,14 @@ discipline, including why a broken guard is deliberately made to fail *open*.
 **Criterion**: you have watched a guard block a command you typed, watched a
 near-miss go through, and watched the selftest turn red under injection.
 
-### 6. Make the snapshot immutable before any consolidation
+### 7. Make the snapshot immutable before any consolidation
 
 If the repository has an accumulated pile of agent notes, they are input to
 consolidation and must be frozen before anything reads them. See
 `consolidating-notes`. **Criterion**: the snapshot directory is read-only on
 disk, and the synthesis wrote to a *different* path that you diffed.
 
-### 7. Close by writing down why
+### 8. Close by writing down why
 
 `docs/decisions/0001-agent-conventions.md` — what was chosen, what was rejected,
 what would have to become true to revisit it. Without it the conventions survive
@@ -203,7 +242,11 @@ rejected, with the reason.
    is green because the files were written, not because it was exempted.
 6. `ci.sh` runs green from a clean worktree, and disconnecting a hook on purpose
    turns it red. A suite that survives that is measuring nothing.
-7. Uninstall the plugin. The repository still teaches — same guards, same gates,
+7. The fact sheet was taken again afterwards, and the numbers moved. Not "we
+   added three gates" — that is a claim about us. `blast.py` refuses more than
+   it did, no legitimate action became blocked, and defects that used to be
+   caught at CI are caught before the write.
+8. Uninstall the plugin. The repository still teaches — same guards, same gates,
    same `ci.sh`, nothing missing but the trust prompt.
 
 ## References
