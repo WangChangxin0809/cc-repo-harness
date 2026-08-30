@@ -81,6 +81,73 @@ and after server-side branch protection. What it adds is the paragraph
 explaining why, delivered at the moment of the attempt, which is the one place
 prose is guaranteed to be read.
 
+## The morning's work
+
+Installing the plugin changes nothing by itself. The bootstrap is a skill, and a
+skill needs a trigger: it starts when somebody says *the agent keeps making the
+same mistake*, or *context is full before I have typed anything*, or asks for
+`CLAUDE.md` and hooks outright.
+
+What follows is nine steps, and **four of them are deliberately not automated**.
+Same convention as the diagram in the next section — solid is wired and
+automatic, dashed is the agent's own judgement. The dashed steps here are 1, 3,
+5 and 8, which are also the only ones that cost tokens. That is a decision and
+not a gap: judgement that becomes a gate gets switched off within a week, and a
+plan that writes itself is a plan nobody read.
+
+```mermaid
+flowchart TD
+    T(["someone says the agent keeps making the same mistake"]) --> S0
+
+    S0["<b>0 · measure</b><br/>assess/factsheet.py"]
+    S0 --> PR["probe_repo · blast · history · catch · drift<br/><i>zero tokens</i>"]
+    PR --> CJ{"can this repo's<br/>own tests run?"}
+    CJ -->|no| AB["<b>cannot judge</b><br/>the ladder abstains.<br/>it does not score zero"]
+    CJ -->|yes| LAD["replay a real defect<br/>down the ladder L0…L4"]
+    AB --> FS
+    LAD --> FS["<b>one page of facts</b><br/>+ the three questions<br/>it cannot answer"]
+
+    FS -.-> S1["<b>1 · write the plan</b><br/>absent · present-and-wrong<br/>· <b>present-and-fine</b><br/>+ not doing, and why"]
+    S1 -.-> S2["<b>2 · choose a tier</b><br/>A / B / C — and say<br/>what you did not install"]
+    S2 -.-> S3["<b>3 · classify every existing rule</b><br/>into one of the seven moments"]
+    S3 --> S4["<b>4 · scaffold</b><br/>scaffold.py --tier X<br/>existing files are skipped,<br/>never overwritten"]
+    S4 -.-> S5["<b>5 · fill the two files<br/>nothing can generate</b><br/>CLAUDE.md · docs/index.md"]
+    S5 -.-> S6["<b>6 · watch a guard block</b><br/>and watch its selftest go red"]
+    S6 --> S7["<b>7 · freeze the snapshot</b>"]
+    S7 -.-> S8["<b>8 · write down why</b><br/>one decision record"]
+    S8 --> RM["<b>re-measure</b><br/>assess/factsheet.py"]
+    RM --> CMP["0/6 → 3/6 refused,<br/>no legitimate action blocked<br/><i>not</i> 'we added five guards'"]
+    CMP --> ACC(["uninstall the plugin.<br/>does the repository still teach?"])
+
+    classDef auto fill:#DFEDE6,stroke:#2E7355,stroke-width:1px,color:#14322A
+    classDef judge fill:#E6E6F0,stroke:#5A5A8C,stroke-width:1px,color:#2A2A44
+    classDef warn fill:#F3E7D5,stroke:#A96C1E,stroke-width:1px,color:#4A300C
+    classDef edge fill:#FFFFFF,stroke:#79818D,stroke-width:1px,color:#191D24
+    class S0,S4,S7,RM,PR,LAD auto
+    class S1,S2,S3,S5,S6,S8 judge
+    class AB,FS,CMP warn
+    class T,ACC,CJ edge
+```
+
+Three things the shape is arguing.
+
+**Step 0 measures before anything is touched, and it costs nothing.** Five
+probes: what is wired, which irreversible actions are already refused, what
+defects this repository's own history can supply, how late those are caught, and
+which documents have fallen behind the code they claim. The page ends by naming
+the three questions it *could not* answer, and that list is the entire brief for
+the steps that spend anything.
+
+**`cannot judge` is a branch, not a score.** A repository whose tests will not
+run here gets an abstention, never a zero. Scoring a missing toolchain as a
+failure is how an instrument starts lying — and it discards exactly the
+repositories whose suites are fine.
+
+**It ends in a question.** The only claims allowed about what changed are in the
+units step 0 already measured: *two of six irreversible actions were refused,
+now five are, and nothing legitimate became blocked.* Never *we added five
+guards*, which is a claim about us rather than about the repository.
+
 ## A day in a repository that has it
 
 The bootstrap is a morning's work and it happens once. This is what the months
