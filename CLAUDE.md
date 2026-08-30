@@ -1,9 +1,14 @@
 # repo-agent-harness
 
-A Claude Code plugin that lays a repository's foundation and then leaves. The
-surprising part: **most of this repository is not the plugin.** It is payload —
-files copied into somebody else's repository, which must keep working after
-this plugin is uninstalled.
+A Claude Code plugin that lays a repository's foundation, and then stays to
+measure whether it is still holding. The surprising part: **most of this
+repository is not the plugin.** It is payload — files copied into somebody
+else's repository, which must keep working after this plugin is uninstalled.
+
+The split that decides where a new file goes: **the repository keeps the
+harness, the plugin keeps the instrument.** Anything the repository needs in
+order to work is copied into it. Anything that only *reports on* the repository
+stays here and is run against it.
 
 - **Covers**: the three identities below, and the rules no script can enforce.
 - **Does not cover**: anything true of one directory only (that directory's own
@@ -34,8 +39,11 @@ the first question, because the answer changes who is affected.
 4. **Repository behaviour never lives in the plugin.** If installing or
    uninstalling this plugin changes what a repository *does*, that is a bug: it
    makes the repository behave differently for teammates who have not installed
-   it. The plugin holds what protects a person from a repository, and what
-   teaches a person. Nothing else.
+   it. The plugin holds what protects a person from a repository, what teaches a
+   person, and what *measures* a repository. Nothing else. The instrument is the
+   reason to keep the plugin installed, and it is also the easiest place to
+   smuggle behaviour in — a diagnostic that starts fixing what it finds has
+   stopped being a diagnostic -> docs/decisions/0021
 5. **We wire to `shared/` for payload, `scripts/` for templates.** A scaffolded
    repository gets *copies* of payload under `scripts/`; we are where those
    copies come from, so `.claude/settings.json` points at the source. The one

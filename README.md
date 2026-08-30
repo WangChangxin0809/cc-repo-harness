@@ -1,15 +1,26 @@
 # repo-agent-harness
 
-**A repository-side harness for coding agents.** It lays the foundation which
-makes a repository teach coding agents how to work in it — and then becomes
-unnecessary.
+**A repository-side harness for coding agents, and an instrument for checking
+it later.** It lays the foundation that makes a repository teach coding agents
+how to work in it — then stays around to tell you whether that foundation is
+still holding.
 
-The acceptance test is literal: install it, run the bootstrap, **uninstall the
-plugin**, hand a fresh agent a real task, and the repository must still teach it
-the conventions. Everything the plugin installs lives in the target repository —
-`CLAUDE.md`, `.claude/settings.json`, `docs/`, `scripts/` — under version
-control, reviewable in a pull request, and working for teammates who have never
-heard of this plugin.
+Two halves, and which half lives where is the whole architecture:
+
+**The repository keeps the harness.** Everything the bootstrap installs lives in
+the target repository — `CLAUDE.md`, `.claude/settings.json`, `docs/`,
+`scripts/` — under version control, reviewable in a pull request, working for
+teammates who have never heard of this plugin. The acceptance test is literal:
+**uninstall the plugin**, hand a fresh agent a real task, and the repository
+must still teach it the conventions.
+
+**The plugin keeps the instrument.** `assess/` is a diagnostic, so it is never
+copied into anybody's tree. Run it in three months and it answers the question
+a harness cannot answer about itself: has the standing per-turn cost crept up,
+are defects that used to be refused before the write now reaching CI, have
+documents fallen behind the code they claim. Uninstalling costs you the
+measurement, never the machinery — which is why the uninstall test is about
+independence rather than about being done with it.
 
 ### Scope, stated so the name cannot overclaim
 
@@ -96,37 +107,24 @@ not a gap: judgement that becomes a gate gets switched off within a week, and a
 plan that writes itself is a plan nobody read.
 
 ```mermaid
-flowchart TD
-    T(["someone says the agent keeps making the same mistake"]) --> S0
-
-    S0["<b>0 · measure</b><br/>assess/factsheet.py"]
-    S0 --> PR["probe_repo · blast · history · catch · drift<br/><i>zero tokens</i>"]
-    PR --> CJ{"can this repo's<br/>own tests run?"}
-    CJ -->|no| AB["<b>cannot judge</b><br/>the ladder abstains.<br/>it does not score zero"]
-    CJ -->|yes| LAD["replay a real defect<br/>down the ladder L0…L4"]
+flowchart LR
+    T(["the agent keeps making the same mistake"]) --> S0
+    S0["0 · measure<br/>probe_repo · blast · history<br/>catch · drift"] --> CJ{"can this repo's<br/>tests run?"}
+    CJ -->|no| AB["cannot judge<br/>abstains — does not score zero"]
+    CJ -->|yes| LAD["replay a real defect<br/>L0 … L4"]
     AB --> FS
-    LAD --> FS["<b>one page of facts</b><br/>+ the three questions<br/>it cannot answer"]
-
-    FS -.-> S1["<b>1 · write the plan</b><br/>absent · present-and-wrong<br/>· <b>present-and-fine</b><br/>+ not doing, and why"]
-    S1 -.-> S2["<b>2 · choose a tier</b><br/>A / B / C — and say<br/>what you did not install"]
-    S2 -.-> S3["<b>3 · classify every existing rule</b><br/>into one of the seven moments"]
-    S3 --> S4["<b>4 · scaffold</b><br/>scaffold.py --tier X<br/>existing files are skipped,<br/>never overwritten"]
-    S4 -.-> S5["<b>5 · fill the two files<br/>nothing can generate</b><br/>CLAUDE.md · docs/index.md"]
-    S5 -.-> S6["<b>6 · watch a guard block</b><br/>and watch its selftest go red"]
-    S6 --> S7["<b>7 · freeze the snapshot</b>"]
-    S7 -.-> S8["<b>8 · write down why</b><br/>one decision record"]
-    S8 --> RM["<b>re-measure</b><br/>assess/factsheet.py"]
-    RM --> CMP["0/6 → 3/6 refused,<br/>no legitimate action blocked<br/><i>not</i> 'we added five guards'"]
-    CMP --> ACC(["uninstall the plugin.<br/>does the repository still teach?"])
-
-    classDef auto fill:#DFEDE6,stroke:#2E7355,stroke-width:1px,color:#14322A
-    classDef judge fill:#E6E6F0,stroke:#5A5A8C,stroke-width:1px,color:#2A2A44
-    classDef warn fill:#F3E7D5,stroke:#A96C1E,stroke-width:1px,color:#4A300C
-    classDef edge fill:#FFFFFF,stroke:#79818D,stroke-width:1px,color:#191D24
-    class S0,S4,S7,RM,PR,LAD auto
-    class S1,S2,S3,S5,S6,S8 judge
-    class AB,FS,CMP warn
-    class T,ACC,CJ edge
+    LAD --> FS["one page of facts<br/>+ 3 questions it cannot answer"]
+    FS -.-> S1["1 · write the plan<br/>absent / wrong / fine<br/>+ not doing"]
+    S1 -.-> S2["2 · choose a tier"]
+    S2 -.-> S3["3 · classify every rule<br/>into one of the seven moments"]
+    S3 --> S4["4 · scaffold<br/>existing files skipped,<br/>never overwritten"]
+    S4 -.-> S5["5 · fill CLAUDE.md<br/>and docs/index.md"]
+    S5 -.-> S6["6 · watch a guard block"]
+    S6 --> S7["7 · freeze the snapshot"]
+    S7 -.-> S8["8 · write down why"]
+    S8 --> RM["re-measure<br/>same units as step 0"]
+    RM --> ACC(["uninstall it and the repository still teaches.<br/>that is independence, not the end"])
+    ACC -. "months later, when you want to know<br/>whether it rotted" .-> S0
 ```
 
 Three things the shape is arguing.

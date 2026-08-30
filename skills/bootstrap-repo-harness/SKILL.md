@@ -12,10 +12,16 @@ the moment it acts, and stops the actions that are cheaper to prevent than to
 review. Most repositories have none: they have a `CLAUDE.md` full of rules that
 are read once, paid every turn, and followed unevenly.
 
-**This skill installs a foundation and then becomes unnecessary.** The test is
-literal: install, uninstall the plugin, hand a fresh agent a real task, and the
+**Everything this skill installs must work without it.** The test is literal:
+install, uninstall the plugin, hand a fresh agent a real task, and the
 repository must still teach it how to work. Anything that only works while the
 plugin is present was built in the wrong place.
+
+That is independence, not disposal. A harness decays — the standing cost creeps
+up, a guard stops matching, a document falls behind the code it claims — and a
+repository cannot notice that about itself. Step 0 is worth re-running months
+later for exactly that, which is why the assessment is never copied into the
+tree: it reports on the repository rather than being part of it.
 
 ## Two rules everything else follows from
 
@@ -247,7 +253,9 @@ rejected, with the reason.
    it did, no legitimate action became blocked, and defects that used to be
    caught at CI are caught before the write.
 8. Uninstall the plugin. The repository still teaches — same guards, same gates,
-   same `ci.sh`, nothing missing but the trust prompt.
+   same `ci.sh`, nothing missing but the trust prompt and the ability to measure
+   itself. Then reinstall it: the instrument is worth keeping, and the fact
+   sheet is the thing to re-run in three months.
 
 ## References
 

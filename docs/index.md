@@ -13,6 +13,7 @@
 | See what is in flight | [collaboration harness](exec-plans/collaboration-harness/README.md) |
 | See whether the harness helps a repository we did not write | [field trial](exec-plans/field-trial/README.md) |
 | Know what was found in passing and deliberately not fixed | [tech debt](exec-plans/tech-debt-tracker.md) |
+| Know why the plugin stays installed instead of leaving | [0021](decisions/0021-the-repository-keeps-the-harness-the-plugin-keeps-the-instrument.md) |
 | Know why the assessment measures behaviour rather than resemblance | [0020](decisions/0020-the-assessment-measures-behaviour-not-resemblance.md) |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
