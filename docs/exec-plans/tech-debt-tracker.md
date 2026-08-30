@@ -12,7 +12,24 @@ lands.
 
 ## Open
 
-Nothing open.
+- **`no_piped_outbound.py` reads the body of a heredoc as a command.** Writing
+  a Python patch script whose *text* contains `git push ... | tail` is refused
+  as a piped outbound action. It happened four times in one session while
+  building the recurrence counter, and it is what the counter recorded first in
+  this repository — its own guard's false positive, which is a fair test of the
+  instrument and a real cost to whoever hits it.
+
+  Found by: `_recurrence.py --report`, on the day it was written.
+  Would touch: `shared/scripts/guards/no_piped_outbound.py`, plus cases in
+  `guards/selftest.py` — the near-misses matter more than the hits here.
+
+  Not fixed now because narrowing a guard is the change most likely to make it
+  stop catching the thing it exists for, and the correct narrowing is not
+  obvious: a heredoc body is not reliably distinguishable from a command by
+  pattern-matching, which is the same limitation `dispatch.py` already documents
+  about guards in general. The honest options are to strip `<<'EOF' ... EOF`
+  regions before matching, or to accept it. Either needs a session that is
+  about this rather than one that keeps tripping over it.
 
 Two entries were closed rather than carried, and both are worth naming because
 the closing is the interesting part:
