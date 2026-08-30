@@ -10,6 +10,9 @@ __pycache__/
 # Corpus checkouts. Pinned in eval/corpus.json and fetched, never committed:
 # nine of the twenty carry no licence, so redistributing them is not ours to do.
 eval/.work/
+# Scratch clones for eval/validate_defects.py: one per repository, each with
+# its own venv. Rebuilt on demand, and holding a stranger's code besides.
+eval/.defects/
 
 # The agent under test is installed by `npm ci` from eval/agent/package-lock.json.
 # The lockfile is the artefact worth keeping; the tree it expands to is not.

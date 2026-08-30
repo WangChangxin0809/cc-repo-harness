@@ -1,0 +1,255 @@
+{
+  "repo": "Dezodemius__resuming",
+  "tally": {
+    "validated": 9,
+    "red-at-fix": 2,
+    "could-not-run": 2
+  },
+  "rows": [
+    {
+      "sha": "f3051234d5",
+      "subject": "fix(security): \u0443\u0441\u0442\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u043e\u0431\u0435\u043b\u044b, \u043d\u0430\u0439\u0434\u0435\u043d\u043d\u044b\u0435 \u0430\u0434\u0432\u0435\u0440\u0441\u0430\u0440\u0438\u0430\u043b\u044c\u043d\u044b\u043c \u0440\u0435\u0432\u044c\u044e",
+      "src": 2,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py tests/test_logic.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py",
+        "tests/test_logic.py"
+      ],
+      "verdict": "validated",
+      "detail": "6 failed, 55 passed, 1 warning in 2.14s",
+      "restored": [
+        "config.py",
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "ec86d2d09c",
+      "subject": "fix(security): InvId \u0441\u043e \u0441\u043c\u0435\u0449\u0435\u043d\u0438\u0435\u043c \u0438 \u0441\u0432\u0435\u0440\u043a\u0430 \u0441\u0443\u043c\u043c\u044b \u0438\u0437 \u0441\u0442\u0440\u043e\u043a\u0438 \u043f\u043b\u0430\u0442\u0435\u0436\u0430 (#43)",
+      "src": 3,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_db.py tests/test_security.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_db.py",
+        "tests/test_security.py"
+      ],
+      "verdict": "red-at-fix",
+      "detail": "at the fix: red \u2014 17 failed, 62 passed, 1 warning in 3.33s"
+    },
+    {
+      "sha": "adb6eebda9",
+      "subject": "fix(security): \u0437\u0430\u043a\u0440\u044b\u0442\u044c \u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u044b\u0439 \u0434\u043e\u0441\u0442\u0443\u043f \u043a \u043c\u043e\u0434\u0435\u043b\u0438 \u0447\u0435\u0440\u0435\u0437 \u043f\u0440\u043e\u043c\u043f\u0442-\u0438\u043d\u044a\u0435\u043a\u0446\u0438\u044e",
+      "src": 3,
+      "test": 4,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py tests/test_landing.py tests/test_logic.py tests/test_mcp.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py",
+        "tests/test_landing.py",
+        "tests/test_logic.py",
+        "tests/test_mcp.py"
+      ],
+      "verdict": "could-not-run",
+      "detail": "after the revert: 1 warning, 1 error in 1.61s"
+    },
+    {
+      "sha": "91db3bcd66",
+      "subject": "fix: generate resumes from board asynchronously",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py"
+      ],
+      "verdict": "validated",
+      "detail": "2 failed, 17 passed, 1 warning in 1.76s",
+      "restored": [
+        "main.py",
+        "schemas.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "dd7d1d503d",
+      "subject": "fix(auth): email \u043a\u0430\u043a \u043a\u043b\u044e\u0447 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u0430 \u2014 \u0431\u0435\u0437 \u0443\u0447\u0451\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430 (#72)",
+      "src": 2,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_auth.py tests/test_db.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_auth.py",
+        "tests/test_db.py"
+      ],
+      "verdict": "validated",
+      "detail": "16 failed, 42 passed, 1 warning in 2.03s",
+      "restored": [
+        "db.py",
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "572f86676e",
+      "subject": "fix(security): \u0431\u0440\u0430\u0442\u044c \u0430\u0434\u0440\u0435\u0441 \u043a\u043b\u0438\u0435\u043d\u0442\u0430 \u0438\u0437 X-Real-IP, \u0430 \u043d\u0435 \u0438\u0437 CF-Connecting-I",
+      "src": 1,
+      "test": 2,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_landing.py tests/test_resilience.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_landing.py",
+        "tests/test_resilience.py"
+      ],
+      "verdict": "validated",
+      "detail": "5 failed, 31 passed, 1 warning in 2.55s",
+      "restored": [
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "ef03673115",
+      "subject": "fix(limits): \u043f\u0440\u0435\u0434\u0435\u043b \u0430\u043d\u043e\u043d\u0438\u043c\u043d\u044b\u0445 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0439, \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u043d\u0435 \u0441\u0431\u0440\u0430\u0441\u044b\u0432\u0430\u0435\u0442\u0441\u044f cookie ",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_landing.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_landing.py"
+      ],
+      "verdict": "validated",
+      "detail": "7 failed, 10 passed, 1 warning in 1.86s",
+      "restored": [
+        "config.py",
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "d6e0a68180",
+      "subject": "fix(billing): \u0441\u043f\u0438\u0441\u044b\u0432\u0430\u0442\u044c \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u044e \u0437\u0430 \u0443\u043b\u0443\u0447\u0448\u0435\u043d\u0438\u0435 \u0442\u0435\u043a\u0441\u0442\u0430 (#56)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py"
+      ],
+      "verdict": "validated",
+      "detail": "2 failed, 14 passed, 1 warning in 1.68s",
+      "restored": [
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "99a25e8fc6",
+      "subject": "fix(security): \u0437\u0430\u043a\u0440\u044b\u0442\u044c fetch-job \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u0435\u0439 \u0438 \u043f\u0440\u0435\u0434\u0435\u043b\u043e\u043c \u043d\u0430 \u0440\u0430\u0437\u043c\u0435\u0440 \u043e\u0442\u0432\u0435\u0442",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_security.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_security.py"
+      ],
+      "verdict": "red-at-fix",
+      "detail": "at the fix: red \u2014 12 failed, 29 passed, 1 warning in 2.76s"
+    },
+    {
+      "sha": "828be4995e",
+      "subject": "fix(auth): \u0441\u0447\u0438\u0442\u0430\u0442\u044c \u043f\u043e\u0434\u043f\u0438\u0441\u044c Telegram \u043f\u043e \u0444\u0430\u043a\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u043f\u0440\u0438\u0441\u043b\u0430\u043d\u043d\u044b\u043c \u043f\u043e\u043b\u044f\u043c (#54)",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_auth.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_auth.py"
+      ],
+      "verdict": "validated",
+      "detail": "3 failed, 34 passed, 5 warnings in 1.71s",
+      "restored": [
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "6b5604f14b",
+      "subject": "fix(security): \u0432\u0435\u0431\u0445\u0443\u043a \u043f\u043b\u0430\u0442\u0435\u0436\u0435\u0439, XSS \u0432 \u0430\u0434\u043c\u0438\u043d\u043a\u0435, \u0441\u0433\u043e\u0440\u0430\u044e\u0449\u0438\u0435 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438 (#23)",
+      "src": 1,
+      "test": 3,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py tests/test_promo.py tests/test_security.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py",
+        "tests/test_promo.py",
+        "tests/test_security.py"
+      ],
+      "verdict": "validated",
+      "detail": "4 failed, 33 passed, 11 warnings in 1.81s",
+      "restored": [
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "1ae583d4e7",
+      "subject": "fix(auth): VK ID \u0431\u0435\u0437 client_secret (PKCE), punycode APP_URL, \u0432\u0435\u0440\u043d\u043e\u0435 \u0438\u043c\u044f ",
+      "src": 2,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_auth.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_auth.py"
+      ],
+      "verdict": "validated",
+      "detail": "3 failed, 15 passed, 1 warning in 1.58s",
+      "restored": [
+        "config.py",
+        "main.py"
+      ],
+      "removed": []
+    },
+    {
+      "sha": "ed52e64802",
+      "subject": "fix: ruff E401/F401 \u2014 split multi-imports, remove unused Depends/Field/f",
+      "src": 1,
+      "test": 1,
+      "small": true,
+      "ecosystem": "python",
+      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/Dezodemius__resuming/.venv-defects/bin/python -m pytest -q tests/test_api.py",
+      "scope": "touched tests",
+      "tests": [
+        "tests/test_api.py"
+      ],
+      "verdict": "could-not-run",
+      "detail": "at the fix: could-not-run \u2014 1 warning, 10 errors in 1.74s"
+    }
+  ]
+}

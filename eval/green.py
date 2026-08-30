@@ -121,26 +121,62 @@ class Node(Ecosystem):
         return [cmd + ["--no-audit", "--no-fund"]]
 
 
+def interpreter():
+    """The interpreter a Python subject's tests run under.
+
+    `GREEN_PYTHON` exists for `eval/validate_defects.py`, which builds one venv
+    per repository. The survey keeps the ambient interpreter, for the reason
+    documented in `Python.install`."""
+    return os.environ.get("GREEN_PYTHON") or sys.executable
+
+
 class Python(Ecosystem):
     name = "python"
     tool = "python3"
 
     def detect(self, path):
         markers = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
-        if not any(os.path.exists(os.path.join(path, m)) for m in markers):
-            return None
+        has_marker = any(os.path.exists(os.path.join(path, m)) for m in markers)
         if not any(os.path.isdir(os.path.join(path, d)) for d in ("tests", "test")):
             # pytest can still find scattered test_*.py, but a repository with
             # no test directory and no declared runner is a guess, not a subject.
             return None
-        return [sys.executable, "-m", "pytest", "-q"]
+        if not has_marker:
+            # A test directory and sixty-six tracked `.py` files is not a guess.
+            # `dingtalk-opencode-tag` is exactly that shape and carried the
+            # second-largest supply of validated defect instances in the corpus,
+            # all of them invisible while a packaging marker was required.
+            out = sh(["git", "ls-files", "*.py"], path, 60)
+            if out.returncode != 0 or len(out.stdout.split()) < 10:
+                return None
+        return [interpreter(), "-m", "pytest", "-q"]
 
     def install(self, path):
-        # Deliberately not `pip install -e .`: it mutates the machine's
-        # environment for every later repository, and one repository's pin
-        # becomes another's failure. pytest from the ambient environment, or
+        # The survey installs nothing on purpose: `pip install -e .` mutates the
+        # machine's environment for every later repository, and one repository's
+        # pin becomes another's failure. pytest from the ambient environment, or
         # could-not-run.
-        return []
+        #
+        # `GREEN_INSTALL_DEPS=1` lifts that only where the caller has given this
+        # repository an interpreter of its own, so nothing installed here can
+        # reach the next subject. Without it, every Python subject in the corpus
+        # is could-not-run on its own declared dependencies -- which is a fact
+        # about this script, not about the repository.
+        if os.environ.get("GREEN_INSTALL_DEPS") != "1":
+            return []
+        py = interpreter()
+        base = [py, "-m", "pip", "install", "--quiet",
+                "--disable-pip-version-check"]
+        steps = [base + ["pytest", "pytest-asyncio"]]
+        reqs = [f for f in ("requirements.txt", "requirements-dev.txt",
+                            "dev-requirements.txt", "test-requirements.txt")
+                if os.path.exists(os.path.join(path, f))]
+        for f in reqs:
+            steps.append(base + ["-r", f])
+        if not reqs and any(os.path.exists(os.path.join(path, m))
+                            for m in ("pyproject.toml", "setup.py", "setup.cfg")):
+            steps.append(base + ["-e", "."])
+        return steps
 
 
 class Rust(Ecosystem):
