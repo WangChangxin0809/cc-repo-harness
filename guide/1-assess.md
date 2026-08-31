@@ -10,8 +10,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 ```
 
 `--html` writes a self-contained page — no network, no fonts, no scripts — which
-is the thing a person actually reads. Add `--full` to also replay defects, which
-is slower and runs the repo's own tests.
+is the thing a person actually reads. The defect replay is on by default: it
+runs the repository's own tests, so it names the command before running it,
+and `--no-full` skips it at the cost of dimension 2 abstaining.
 
 The [`repo-assessor`](../agents/repo-assessor.md) agent does all of this,
 including the reading. It never changes the repository.

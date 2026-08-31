@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """One page about this repository, with nothing in it that needed an opinion.
 
-    python3 assess/factsheet.py [--root .] [--full] [--json OUT]
+    python3 assess/factsheet.py [--root .] [--no-full] [--json OUT]
 
     (default)  probe + blast + drift   -- seconds, no toolchain, no network
-    --full     also replays defects    -- minutes, needs the repo's test tools
+    --no-full  skip the defect replay -- the replay is on by default and
+               costs minutes and the repo's test toolchain; without it
+               dimension 2 abstains
     --html P   a self-contained page for a person to read once and act on
 
 Exit codes:
@@ -161,19 +163,12 @@ def repo_name(root):
     return os.path.basename(root.rstrip("/")) or root
 
 
-def head_of(r, full):
+def head_of(r):
     p = r["probe"]
     return {"name": repo_name(p["root"]),
             "root": p["root"],
             "tracked": p["tracked_files"], "source": p["source_files"],
-            "tier": p["tier"],
-            "ran": ("Measured, not judged. Nothing in the repository was "
-                    "executed except " + ("its own tests, to replay defects."
-                                          if full else
-                                          "its hooks, which were offered "
-                                          "destructive payloads that never "
-                                          "ran. Add --full to also replay "
-                                          "defects."))}
+            "tier": p["tier"]}
 
 
 def dimensions_of(r, memory=None):
@@ -278,8 +273,13 @@ def filled_moment(p, key):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
-    ap.add_argument("--full", action="store_true",
-                    help="also replay defects (minutes, needs the test toolchain)")
+    # Default on. The assessment's most-used row -- when a defect is first
+    # caught -- is the one this pays for, and a flag nobody remembers to pass
+    # meant the page's headline dimension abstained almost every time it was
+    # run. The cost is announced before it is spent instead.
+    ap.add_argument("--no-full", dest="full", action="store_false",
+                    default=True,
+                    help="skip the defect replay (dimension 2 then abstains)")
     ap.add_argument("--instances", type=int, default=3)
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
@@ -306,7 +306,31 @@ def main():
             shutil.rmtree(work, ignore_errors=True)
 
 
+def preflight(root, a, work):
+    """What is about to be run, printed before it runs.
+
+    The replay executes a stranger's test suite and their CI entry point on this
+    machine. That is a reasonable thing to do to a repository you asked to be
+    assessed, and an unreasonable thing to do without saying so first -- so it
+    is said first, with the command named, rather than explained afterwards in
+    a footnote nobody reads."""
+    eco, cmd = catch_mod.find(root)
+    ci = catch_mod.ci_command(root)
+    lines = [f"  assessing {root}",
+             f"  replaying up to {a.instances} of this repository's own "
+             f"defects, in a clone under {work}"]
+    lines.append("  it will run: " + (" ".join(cmd) if cmd else
+                                      "nothing — no runnable test command "
+                                      "found, so dimension 2 will abstain"))
+    if ci:
+        lines.append("  and its CI entry point: " + " ".join(ci))
+    lines.append("  --no-full skips all of it")
+    print("\n".join(lines) + "\n", file=sys.stderr)
+
+
 def _run(a, root, work):
+    if a.full:
+        preflight(root, a, work)
     r = gather(root, a.full, a.instances, work)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
@@ -321,7 +345,7 @@ def _run(a, root, work):
         if a.memory:
             with open(a.memory, encoding="utf-8") as fh:
                 memory = json.load(fh)
-        head, dims = head_of(r, a.full), dimensions_of(r, memory)
+        head, dims = head_of(r), dimensions_of(r, memory)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)

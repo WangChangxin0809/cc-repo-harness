@@ -287,6 +287,19 @@ def controlled_execution(root, probe, blast):
 
 # -- 2 -----------------------------------------------------------------------
 
+def secs(v):
+    """Seconds, in the units a person waits in. None reads as an abstention."""
+    if v is None:
+        return "?"
+    if v < 1:
+        return f"{v:.1f}s"
+    if v < 90:
+        return f"{v:.0f}s"
+    if v < 5400:
+        return f"{v / 60:.0f}m"
+    return f"{v / 3600:.1f}h"
+
+
 def change_validation(defects, catch, catch_why, ladder):
     """When a defect is introduced, how late is it caught?"""
     rows = []
@@ -307,6 +320,17 @@ def change_validation(defects, catch, catch_why, ladder):
             "flag": "info" if defects["replayable"] else "warn",
             "note": "reverts, and fixes that touched a test — this "
                     "repository's own, not synthetic ones"})
+
+    rows.append({
+        "label": "how the defect got in",
+        "value": "1 way: the repository's own fix, reverted",
+        "flag": "info",
+        "note": "the files the fix touched are taken back to their state at "
+                "its parent, so the defect is one that actually happened here "
+                "and the fix is the answer key. It is the only injection this "
+                "page has today: nothing is mutated, and no payload is "
+                "written. A repository can be caught early by this and still "
+                "have failure modes nothing on this page looks for."})
 
     if catch:
         counts = {k: 0 for k in ladder}
@@ -344,6 +368,28 @@ def change_validation(defects, catch, catch_why, ladder):
                          "note": "the cliff sits between local-suite and ci: "
                                  "the session ends, the context is gone, and "
                                  "everything after it is paid for twice"})
+
+            # The rung name says the order. Only the seconds say the order
+            # spans four orders of magnitude, which is the whole reason the
+            # cliff is a cliff and not a slope.
+            timed = []
+            for k in ladder:
+                got = sorted(r["seconds"] for r in catch["rows"]
+                             if r.get("rung") == k
+                             and r.get("seconds") is not None)
+                if got:
+                    timed.append(f"{k}:{secs(got[len(got) // 2])}")
+            if timed:
+                rows.append({
+                    "label": "and how long that took",
+                    "value": "  ".join(timed),
+                    "flag": "info",
+                    "note": "median per rung. Hook and suite times are this "
+                            "machine's; the ci figure is this repository's own "
+                            "run history, because what is waited on there is a "
+                            "queue that does not exist here"
+                            + ("" if catch.get("ci_seconds") is not None else
+                               " - and it could not be read, so ci shows ?")})
             if unusable:
                 rows.append({
                     "label": "defects that could not be put back",
@@ -361,10 +407,11 @@ def change_validation(defects, catch, catch_why, ladder):
                              "run here is not a repository with bad tests"})
     else:
         state = "open"
-        headline = "not replayed — rerun with --full"
+        headline = "not replayed — --no-full was passed"
         rows.append({"label": "replay", "value": "not run", "flag": "info",
-                     "note": "add --full to put each defect back and record "
-                             "where it is first caught"})
+                     "note": "the replay is on by default; drop --no-full "
+                             "to put each defect back and record where it "
+                             "is first caught"})
 
     return {"n": 2, "name": "Change Validation",
             "question": "When a defect is introduced, how late is it caught?",

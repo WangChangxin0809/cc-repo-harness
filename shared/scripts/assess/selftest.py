@@ -797,6 +797,106 @@ def case_a_replay_that_could_not_run_is_not_a_clean_sheet(t):
     return None
 
 
+def case_a_rung_says_when_and_also_how_long(t):
+    """A rung name says the order. Only seconds say the size of the step.
+
+    The ladder's whole claim is that the gap between `local-suite` and `ci` is a
+    cliff and not a slope, and a list of rung names cannot support that claim --
+    `local-suite:1 ci:1` reads as two adjacent things. The seconds row is what
+    makes the gap arguable, so it has to be on the page whenever any instance
+    carries a time."""
+    probe = load_probe().probe(dim_repo(t))
+    supply = {"replayable": 2, "fix_no_test": 0, "has_test_files": True,
+              "shallow": False}
+    caught = {"ci_seconds": 512.0, "rows": [
+        {"sha": "aaaa", "subject": "x", "rung": "local-suite", "detail": "",
+         "seconds": 3.2},
+        {"sha": "bbbb", "subject": "y", "rung": "ci", "detail": "",
+         "seconds": 512.0},
+    ]}
+    d2 = dim_mod.assess(t, probe, None, caught, "", supply, None,
+                        catch_mod.LADDER)[1]
+    timed = [r for r in d2["rows"] if "how long" in r["label"]]
+    if not timed:
+        return ("two instances carried times and the page shows no seconds -- "
+                "the cliff is then a claim with no number under it")
+    value = timed[0]["value"]
+    if "local-suite:3s" not in value or "ci:9m" not in value:
+        return f"the seconds row reads {value!r}, which is not what was measured"
+    return None
+
+
+def case_ci_seconds_that_cannot_be_read_are_not_zero(t):
+    """No CI history is an abstention, not a fast CI.
+
+    The tempting shortcut is to time the CI command on this machine. That
+    number is real and it is a measurement of the wrong thing: what a person
+    waits for at rung 3 includes a queue and a runner that do not exist here,
+    so a local timing makes the cliff look like a step. When the repository's
+    own history cannot be read, the row must say so."""
+    probe = load_probe().probe(dim_repo(t))
+    supply = {"replayable": 1, "fix_no_test": 0, "has_test_files": True,
+              "shallow": False}
+    blind = {"ci_seconds": None, "rows": [
+        {"sha": "aaaa", "subject": "x", "rung": "ci", "detail": "",
+         "seconds": None}]}
+    d2 = dim_mod.assess(t, probe, None, blind, "", supply, None,
+                        catch_mod.LADDER)[1]
+    timed = [r for r in d2["rows"] if "how long" in r["label"]]
+    if timed:
+        return (f"with no readable CI history the page still printed a time: "
+                f"{timed[0]['value']!r}")
+
+    # And `ci_seconds` itself must abstain rather than invent a number when the
+    # subject has no runs to read -- a plain git repository with no remote.
+    if catch_mod.ci_seconds(repo(t)) is not None:
+        return "ci_seconds returned a number for a repository with no CI runs"
+    return None
+
+
+def case_the_page_says_there_is_only_one_way_in(t):
+    """One injection is a finding about the instrument, and must be printed.
+
+    Dimension 2 replays defects this repository actually shipped, which makes
+    every instance real -- and means the page is silent about every failure mode
+    that never became a commit here. A reader who is not told that reads a good
+    ladder as "this repository catches defects", when what it says is "this
+    repository catches the kind of defect it has already caught once"."""
+    probe = load_probe().probe(dim_repo(t))
+    supply = {"replayable": 3, "fix_no_test": 0, "has_test_files": True,
+              "shallow": False}
+    d2 = dim_mod.assess(t, probe, None, None, "", supply, None,
+                        catch_mod.LADDER)[1]
+    said = [r for r in d2["rows"] if "how the defect got in" in r["label"]]
+    if not said:
+        return "the page does not say how the defect was introduced at all"
+    note = said[0]["value"] + " " + said[0]["note"]
+    if "1 way" not in said[0]["value"]:
+        return f"the count of injection routes is not stated: {said[0]['value']!r}"
+    if "mutated" not in note:
+        return ("the row does not say what is NOT done -- a reader cannot tell "
+                "which failure modes this page never looked for")
+    return None
+
+
+def case_the_replay_runs_unless_it_is_refused(t):
+    """`--full` was opt-in, and dimension 2 therefore abstained almost always.
+
+    A flag guarding the page's headline measurement, which nobody remembers to
+    pass, is a measurement that does not happen. It is on by default now, and
+    the cost is announced before it is spent rather than explained afterwards.
+    This case holds both halves: the default, and the pre-flight line."""
+    src = os.path.join(PARENT, "assess", "factsheet.py")
+    out = subprocess.run([sys.executable, src, "--help"],
+                         capture_output=True, text=True, timeout=120)
+    if "--no-full" not in out.stdout:
+        return "there is no --no-full: the replay cannot be refused"
+    if "--full " in out.stdout.replace("--no-full", ""):
+        return ("--full is still a flag, so the replay is still opt-in and "
+                "dimension 2 will keep abstaining by default")
+    return None
+
+
 def case_plugin_tokens_are_not_charged_to_the_repository(t):
     """Skill descriptions installed on this machine are real tokens and are
     reported -- but a repository judged on them is being scored for what
@@ -1343,6 +1443,14 @@ CASES = [
      case_the_instrument_leaves_nothing_in_the_repository),
     ("a replay that could not run is not scored as a clean sheet",
      case_a_replay_that_could_not_run_is_not_a_clean_sheet),
+    ("a rung says when a defect was caught, and also how long that took",
+     case_a_rung_says_when_and_also_how_long),
+    ("a CI time that cannot be read abstains rather than reading as fast",
+     case_ci_seconds_that_cannot_be_read_are_not_zero),
+    ("the page says there is only one way a defect is introduced",
+     case_the_page_says_there_is_only_one_way_in),
+    ("the defect replay runs unless it is explicitly refused",
+     case_the_replay_runs_unless_it_is_refused),
     ("an installed plugin's tokens are not charged to the repository",
      case_plugin_tokens_are_not_charged_to_the_repository),
     ("the probe cannot reach the history it is being tested on",

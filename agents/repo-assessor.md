@@ -18,9 +18,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --root . --html assessment.html --json assessment.json
 ```
 
-Add `--full` when the repository's test toolchain is present; it replays real
-defects from the repository's own history and is the only thing that fills in
-dimension 2. It takes minutes and may abstain — that is fine.
+The defect replay is on by default and needs the repository's test toolchain;
+pass `--no-full` when it is absent. It replays real defects from the
+repository's own history and is the only thing that fills in dimension 2. It
+takes minutes, prints what it is about to run before running it, and may
+abstain — that is fine.
 
 Read what it printed before you read anything else. **Do not recompute what it
 gave you.** You cannot count tokens, you will not give the same figure twice,
@@ -124,5 +126,5 @@ is a page nobody acts on.
 - Report a missing toolchain as a failing test suite. It is an abstention, and
   scoring it as a zero throws away exactly the repositories whose suites are
   fine.
-- Turn `--full` on a repository whose tests you have not looked at without
-  saying that it will run them.
+- Leave the replay on for a repository whose tests you have not looked at
+  without repeating what its pre-flight line said it would run.
