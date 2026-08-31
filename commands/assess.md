@@ -34,10 +34,13 @@ re-measuring later compares two opinions instead of two measurements.
 The page ends by naming its own blind spots. Those are the reason a person is
 running this rather than a cron job:
 
-1. Is the standing cost earning its tokens, or restating the code?
-2. Which sentences in the docs are waffle? **Quote them.**
-3. Does each wired hook address a mistake THIS repository makes?
-4. Is anything you would normally need refused? Name the tool call and the rule.
+1. Where do the tests actually live? The page names the directories it read
+   the verdict from — go and look, including under `frontend/` and `backend/`.
+   A suite missing from that row makes the percentage under it wrong, not low.
+2. Is the standing cost earning its tokens, or restating the code?
+3. Which sentences in the docs are waffle? **Quote them.**
+4. Does each wired hook address a mistake THIS repository makes?
+5. Is anything you would normally need refused? Name the tool call and the rule.
 
 The most valuable findings usually are not on the page at all. The probes fire
 six *generic* destructive actions; a repository's most dangerous action is

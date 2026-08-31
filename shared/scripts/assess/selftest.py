@@ -810,6 +810,153 @@ def case_plugin_tokens_are_not_charged_to_the_repository(t):
     return None
 
 
+def case_a_pipeline_that_runs_nothing_is_not_a_verdict(t):
+    """Having CI and running the tests are different facts.
+
+    A pipeline that installs, lints, builds and deploys goes green on every
+    push while never invoking a suite, and from outside -- from the tick on the
+    pull request -- it is indistinguishable from one that runs everything. This
+    is the failure the dimension is named after, so it may not be scored by the
+    existence of `.github/workflows/`."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "tests/test_app.py", "def test_app():\n    assert True\n")
+    put(t, ".github/workflows/ci.yml",
+        "name: ci\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - uses: actions/checkout@v4\n"
+        "      - run: pip install -r requirements.txt\n"
+        "      - run: ruff check .\n"
+        "      - run: python -m build\n")
+    commit(t, "feat: ship it")
+
+    ci = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+          if r["label"] == "CI runs the suite"][0]
+    if ci["flag"] != "bad":
+        return (f"a pipeline that lints and builds without running the suite "
+                f"was flagged {ci['flag']!r}, not 'bad'")
+    if "ci.yml" not in ci["note"]:
+        return "the row does not name the pipeline file it read"
+
+    # Now let it run something. A repository whose verdict is a script it
+    # wrote itself says none of the tool names, and must still count -- the
+    # alternative is scoring a repository down for not being shaped like ours.
+    put(t, ".github/workflows/ci.yml",
+        "name: ci\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - run: python3 tests/run_everything.py\n")
+    put(t, "tests/run_everything.py", "print('ok')\n")
+    commit(t, "ci: actually run the checks")
+    ci = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+          if r["label"] == "CI runs the suite"][0]
+    if ci["flag"] != "ok":
+        return (f"a pipeline invoking the repository's own suite was flagged "
+                f"{ci['flag']!r}: {ci['value']!r}")
+    return None
+
+
+def case_the_page_names_where_it_looked_for_tests(t):
+    """A percentage over matches nobody named cannot be contradicted.
+
+    Every repository puts its tests somewhere different -- `frontend/`,
+    `backend/`, `packages/*/`. When the instrument reports only "17% of changes
+    verified nothing", a reader has no way to tell a repository with poor
+    coverage from one where the suite lives in a subtree the matcher missed:
+    the two produce the same number. Naming the directories turns an invisible
+    miss into a correction somebody can make."""
+    repo(t)
+    put(t, "backend/app.py", "x = 1\n")
+    put(t, "backend/tests/test_app.py", "def test_app():\n    assert 1\n")
+    put(t, "frontend/src/__tests__/App.spec.js", "it('works', () => {})\n")
+    put(t, "node_modules/left-pad/test/index.test.js", "// not ours\n")
+    commit(t, "feat: two halves")
+
+    row = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+           if r["label"] == "where the verdict is written"][0]
+    if "backend/tests" not in row["value"]:
+        return f"a suite under backend/ was not named: {row['value']!r}"
+    if "frontend/src/__tests__" not in row["value"]:
+        return f"a suite under frontend/ was not named: {row['value']!r}"
+    if "node_modules" in row["value"]:
+        return "a dependency's own tests were counted as this repository's"
+    if row["flag"] != "ok":
+        return f"two real suites were flagged {row['flag']!r}"
+    return None
+
+
+def case_a_busy_file_is_not_mistaken_for_a_reworked_one(t):
+    """Touching a file often is not the same as reworking it.
+
+    A commit that says "fix" and changes thirty files also did four other
+    things, and nothing in it can be attributed to any one of them. Without a
+    size limit the row just ranks files by how busy they are -- the biggest
+    router in the tree is touched by everything, so it tops the list in every
+    repository, which is a fact about file size and not about rework. Measured
+    on a real repository: 13 places "repaired twice" became 2, and 38 "checks
+    with an incident behind them" became 4.
+
+    Dimension 2 has drawn this line since the beginning. Dimension 4 read the
+    same history without it."""
+    repo(t)
+    names = [f"m{i}.py" for i in range(8)]
+    for n in names:
+        put(t, n, "x = 1\n")
+    commit(t, "init")
+    for round_ in (2, 3):
+        for n in names:
+            put(t, n, f"x = {round_}\n")
+        # A test file in the sweep too: a commit this broad touches something
+        # that verifies AND something repaired earlier every single time, so
+        # the "grew out of a repair" count is worthless without the same limit.
+        put(t, "tests/test_m.py", f"def test_{round_}():\n    assert True\n")
+        commit(t, f"fix: a sweep touching everything, round {round_}")
+
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
+    if repeat["value"] != "0":
+        return (f"two eight-file sweeps counted {repeat['value']} reworked "
+                f"places; a commit that broad cannot be pinned on any one file")
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] != "0":
+        return (f"a sweep that happened to touch a test counted "
+                f"{grew['value']} check(s) as growing out of a repair")
+
+    # A focused repair to the same file twice IS rework, and must still count.
+    put(t, "m0.py", "x = 9\n")
+    commit(t, "fix: m0 specifically")
+    put(t, "m0.py", "x = 10\n")
+    commit(t, "fix: m0 again, properly this time")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
+    if repeat["value"] != "1":
+        return (f"two focused repairs to one file counted "
+                f"{repeat['value']}, not 1")
+
+    # Now that m0.py is known-repaired, a sweep that happens to touch it and
+    # a test must still not count. This is the half the earlier sweeps cannot
+    # test: back there nothing had been repaired yet, so the count was zero
+    # for the wrong reason.
+    for n in names:
+        put(t, n, "x = 20\n")
+    put(t, "tests/test_broad.py", "def test_broad():\n    assert True\n")
+    commit(t, "feat: a sweep that happens to touch m0 and a test")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] != "0":
+        return (f"an eight-file sweep touching one repaired file and one test "
+                f"counted {grew['value']} check(s) as growing out of a repair")
+
+    # A focused commit that adds a check beside ground repaired earlier is the
+    # thing this dimension exists to find, and must still be found.
+    put(t, "m0.py", "x = 11\n")
+    put(t, "tests/test_m0.py", "def test_m0():\n    assert True\n")
+    commit(t, "test: pin down what kept breaking in m0")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] == "0":
+        return ("a focused check added beside ground repaired twice was not "
+                "counted as growing out of a repair")
+    return None
+
+
 def case_a_place_repaired_twice_is_counted(t):
     """The offline, shared version of noticing a recurrence: it is in the
     history, so it is the same for everyone who clones."""
@@ -909,6 +1056,12 @@ CASES = [
      case_a_replay_that_could_not_run_is_not_a_clean_sheet),
     ("an installed plugin's tokens are not charged to the repository",
      case_plugin_tokens_are_not_charged_to_the_repository),
+    ("a pipeline that runs nothing is not counted as a verdict",
+     case_a_pipeline_that_runs_nothing_is_not_a_verdict),
+    ("the page names the directories it took the verdict from",
+     case_the_page_names_where_it_looked_for_tests),
+    ("a busy file is not mistaken for a reworked one",
+     case_a_busy_file_is_not_mistaken_for_a_reworked_one),
     ("a place repaired twice is counted, from committed history",
      case_a_place_repaired_twice_is_counted),
     ("a record of mistakes nobody reads is not scored as learning",

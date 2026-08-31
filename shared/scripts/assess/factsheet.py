@@ -134,6 +134,10 @@ def gather(root, full, instances, work):
 # --------------------------------------------------------------------------
 
 CANNOT_SAY = [
+    "Open the repository and list where its tests actually live, including "
+    "any under frontend/, backend/ or packages/. Does that match the row "
+    "'where the verdict is written'? If it missed a suite, say so — the "
+    "percentage under it is then wrong, not merely low.",
     "Is the standing cost earning its tokens, or restating the code?",
     "Which sentences in the docs are waffle? Quote them.",
     "Does each wired hook address a mistake THIS repository makes?",
