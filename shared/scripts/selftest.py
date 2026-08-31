@@ -303,6 +303,72 @@ def case_personal_permission_grants_cannot_be_committed():
     return None
 
 
+def case_skills_are_copied_and_outlive_the_plugin():
+    """The teaching travels with the repository, not with the plugin.
+
+    Five skills used to live in the plugin, where Claude Code keeps every
+    installed skill's name and description in context -- so they cost about 890
+    tokens a turn in EVERY repository on the machine, including repositories
+    that had never asked this plugin for anything. Copied into the repository
+    instead, the people who chose them pay, their teammates get them without
+    installing anything, and everybody else pays nothing.
+
+    Which means the copy has to be real: `SKILL.md`, its `references/`, and
+    still there after the plugin is gone. -> docs/decisions/0024
+    """
+    staging = tempfile.mkdtemp(prefix="harness-skill-copy-")
+    copy = os.path.join(staging, "plugin")
+    repo = fresh_repo()
+    try:
+        shutil.copytree(PLUGIN, copy,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        out = scaffold(repo, "C", from_dir=copy)
+        if out.returncode != 0:
+            return f"scaffold exited {out.returncode}: {out.stderr[-200:]}"
+        shutil.rmtree(copy, ignore_errors=True)
+
+        base = os.path.join(repo, ".claude", "skills")
+        if not os.path.isdir(base):
+            return "no .claude/skills/ was written"
+        got = sorted(os.listdir(base))
+        for name in ("writing-docs", "writing-checks", "repo-index"):
+            if name not in got:
+                return f"{name} was not copied; got {got}"
+            if not os.path.exists(os.path.join(base, name, "SKILL.md")):
+                return f"{name} arrived without its SKILL.md"
+
+        # A skill whose references did not come with it is a skill with dead
+        # links, and the plugin it could have read them from is gone.
+        refs = os.path.join(base, "writing-checks", "references")
+        if os.path.isdir(os.path.join(PLUGIN, "shared", "skills",
+                                      "writing-checks", "references")):
+            if not os.path.isdir(refs) or not os.listdir(refs):
+                return "writing-checks arrived without its references/"
+        return None
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(repo, ignore_errors=True)
+
+
+def case_a_tier_a_repo_is_not_given_every_skill():
+    """Tier is a budget. Installing above it leaves machinery nobody needs,
+    and machinery that rots teaches everyone the machinery is decorative."""
+    repo = fresh_repo()
+    try:
+        out = scaffold(repo, "A")
+        if out.returncode != 0:
+            return f"scaffold exited {out.returncode}"
+        base = os.path.join(repo, ".claude", "skills")
+        got = sorted(os.listdir(base)) if os.path.isdir(base) else []
+        if "repo-index" in got:
+            return f"tier A was given the tier C retrieval skill: {got}"
+        if "writing-docs" not in got:
+            return f"tier A did not get writing-docs: {got}"
+        return None
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+
 def case_survives_the_plugin_being_deleted():
     """The acceptance criterion, mechanised.
 
@@ -420,6 +486,10 @@ def case_scaffolding_twice_changes_nothing():
 
 
 CASES = [
+    ("skills are copied into the repository and outlive the plugin",
+     case_skills_are_copied_and_outlive_the_plugin),
+    ("a tier A repository is not given every skill",
+     case_a_tier_a_repo_is_not_given_every_skill),
     ("tier B scaffold reaches green from a clean worktree",
      case_scaffold_reaches_green("B")),
     ("tier C scaffold reaches green from a clean worktree",

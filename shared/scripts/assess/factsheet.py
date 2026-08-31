@@ -85,7 +85,8 @@ def drift_pairs(root):
 
 
 def a_source_file(root):
-    out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True,
+    out = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files"],
+                         cwd=root, capture_output=True,
                          text=True, timeout=120)
     for f in out.stdout.split():
         if f.endswith((".py", ".ts", ".js", ".go", ".rs", ".rb", ".java")):
@@ -133,6 +134,10 @@ def gather(root, full, instances, work):
 # --------------------------------------------------------------------------
 
 CANNOT_SAY = [
+    "Open the repository and list where its tests actually live, including "
+    "any under frontend/, backend/ or packages/. Does that match the row "
+    "'where the verdict is written'? If it missed a suite, say so — the "
+    "percentage under it is then wrong, not merely low.",
     "Is the standing cost earning its tokens, or restating the code?",
     "Which sentences in the docs are waffle? Quote them.",
     "Does each wired hook address a mistake THIS repository makes?",

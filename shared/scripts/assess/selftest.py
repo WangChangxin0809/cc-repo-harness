@@ -206,6 +206,45 @@ def case_a_fix_with_a_test_is_an_instance(t):
     return ""
 
 
+def case_source_files_named_in_another_language_are_not_invisible(t):
+    """git C-quotes non-ASCII paths unless `core.quotePath=false`.
+
+    `git ls-files` returns `"docs/\\344\\270\\255..."`, quotes included, and
+    `git log --name-only` does the same. Every extension test then fails, so a
+    repository whose source files are named in its own language goes missing
+    from the file counts and from dimensions 2, 3 and 4 -- silently, and worst
+    for exactly the repositories this instrument is least likely to have been
+    tried on."""
+    repo(t)
+    put(t, "后端/服务.py", "x = 1\n")
+    put(t, "tests/test_服务.py", "def test_x():\n    assert True\n")
+    commit(t, "init")
+    put(t, "后端/服务.py", "x = 2\n")
+    put(t, "tests/test_服务.py", "def test_x():\n    assert 1\n")
+    commit(t, "fix: 服务算错了")
+
+    log = history_mod.commits(t)
+    if log is None:
+        return "the history could not be read at all"
+    paths = [p for _sha, _subj, ps in log for p in ps]
+    if any(p.startswith('"') for p in paths):
+        return f"paths came back C-quoted: {[p for p in paths if p[0] == chr(34)][:2]}"
+    if "后端/服务.py" not in paths:
+        return f"the Chinese-named source file is missing from the log: {paths}"
+
+    probe = load_probe().probe(t)
+    if probe["source_files"] < 1:
+        return (f"a repository whose only source file is named in Chinese "
+                f"counted {probe['source_files']} source files")
+
+    d3 = dims_of(t, with_blast=False)[3]
+    bare = [r for r in d3["rows"] if "verified nothing" in r["label"]][0]
+    if not bare["value"].startswith("0/"):
+        return (f"a Chinese-named change with a test beside it counted as "
+                f"unverified: {bare['value']}")
+    return None
+
+
 def case_a_repair_is_found_when_the_subject_is_not_english(t):
     """A defect miner that only reads English reports a repository with years
     of history as having nothing to replay.
@@ -580,6 +619,90 @@ def case_verification_is_found_where_the_repository_put_it(t):
     return None
 
 
+def case_a_check_only_its_author_can_run_is_not_coverage(t):
+    """A check that hardcodes a path into one person's home directory is inert
+    for everybody else, while still looking from outside like coverage.
+
+    Found in the wild by reading, not by measuring: a screenshot check whose
+    Chrome path was `/home/<author>/.cache/ms-playwright/...`. It had an
+    incident behind it and was counted as a point in the repository's favour.
+    Nothing could run it."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "scripts/viewcheck.mjs",
+        "const CHROME = '/home/nobody-at-all-xyz/.cache/chrome'\n")
+    # The second shape, and the one a home-directory matcher misses. Both were
+    # in one real repository: a Linux script and a Windows script, so no single
+    # machine could run both, while from outside it looked like coverage.
+    put(t, "scripts/shot.mjs",
+        "const EDGE = 'C:\\\\Program Files (x86)\\\\Edge\\\\msedge.exe'\n")
+    commit(t, "init")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    hit = [r for r in rows if "one machine" in r["label"]]
+    if not hit:
+        return "a check hardcoding a path only one machine has passed"
+    if hit[0]["flag"] != "bad":
+        return f"flagged {hit[0]['flag']!r}, not 'bad'"
+    if hit[0]["value"] != "2":
+        return (f"found {hit[0]['value']} of the two pinned paths — a home "
+                f"directory and an install root are the same defect")
+
+    # An absolute path that is an argument, not an installed binary, is fine.
+    put(t, "scripts/out.sh", "OUT='/tmp/shot.png'\n")
+    commit(t, "chore: an output path")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    again = [r for r in rows if "one machine" in r["label"]]
+    if again and again[0]["value"] != "2":
+        return f"an ordinary /tmp output path was counted: {again[0]['value']}"
+
+    # A path that DOES resolve here is somebody's working setup, not a defect.
+    # It has to match the same shape -- a directory INSIDE a home directory --
+    # or this half passes because nothing matched, not because the check held.
+    real = os.path.expanduser("~/.claude")
+    if not os.path.isdir(real):
+        real = os.path.join(os.path.expanduser("~"), os.listdir(
+            os.path.expanduser("~"))[0])
+    put(t, "scripts/viewcheck.mjs", f"const CHROME = {real!r}\n")
+    commit(t, "chore: point it somewhere real")
+    os.remove(os.path.join(t, "scripts", "shot.mjs"))
+    commit(t, "chore: drop the windows one")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    if [r for r in rows if "one machine" in r["label"]]:
+        return "a pinned path that exists on this machine was called dead"
+    return None
+
+
+def case_an_unverified_change_to_the_machinery_is_singled_out(t):
+    """Most unverified changes are not worth anyone's attention. A change to
+    the thing that does the verifying is, because when it breaks, what would
+    have caught the mistake is what changed."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "tests/test_app.py", "def test_x():\n    assert True\n")
+    commit(t, "init")
+    put(t, "app.py", "x = 2\n")
+    put(t, ".github/workflows/ci.yml", "on: push\n")
+    commit(t, "ci: change the workflow and nothing else")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    hit = [r for r in rows if "machinery" in r["label"]]
+    if not hit:
+        return "an unverified CI change was not singled out"
+
+    # An ordinary unverified change must not land in that row.
+    repo2 = t + "-plain"
+    os.makedirs(repo2, exist_ok=True)
+    repo(repo2)
+    put(repo2, "app.py", "x = 1\n")
+    put(repo2, "tests/test_app.py", "def test_x():\n    assert True\n")
+    commit(repo2, "init")
+    put(repo2, "app.py", "x = 2\n")
+    commit(repo2, "feat: a small change with no test")
+    rows = dims_of(repo2, with_blast=False)[3]["rows"]
+    if [r for r in rows if "machinery" in r["label"]]:
+        return "an ordinary unverified change was reported as machinery"
+    return None
+
+
 def case_a_test_suite_is_recognised_by_its_name(t):
     """The other half of the mechanism above: a directory nobody would call a
     check directory, recognised because test suites are named from a small and
@@ -687,6 +810,153 @@ def case_plugin_tokens_are_not_charged_to_the_repository(t):
     return None
 
 
+def case_a_pipeline_that_runs_nothing_is_not_a_verdict(t):
+    """Having CI and running the tests are different facts.
+
+    A pipeline that installs, lints, builds and deploys goes green on every
+    push while never invoking a suite, and from outside -- from the tick on the
+    pull request -- it is indistinguishable from one that runs everything. This
+    is the failure the dimension is named after, so it may not be scored by the
+    existence of `.github/workflows/`."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "tests/test_app.py", "def test_app():\n    assert True\n")
+    put(t, ".github/workflows/ci.yml",
+        "name: ci\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - uses: actions/checkout@v4\n"
+        "      - run: pip install -r requirements.txt\n"
+        "      - run: ruff check .\n"
+        "      - run: python -m build\n")
+    commit(t, "feat: ship it")
+
+    ci = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+          if r["label"] == "CI runs the suite"][0]
+    if ci["flag"] != "bad":
+        return (f"a pipeline that lints and builds without running the suite "
+                f"was flagged {ci['flag']!r}, not 'bad'")
+    if "ci.yml" not in ci["note"]:
+        return "the row does not name the pipeline file it read"
+
+    # Now let it run something. A repository whose verdict is a script it
+    # wrote itself says none of the tool names, and must still count -- the
+    # alternative is scoring a repository down for not being shaped like ours.
+    put(t, ".github/workflows/ci.yml",
+        "name: ci\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - run: python3 tests/run_everything.py\n")
+    put(t, "tests/run_everything.py", "print('ok')\n")
+    commit(t, "ci: actually run the checks")
+    ci = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+          if r["label"] == "CI runs the suite"][0]
+    if ci["flag"] != "ok":
+        return (f"a pipeline invoking the repository's own suite was flagged "
+                f"{ci['flag']!r}: {ci['value']!r}")
+    return None
+
+
+def case_the_page_names_where_it_looked_for_tests(t):
+    """A percentage over matches nobody named cannot be contradicted.
+
+    Every repository puts its tests somewhere different -- `frontend/`,
+    `backend/`, `packages/*/`. When the instrument reports only "17% of changes
+    verified nothing", a reader has no way to tell a repository with poor
+    coverage from one where the suite lives in a subtree the matcher missed:
+    the two produce the same number. Naming the directories turns an invisible
+    miss into a correction somebody can make."""
+    repo(t)
+    put(t, "backend/app.py", "x = 1\n")
+    put(t, "backend/tests/test_app.py", "def test_app():\n    assert 1\n")
+    put(t, "frontend/src/__tests__/App.spec.js", "it('works', () => {})\n")
+    put(t, "node_modules/left-pad/test/index.test.js", "// not ours\n")
+    commit(t, "feat: two halves")
+
+    row = [r for r in dims_of(t, with_blast=False)[3]["rows"]
+           if r["label"] == "where the verdict is written"][0]
+    if "backend/tests" not in row["value"]:
+        return f"a suite under backend/ was not named: {row['value']!r}"
+    if "frontend/src/__tests__" not in row["value"]:
+        return f"a suite under frontend/ was not named: {row['value']!r}"
+    if "node_modules" in row["value"]:
+        return "a dependency's own tests were counted as this repository's"
+    if row["flag"] != "ok":
+        return f"two real suites were flagged {row['flag']!r}"
+    return None
+
+
+def case_a_busy_file_is_not_mistaken_for_a_reworked_one(t):
+    """Touching a file often is not the same as reworking it.
+
+    A commit that says "fix" and changes thirty files also did four other
+    things, and nothing in it can be attributed to any one of them. Without a
+    size limit the row just ranks files by how busy they are -- the biggest
+    router in the tree is touched by everything, so it tops the list in every
+    repository, which is a fact about file size and not about rework. Measured
+    on a real repository: 13 places "repaired twice" became 2, and 38 "checks
+    with an incident behind them" became 4.
+
+    Dimension 2 has drawn this line since the beginning. Dimension 4 read the
+    same history without it."""
+    repo(t)
+    names = [f"m{i}.py" for i in range(8)]
+    for n in names:
+        put(t, n, "x = 1\n")
+    commit(t, "init")
+    for round_ in (2, 3):
+        for n in names:
+            put(t, n, f"x = {round_}\n")
+        # A test file in the sweep too: a commit this broad touches something
+        # that verifies AND something repaired earlier every single time, so
+        # the "grew out of a repair" count is worthless without the same limit.
+        put(t, "tests/test_m.py", f"def test_{round_}():\n    assert True\n")
+        commit(t, f"fix: a sweep touching everything, round {round_}")
+
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
+    if repeat["value"] != "0":
+        return (f"two eight-file sweeps counted {repeat['value']} reworked "
+                f"places; a commit that broad cannot be pinned on any one file")
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] != "0":
+        return (f"a sweep that happened to touch a test counted "
+                f"{grew['value']} check(s) as growing out of a repair")
+
+    # A focused repair to the same file twice IS rework, and must still count.
+    put(t, "m0.py", "x = 9\n")
+    commit(t, "fix: m0 specifically")
+    put(t, "m0.py", "x = 10\n")
+    commit(t, "fix: m0 again, properly this time")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
+    if repeat["value"] != "1":
+        return (f"two focused repairs to one file counted "
+                f"{repeat['value']}, not 1")
+
+    # Now that m0.py is known-repaired, a sweep that happens to touch it and
+    # a test must still not count. This is the half the earlier sweeps cannot
+    # test: back there nothing had been repaired yet, so the count was zero
+    # for the wrong reason.
+    for n in names:
+        put(t, n, "x = 20\n")
+    put(t, "tests/test_broad.py", "def test_broad():\n    assert True\n")
+    commit(t, "feat: a sweep that happens to touch m0 and a test")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] != "0":
+        return (f"an eight-file sweep touching one repaired file and one test "
+                f"counted {grew['value']} check(s) as growing out of a repair")
+
+    # A focused commit that adds a check beside ground repaired earlier is the
+    # thing this dimension exists to find, and must still be found.
+    put(t, "m0.py", "x = 11\n")
+    put(t, "tests/test_m0.py", "def test_m0():\n    assert True\n")
+    commit(t, "test: pin down what kept breaking in m0")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
+    if grew["value"] == "0":
+        return ("a focused check added beside ground repaired twice was not "
+                "counted as growing out of a repair")
+    return None
+
+
 def case_a_place_repaired_twice_is_counted(t):
     """The offline, shared version of noticing a recurrence: it is in the
     history, so it is the same for everyone who clones."""
@@ -736,6 +1006,8 @@ CASES = [
      case_plugin_skill_cost_is_counted),
     ("a fix with a test is a replayable instance",
      case_a_fix_with_a_test_is_an_instance),
+    ("source files named in another language are not invisible",
+     case_source_files_named_in_another_language_are_not_invisible),
     ("a repair is found when the commit subject is not English",
      case_a_repair_is_found_when_the_subject_is_not_english),
     ("a documentation-only fix is not a code defect",
@@ -772,6 +1044,10 @@ CASES = [
      case_an_unconditional_rule_is_not_reported_as_undelivered),
     ("verification is found where the repository put it",
      case_verification_is_found_where_the_repository_put_it),
+    ("a check only one machine can run is not counted as coverage",
+     case_a_check_only_its_author_can_run_is_not_coverage),
+    ("an unverified change to the machinery itself is singled out",
+     case_an_unverified_change_to_the_machinery_is_singled_out),
     ("a test suite is recognised by its name, wherever it lives",
      case_a_test_suite_is_recognised_by_its_name),
     ("the instrument leaves nothing behind in the repository it read",
@@ -780,6 +1056,12 @@ CASES = [
      case_a_replay_that_could_not_run_is_not_a_clean_sheet),
     ("an installed plugin's tokens are not charged to the repository",
      case_plugin_tokens_are_not_charged_to_the_repository),
+    ("a pipeline that runs nothing is not counted as a verdict",
+     case_a_pipeline_that_runs_nothing_is_not_a_verdict),
+    ("the page names the directories it took the verdict from",
+     case_the_page_names_where_it_looked_for_tests),
+    ("a busy file is not mistaken for a reworked one",
+     case_a_busy_file_is_not_mistaken_for_a_reworked_one),
     ("a place repaired twice is counted, from committed history",
      case_a_place_repaired_twice_is_counted),
     ("a record of mistakes nobody reads is not scored as learning",

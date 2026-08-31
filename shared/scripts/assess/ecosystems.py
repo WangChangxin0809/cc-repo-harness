@@ -108,7 +108,8 @@ class Python(Ecosystem):
             # A test directory plus sixty-odd tracked `.py` files is not a
             # guess. Requiring a packaging marker made the corpus repository
             # with the second-largest supply of defect instances invisible.
-            out = sh(["git", "ls-files", "*.py"], path, 60)
+            out = sh(["git", "-c", "core.quotePath=false", "ls-files",
+                      "*.py"], path, 60)
             if out.returncode != 0 or len(out.stdout.split()) < 10:
                 return None
         return [interpreter(), "-m", "pytest", "-q"]

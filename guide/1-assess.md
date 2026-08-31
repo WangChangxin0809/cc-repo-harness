@@ -91,10 +91,18 @@ counting it twice would just say the same thing louder. The signals here:
 
 - of the recent changes, how many touched code and touched nothing that
   verifies it
+- **where those tests are**, named directory by directory. Every repository
+  puts them somewhere different, so a percentage nobody can trace back is a
+  number that looks the same whether coverage is poor or the suite is simply
+  somewhere the instrument did not look. Naming the directories makes a miss
+  correctable, and the reading is expected to open the repository and correct it
+- whether CI **runs** the suite, or only exists. A pipeline that installs,
+  lints, builds and deploys goes green on every push, and from the tick on the
+  pull request it is indistinguishable from one that ran everything
 - whether the verdict is a command someone can run, or a description someone
   wrote
 
-Both are deliberately loose, and reaching a conclusion from them is the
+These are deliberately loose, and reaching a conclusion from them is the
 reading's job, not a threshold's. This dimension also still speaks when the
 toolchain is missing and dimension 2 has abstained, which is the argument for
 its keeping its own place.

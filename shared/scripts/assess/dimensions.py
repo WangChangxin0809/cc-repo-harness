@@ -44,6 +44,13 @@ RECORD_HINTS = ("postmortem", "post-mortem", "incident", "retro", "lessons",
                 "tech-debt", "techdebt", "known-issues", "gotcha", "pitfall",
                 "troubleshoot", "faq", "decisions", "adr", "changelog")
 
+# Above this, a commit that says "fix" also did four other things, and nothing
+# in it can be attributed to any one file. `history.py` draws the same line for
+# the same reason, and dimension 4 read the history without it for a while:
+# every count then ranked files by how busy they are, which is a fact about
+# file size and not about rework.
+FOCUSED = 3
+
 # A commit whose subject says it repaired something. Deliberately the same
 # question `history.py` asks, in both languages it knows -- two matchers that
 # disagreed would let dimension 4 count repairs dimension 2 cannot replay.
@@ -65,6 +72,66 @@ REVERT_SUBJECT = re.compile(
 VERIFIES = re.compile(r"(^|/)(tests?|spec|specs|__tests__|e2e)(/|$)"
                       r"|(^|/)(test_|conftest|selftest)"
                       r"|(_test|\.test|\.spec|_spec|_selftest)\.[a-z]+$", re.I)
+
+# An absolute path pinned to one machine, hardcoded in something that is
+# supposed to run. Two shapes, and the second was missed until an agent read
+# the files this regex had already scored:
+#
+#   a home directory   /home/<author>/.cache/ms-playwright/.../chrome
+#   an install root    C:\Program Files (x86)\Microsoft\Edge\...\msedge.exe
+#
+# Both were in the same repository -- one script assuming Linux, the other
+# assuming Windows, so no single machine could run both, while from outside the
+# repository looked like it had viewport coverage.
+#
+# Deliberately not "any absolute path": `/tmp/shot.png` as an output argument is
+# fine, and flagging it would make the row noise. The list is the places
+# software gets installed per-machine, and nothing else.
+PINNED_PATH = re.compile(
+    r"""['"](/home/[^/'"]+/[^'"]*|/Users/[^/'"]+/[^'"]*"""
+    r"""|/Applications/[^'"]*|/opt/[^'"]*"""
+    r"""|[A-Za-z]:\\{1,2}Users\\{1,2}[^\\'"]+[^'"]*"""
+    r"""|[A-Za-z]:\\{1,2}Program Files[^'"]*)['"]""")
+
+RUNNABLE_EXT = (".py", ".js", ".mjs", ".cjs", ".ts", ".sh", ".bash", ".rb",
+                ".pl", ".ps1")
+
+# Rare, and load-bearing: when one of these changes and nothing verifies it,
+# the thing that would have caught the mistake is the thing that changed.
+CRITICAL_PATH = re.compile(
+    r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)Jenkinsfile$"
+    r"|(^|/)(Dockerfile|docker-compose[^/]*\.ya?ml)$"
+    r"|(^|/)(Makefile|justfile|noxfile\.py|tox\.ini)$"
+    r"|(^|/)(pyproject\.toml|package\.json|go\.mod|Cargo\.toml)$"
+    r"|(^|/)\.pre-commit-config\.ya?ml$|(^|/)requirements[^/]*\.txt$", re.I)
+
+# A command that actually runs a suite, as it appears inside a CI file. The
+# question is not whether a repository has CI -- almost every one does -- but
+# whether the pipeline runs the verdict or only lints, builds and deploys. A
+# green tick from a workflow that never invoked a test is the exact failure
+# this dimension is named after.
+RUNNER = re.compile(
+    r"\b(pytest|tox|nox|unittest|jest|vitest|mocha|karma|cypress|playwright"
+    r"|go test|cargo test|rspec|minitest|phpunit|dotnet test|ctest|bats"
+    r"|gradle(w)? +test|mvn +(-\S+ +)*test|swift test)\b"
+    r"|\b(npm|yarn|pnpm|bun) +(run +)?(test|check)\b"
+    r"|\b(make|just) +(test|check|ci)\b", re.I)
+
+# Something in a pipeline that looks like a path it runs. Loose on purpose:
+# it is handed straight to `_verifies`, which decides.
+PATH_TOKEN = re.compile(r"[\w./-]*[\w]/[\w./-]+|[\w-]+\.[a-z]{1,4}\b")
+
+# Where a pipeline definition lives, across the hosts a stranger's repository
+# might use. Directories are walked; plain names are read.
+CI_FILES = (".github/workflows", ".gitlab-ci.yml", ".circleci/config.yml",
+            "Jenkinsfile", "azure-pipelines.yml", ".travis.yml",
+            "bitbucket-pipelines.yml", ".woodpecker.yml", ".drone.yml")
+
+# Directories that hold somebody else's code, or build output. Walking into
+# them finds thousands of vendored tests that this repository does not run.
+NOT_OURS = ("node_modules", "vendor", "venv", ".venv", "env", "dist", "build",
+            "target", "__pycache__", "site-packages", "third_party",
+            "coverage", ".tox", ".next", "out")
 
 # One command that returns a verdict. Any of these counts; the name is not the
 # point, the existence of something runnable is.
@@ -330,6 +397,54 @@ def reliable_delivery(root, log, check_dirs=()):
                 "with no runnable verdict, whether a change is accepted "
                 "depends on who happened to be looking"})
 
+    homes = _test_homes(root, check_dirs)
+    total = sum(n for _d, n in homes)
+    rows.append({
+        "label": "where the verdict is written",
+        "value": (", ".join(f"{d}/ ({n})" for d, n in homes[:4])
+                  + (f" … {len(homes)} places" if len(homes) > 4 else ""))
+                 if homes else "nothing that verifies, anywhere in the tree",
+        "flag": "ok" if homes else "bad",
+        "note": (f"{total} file(s) — this is where the percentage below comes "
+                 f"from, so if a suite of yours is missing from this list the "
+                 f"percentage is wrong and not merely low")
+        if homes else
+        "no test, spec or check file was found under any name this instrument "
+        "knows — if that is wrong, nothing else in this dimension is right"})
+
+    ci_files, ci_runs = _ci_verdict(root, check_dirs)
+    if ci_files:
+        rows.append({
+            "label": "CI runs the suite",
+            "value": (", ".join(f"{f} → {cmd}" for f, cmd in ci_runs[:2])
+                      + (" …" if len(ci_runs) > 2 else "")) if ci_runs else
+                     "no — it is defined, but names no test runner",
+            "flag": "ok" if ci_runs else "bad",
+            "note": "" if ci_runs else
+                    f"{len(ci_files)} pipeline file(s) — {', '.join(ci_files[:3])}"
+                    + (" …" if len(ci_files) > 3 else "")
+                    + " — a tick from a pipeline that lints, builds and "
+                      "deploys without running a suite is a green light that "
+                      "means the build compiled"})
+    else:
+        rows.append({
+            "label": "CI runs the suite",
+            "value": "no pipeline found",
+            "flag": "warn",
+            "note": "whatever verdict exists is caught only when somebody "
+                    "chooses to run it on their own machine"})
+
+    stranded = _stranded_checks(root, check_dirs)
+    if stranded:
+        rows.append({
+            "label": "checks only one machine can run",
+            "value": str(len(stranded)),
+            "flag": "bad",
+            "note": "; ".join(f"{f} hardcodes {p}" for f, p in stranded[:2])
+                    + " — absent here, so the check is inert for everyone but "
+                      "whoever set that machine up, while still looking from "
+                      "outside like coverage"})
+
     if log is None:
         rows.append({"label": "changes that verified nothing", "value": "—",
                      "flag": "info", "note": "the history cannot be read"})
@@ -350,9 +465,128 @@ def reliable_delivery(root, log, check_dirs=()):
             "note": "the green light can be real and still have nothing to "
                     "do with what was changed"})
 
+        # Most unverified changes are not worth anyone's attention -- in a
+        # repository that writes tests, the ones without are usually small.
+        # Changes to the machinery that does the verifying are the exception:
+        # rare, and when one of them breaks, the thing that would have caught
+        # it is the thing that changed.
+        critical = [c for c in bare if any(CRITICAL_PATH.search(p)
+                                           for p in c[2])]
+        if critical:
+            rows.append({
+                "label": "unverified changes to the machinery itself",
+                "value": str(len(critical)),
+                "flag": "warn",
+                "note": "CI, build or dependency files changed with nothing "
+                        "verifying the change: "
+                        + "; ".join(c[1][:44] for c in critical[:2])})
+
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def _test_homes(root, check_dirs):
+    """Name the directories the verdict actually comes from.
+
+    Test trees sit wherever a repository put them -- `tests/`, but just as
+    often `frontend/src/__tests__`, `backend/spec`, `packages/*/test`. A
+    percentage computed over matches that are never named makes a wrong answer
+    invisible: the number looks the same whether the instrument found every
+    suite or missed the subtree they all live in.
+
+    So this row exists to be contradicted. It says where it looked and what it
+    found there, and the agent reading the page can open the repository and say
+    "you missed `apps/api/tests`" -- which is a correction somebody can act on,
+    where "the coverage number seems low" is not."""
+    homes = {}
+    for here, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs
+                   if not d.startswith(".") and d not in NOT_OURS]
+        for f in files:
+            rel = os.path.relpath(os.path.join(here, f), root)
+            rel = rel.replace(os.sep, "/")
+            if not _verifies(rel, check_dirs):
+                continue
+            d = os.path.dirname(rel) or "."
+            homes[d] = homes.get(d, 0) + 1
+    return sorted(homes.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def _ci_verdict(root, check_dirs=()):
+    """Does the pipeline run a suite, or only exist?
+
+    Returns (where CI is defined, which of those name a runner). Existing and
+    running the tests are different facts, and only the first one is what
+    "has CI" usually means when somebody says it.
+
+    Two matchers, for the reason `VERIFIES` has two. `RUNNER` knows the common
+    tools; a repository whose verdict is a script it wrote itself uses none of
+    them, and scoring that as "no suite" would mark a repository down for not
+    being shaped like the ones we had in mind. So the second matcher looks for
+    the repository's OWN check directories appearing in the pipeline -- this
+    project's CI would otherwise read as running nothing, since it invokes
+    `selftest.py` files and never says pytest."""
+    ours = [d.rstrip("/") for d in check_dirs if d.strip("/")]
+    found, runs = [], []
+    for rel in CI_FILES:
+        full = os.path.join(root, rel.replace("/", os.sep))
+        paths = []
+        if os.path.isdir(full):
+            for here, dirs, files in os.walk(full):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                paths += [os.path.join(here, f) for f in sorted(files)]
+        elif os.path.isfile(full):
+            paths = [full]
+        for pth in paths:
+            found.append(os.path.relpath(pth, root).replace(os.sep, "/"))
+            try:
+                with open(pth, encoding="utf-8", errors="replace") as fh:
+                    body = fh.read(200000)
+            except OSError:
+                continue
+            m = RUNNER.search(body)
+            if m:
+                runs.append((found[-1], m.group(0).strip()))
+                continue
+            hit = next((d for d in ours if d in body), None)
+            if hit is None:
+                hit = next((tok for tok in PATH_TOKEN.findall(body)
+                            if _verifies(tok, ours)), None)
+            if hit:
+                runs.append((found[-1], hit))
+    return found, runs
+
+
+def _stranded_checks(root, check_dirs):
+    """Checks that hardcode a path only one machine has.
+
+    Only reported when the path is absent here: on the author's own machine it
+    resolves, and calling their working setup broken would be the instrument
+    inventing a defect."""
+    out = []
+    roots = list(check_dirs) + ["scripts", "tools", "bin", "ci"]
+    for rel in roots:
+        base = os.path.join(root, rel)
+        if not os.path.isdir(base):
+            continue
+        for here, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if not f.endswith(RUNNABLE_EXT):
+                    continue
+                full = os.path.join(here, f)
+                try:
+                    with open(full, encoding="utf-8", errors="replace") as fh:
+                        body = fh.read(200000)
+                except OSError:
+                    continue
+                for m in PINNED_PATH.finditer(body):
+                    hit = m.group(1).replace("\\\\", "\\")
+                    if not os.path.exists(hit):
+                        out.append((os.path.relpath(full, root), hit))
+                        break
+    return sorted(out)[:8]
 
 
 def _verifies(path, check_dirs=()):
@@ -385,22 +619,38 @@ def learning_capture(root, log, check_dirs=()):
                 "state": "abstained", "headline": "the history cannot be read",
                 "rows": []}
 
-    fixed = {}
+    fixed, touched = {}, {}
     for sha, subject, paths in log:
+        src = [p for p in paths if _is_source(p, check_dirs)]
+        for p in src:
+            touched[p] = touched.get(p, 0) + 1
         if not (FIX_SUBJECT.search(subject) or REVERT_SUBJECT.search(subject)):
             continue
-        for p in paths:
-            if _is_source(p, check_dirs):
-                fixed.setdefault(p, []).append(sha)
-    repeats = sorted(((p, len(s)) for p, s in fixed.items() if len(s) >= 2),
+        # The same attribution rule dimension 2 uses: above a few files, a
+        # commit that says "fix" is a commit that also did four other things,
+        # and nothing in it can be pinned on any one file. Without this, the
+        # row just ranks files by size -- the biggest router in the tree is
+        # touched by everything, so it tops the list in every repository
+        # regardless of how much rework it actually took.
+        if len(src) > FOCUSED:
+            continue
+        for p in src:
+            fixed.setdefault(p, []).append(sha)
+
+    repeats = sorted(((p, len(v)) for p, v in fixed.items() if len(v) >= 2),
                      key=lambda x: -x[1])
     rows.append({
-        "label": "places fixed more than once",
+        "label": "places repaired more than once, on purpose",
         "value": str(len(repeats)),
         "flag": "warn" if repeats else "ok",
-        "note": (", ".join(f"{p} ×{n}" for p, n in repeats[:4])
-                 + (" …" if len(repeats) > 4 else ""))
-        if repeats else "no file in this history was repaired twice"})
+        "note": (", ".join(f"{p} ×{n} of {touched.get(p, n)} touches"
+                           for p, n in repeats[:3])
+                 + (" …" if len(repeats) > 3 else "")
+                 + " — counting only focused repairs, so this is rework "
+                   "rather than a busy file")
+        if repeats else
+        f"no file was the subject of two separate small repairs "
+        f"(commits of at most {FOCUSED} source files)"})
 
     # A check that arrived because of an incident, rather than because somebody
     # thought it was a good idea: a commit that introduces something verifying
@@ -408,14 +658,19 @@ def learning_capture(root, log, check_dirs=()):
     fixed_before = set()
     grown = []
     for sha, subject, paths in reversed(log):
+        src = [p for p in paths if _is_source(p, check_dirs)]
         verifying = [p for p in paths if _verifies(p, check_dirs)]
-        if verifying and any(p in fixed_before for p in paths):
+        # Same rule again. A commit touching thirty files will touch something
+        # repaired earlier and something that verifies, every time, so without
+        # the size limit this counts most of the history and means nothing.
+        if (verifying and len(src) <= FOCUSED
+                and any(p in fixed_before for p in src)):
             grown.append((sha, subject))
-        if FIX_SUBJECT.search(subject) or REVERT_SUBJECT.search(subject):
-            fixed_before.update(p for p in paths
-                                if _is_source(p, check_dirs))
+        if ((FIX_SUBJECT.search(subject) or REVERT_SUBJECT.search(subject))
+                and len(src) <= FOCUSED):
+            fixed_before.update(src)
     rows.append({
-        "label": "checks with an incident behind them",
+        "label": "checks that grew out of a repair",
         "value": str(len(grown)),
         "flag": "ok" if grown else "warn",
         "note": ((grown[-1][1][:64].rstrip() + "…"
@@ -442,7 +697,7 @@ def learning_capture(root, log, check_dirs=()):
 
     headline = ("nothing here remembers a mistake"
                 if not grown and not records else
-                f"{len(grown)} check(s) grew out of a repair"
+                f"{len(grown)} check(s) grew out of a focused repair"
                 + (f"; {len(repeats)} place(s) repaired twice" if repeats else ""))
     return {"n": 4, "name": "Learning Capture",
             "question": "Has a mistake made here ever turned into something "

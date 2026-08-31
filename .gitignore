@@ -22,3 +22,8 @@ eval/agent/node_modules/
 # somebody else's repository. The findings go in eval/results/; the trees are
 # uploaded as a CI artefact when the run is one worth reading a diff from.
 eval/.improve/
+
+# Assessment pages and other throwaway output, kept in the tree only so a
+# person can open them. Never committed: they are a snapshot of one machine on
+# one day, and a stale one reads as current.
+tmp/

@@ -30,6 +30,8 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# `shared/skills/`, a sibling of this directory: skills are payload too.
+SKILL_SRC = os.path.join(os.path.dirname(HERE), "skills")
 
 CLAUDE_MD = """\
 # <project>
@@ -536,6 +538,27 @@ COPY = [
     ("index", "scripts/index", "C"),
 ]
 
+# Skills, copied whole -- `SKILL.md` and whatever `references/` it carries.
+#
+# They live in the repository rather than in the plugin because a plugin skill
+# costs every session in EVERY repository on the machine: Claude Code keeps a
+# listing of every installed skill's name and description in context, so six of
+# them charged about 890 tokens a turn to people who had never asked this
+# plugin for anything. Copied here, a repository pays for the ones it chose,
+# its teammates get them without installing anything, and everyone else pays
+# nothing.
+#
+# `bootstrap-repo-harness` is the exception and stays in the plugin: it is how
+# somebody arrives at any of this, and a skill nobody can discover teaches
+# nobody.  -> docs/decisions/0024
+SKILLS = [
+    ("writing-docs", "A"),
+    ("writing-checks", "B"),
+    ("writing-github-docs", "B"),
+    ("consolidating-notes", "B"),
+    ("repo-index", "C"),
+]
+
 TIER_ORDER = {"A": 0, "B": 1, "C": 2}
 
 
@@ -694,6 +717,9 @@ def main():
             if at_least(a.tier, floor)]
     dirs = [d for d, floor in DIRS if at_least(a.tier, floor)]
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
+    skills = [name for name, floor in SKILLS
+              if at_least(a.tier, floor) and os.path.isdir(
+                  os.path.join(SKILL_SRC, name))]
     context_scripts = [(name, floor) for name, _, floor in CONTEXT_SCRIPTS
                        if at_least(a.tier, floor)]
     wanted_hooks = [(event, matcher, command)
@@ -711,6 +737,8 @@ def main():
             n = len([f for f in os.listdir(os.path.join(HERE, src))
                      if f.endswith(".py")])
             print(f"  {'COPY':<14} {dst}/  ({n} files)")
+        for name in skills:
+            print(f"  {'COPY':<14} .claude/skills/{name}/")
         # Driven by the same list as the real run. A preview whose only job is
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
@@ -731,6 +759,15 @@ def main():
             made.append(("SKIP", d + "/", "already exists"))
             continue
         write(keep, "", made, root)
+
+    for name in skills:
+        target = os.path.join(root, ".claude", "skills", name)
+        rel = os.path.relpath(target, root)
+        if os.path.exists(target):
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        shutil.copytree(os.path.join(SKILL_SRC, name), target)
+        made.append(("NEW", rel, ""))
 
     for src, dst in copies:
         target_dir = os.path.join(root, dst)

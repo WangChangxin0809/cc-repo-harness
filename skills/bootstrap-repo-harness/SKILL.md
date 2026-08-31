@@ -298,4 +298,11 @@ If the plan moved a rule, or added a check:
 | `references/moments.md` | Wiring a hook and needing the exact contract |
 
 Related skills: `writing-docs` (what goes in `docs/`), `writing-checks` (gates
-and guards), `repo-index` (retrieval at tier C), `consolidating-notes`.
+and guards), `writing-github-docs` (README and the community health files),
+`repo-index` (retrieval at tier C), `consolidating-notes`.
+
+These five are **not installed with this plugin** — you copy them into the
+repository as part of the scaffold, at the tier that earns each one, so they
+reach teammates who never installed anything. Until that copy happens they are
+files on disk under the plugin's `shared/skills/`, readable but not loaded, so
+a reference to one of them here may not resolve to an invokable skill yet.
