@@ -53,7 +53,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from catch import fire, wired  # noqa: E402
+from catch import fire_ex, wired  # noqa: E402
 
 # A placeholder that is unmistakably not a credential, so a scan run later never
 # finds a plausible-looking one this script left behind.
@@ -181,11 +181,15 @@ def assess(root, sample_src, check_file):
     pre = wired(root, "PreToolUse")
     rows = []
     for name, risk, bad, good in probes(root, sample_src, check_file):
-        stopped, hook, said = fire(root, pre, payload(root, bad))
-        over, ohook, osaid = fire(root, pre, payload(root, good))
+        stopped, hook, said, broke = fire_ex(root, pre, payload(root, bad))
+        over, ohook, osaid, obroke = fire_ex(root, pre, payload(root, good))
         rows.append({
             "probe": name, "risk": risk,
             "stopped": stopped,
+            # A guard that ran and failed for a reason unrelated to the
+            # decision. Folded into `stopped: False` before this existed, which
+            # made a broken guard and an absent one look identical.
+            "hook_error": [c for _h, c in broke + obroke],
             "by": hook["command"][:70] if hook else "",
             "said": said,
             "false_block": over,

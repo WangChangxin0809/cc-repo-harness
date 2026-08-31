@@ -93,12 +93,21 @@ def wired(root, event):
     return out
 
 
-def fire(root, hooks, payload):
-    """(blocked, which command, what it said).
+def fire_ex(root, hooks, payload):
+    """(blocked, which command, what it said, [hooks that ran and broke]).
 
     A hook blocks by exiting 2, or by saying so in JSON on stdout. Both
     spellings are honoured because both are in use, and a probe that knew only
-    one would report a working guard as absent."""
+    one would report a working guard as absent.
+
+    The fourth value is the state this probe used to lose. Claude Code treats
+    any other non-zero exit as a non-blocking error: the action proceeds. So a
+    guard with a syntax error, a missing import, or a bad path is indis-
+    tinguishable here from a guard that considered the action and allowed it --
+    and from no guard at all. That is the worst of the three, because everybody
+    believes they are covered. It is returned separately so the report can say
+    which one happened."""
+    broke = []
     for h in hooks:
         proc = subprocess.run(
             h["command"], shell=True, cwd=root, input=json.dumps(payload),
@@ -107,7 +116,7 @@ def fire(root, hooks, payload):
         )
         said = (proc.stderr or proc.stdout or "").strip().replace("\n", " ")
         if proc.returncode == 2:
-            return True, h, said[:160]
+            return True, h, said[:160], broke
         try:
             spoken = json.loads(proc.stdout or "{}")
         except ValueError:
@@ -116,8 +125,16 @@ def fire(root, hooks, payload):
                     or spoken.get("decision") or "")
         if decision in ("deny", "block"):
             return True, h, str(spoken.get("permissionDecisionReason")
-                                or spoken.get("reason") or said)[:160]
-    return False, None, ""
+                                or spoken.get("reason") or said)[:160], broke
+        if proc.returncode not in (0, 2):
+            broke.append((h, f"exit {proc.returncode}: {said[:120]}"))
+    return False, None, "", broke
+
+
+def fire(root, hooks, payload):
+    """(blocked, which command, what it said) -- see `fire_ex`."""
+    blocked, hook, said, _ = fire_ex(root, hooks, payload)
+    return blocked, hook, said
 
 
 def edit_payload(root, event, path, before, after):

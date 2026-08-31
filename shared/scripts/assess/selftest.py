@@ -37,6 +37,7 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod          # noqa: E402
 import catch as catch_mod          # noqa: E402
+import dimensions as dim_mod       # noqa: E402
 import history as history_mod      # noqa: E402
 
 
@@ -203,6 +204,36 @@ def case_a_fix_with_a_test_is_an_instance(t):
     if not history_mod.candidates(found):
         return "the instance was found but not offered as replayable"
     return ""
+
+
+def case_a_repair_is_found_when_the_subject_is_not_english(t):
+    """A defect miner that only reads English reports a repository with years
+    of history as having nothing to replay.
+
+    That is indistinguishable, on the page, from a repository that genuinely
+    repairs nothing -- and it is the instrument's fault, not the repository's.
+    Found on a real subject repository whose 53 commit messages are almost all
+    Chinese: the English-only matcher classified one of them."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "tests/test_app.py", "def test_x():\n    assert True\n")
+    commit(t, "初始版本")
+    put(t, "app.py", "x = 2\n")
+    put(t, "tests/test_app.py", "def test_x():\n    assert 1\n")
+    commit(t, "修签到提醒里没被替换的占位符")
+
+    found = history_mod.mine(t)
+    if len(found["fix_test"]) != 1:
+        return (f"a Chinese repair subject was classified as "
+                f"{len(found['fix_test'])} fix-with-test commits, not 1")
+
+    # And the word for "modify" must not be read as a repair, or every commit
+    # in such a repository becomes a defect.
+    put(t, "app.py", "x = 3\n")
+    commit(t, "修改配色")
+    if len(history_mod.mine(t)["fix_no_test"]) != 0:
+        return "修改 ('modify') was read as a repair"
+    return None
 
 
 def case_a_docs_only_fix_is_not_a_defect(t):
@@ -442,6 +473,258 @@ def case_a_verdict_does_not_move_with_the_checkout(t):
     return ""
 
 
+
+# --------------------------------------------------------------------------
+# dimensions: the five groups, and the states each of them can lose
+# --------------------------------------------------------------------------
+
+CRASHES = "import nonexistent_module_xyz\n"
+
+
+def dim_repo(t, files=(), hook=None):
+    """A committed repository, optionally with one PreToolUse hook wired."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    for rel, body in files:
+        put(t, rel, body)
+    if hook is not None:
+        hook_script(t, ".claude/guard.py", hook)
+    commit(t, "init")
+    return t
+
+
+def dims_of(t, with_blast=True):
+    probe = load_probe().probe(t)
+    blast = blast_mod.assess(t, "app.py", "") if with_blast and os.path.isdir(
+        os.path.join(t, ".claude")) else None
+    return {d["n"]: d for d in dim_mod.assess(
+        t, probe, blast, None, "", None, history_mod.commits(t),
+        catch_mod.LADDER)}
+
+
+def case_a_guard_that_crashes_is_not_read_as_allowed(t):
+    """A hook that exits 1 with a traceback decided nothing.
+
+    Claude Code treats any non-zero exit other than 2 as a non-blocking error:
+    the action proceeds. Before this, such a hook was folded into `allowed`,
+    so a guard with a missing import and no guard at all produced the same
+    page -- and the first of those is worse, because everybody believes they
+    are covered."""
+    dim_repo(t, hook=CRASHES)
+    rows = dims_of(t)[1]["rows"]
+    broke = [r for r in rows if "broke" in r["label"]]
+    if not broke:
+        return "a guard that crashed was not reported as broken"
+    if broke[0]["flag"] != "bad":
+        return f"a broken guard was flagged {broke[0]['flag']!r}, not 'bad'"
+    return None
+
+
+def case_a_guard_that_allows_is_not_reported_as_broken(t):
+    """The twin. Without it the case above passes on a probe that shouts
+    'broken' at every repository."""
+    dim_repo(t, hook=QUIET)
+    rows = dims_of(t)[1]["rows"]
+    if [r for r in rows if "broke" in r["label"]]:
+        return "a working guard that allowed the action was reported broken"
+    return None
+
+
+def case_a_scoped_rule_with_nothing_delivering_it_is_reported(t):
+    """A rule carrying `paths:` loads when Claude READS a matching file -- not
+    when it creates one, and not when it writes through the shell. If nothing
+    fills that gap, the rule is silent at the two moments it is worth most."""
+    dim_repo(t, files=[(".claude/rules/api.md",
+                        "---\npaths:\n  - \"src/**/*.py\"\n---\n\nrule\n")],
+             hook=QUIET)
+    rows = dims_of(t)[1]["rows"]
+    scoped = [r for r in rows if "scoped" in r["label"]]
+    if not scoped:
+        return "a path-scoped rule with no delivery was not reported"
+    if scoped[0]["flag"] != "warn":
+        return f"flagged {scoped[0]['flag']!r}, not 'warn'"
+    return None
+
+
+def case_an_unconditional_rule_is_not_reported_as_undelivered(t):
+    """A rule with no `paths:` loads at launch, every session. Its problem is
+    cost, not delivery, and reporting it here would be an invented finding."""
+    dim_repo(t, files=[(".claude/rules/all.md", "always do the thing\n")],
+             hook=QUIET)
+    rows = dims_of(t)[1]["rows"]
+    if [r for r in rows if "scoped" in r["label"]]:
+        return "an unconditional rule was reported as undelivered"
+    return None
+
+
+def case_verification_is_found_where_the_repository_put_it(t):
+    """`tests/` is not the only shape verification takes.
+
+    This defect was live: a matcher that knew only test-file names read this
+    project's own history -- whose checks are called `selftest.py` and live in
+    `gates/` -- as 33 code changes out of 33 with nothing behind them."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    # Named so that ONLY its directory makes it verification -- no `test_`,
+    # no `check_`, no `selftest`. A matcher that reads file names alone will
+    # miss it, which is the defect this case exists for.
+    put(t, "tools/gates/thing.py", "def main():\n    return 0\n")
+    commit(t, "feat: a change, with a check beside it")
+    d3 = dims_of(t, with_blast=False)[3]
+    bare = [r for r in d3["rows"] if "verified nothing" in r["label"]]
+    if not bare:
+        return "the coverage row is missing"
+    if not bare[0]["value"].startswith("0/"):
+        return (f"a change accompanied by a check in tools/gates/ counted as "
+                f"unverified: {bare[0]['value']}")
+    return None
+
+
+def case_a_test_suite_is_recognised_by_its_name(t):
+    """The other half of the mechanism above: a directory nobody would call a
+    check directory, recognised because test suites are named from a small and
+    stable vocabulary."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "spec/thing.rb", "describe 'x'\n")
+    commit(t, "feat: a change, with a spec beside it")
+    d3 = dims_of(t, with_blast=False)[3]
+    bare = [r for r in d3["rows"] if "verified nothing" in r["label"]]
+    if not bare[0]["value"].startswith("0/"):
+        return (f"a change accompanied by spec/ counted as unverified: "
+                f"{bare[0]['value']}")
+    return None
+
+
+def case_the_instrument_leaves_nothing_in_the_repository(t):
+    """Assessing must not change the thing being assessed.
+
+    `factsheet.py --full` defaulted its bench directory to `<root>/.assess`
+    and left 2.6 MB of clone untracked in a repository whose own page says
+    nothing in it was executed. Found by pointing the assessor at somebody
+    else's repository and reading what it complained about afterwards."""
+    repo(t)
+    put(t, "app.py", "def double(n):\n    return n + n\n")
+    put(t, "tests/test_app.py",
+        "from app import double\n\n\ndef test_double():\n"
+        "    assert double(2) == 4\n")
+    commit(t, "feat: double")
+    # A replayable defect, or the replay abstains before it ever builds the
+    # bench directory this case exists to look for.
+    put(t, "app.py", "def double(n):\n    return n * 2\n")
+    put(t, "tests/test_app.py",
+        "from app import double\n\n\ndef test_double():\n"
+        "    assert double(3) == 6\n")
+    commit(t, "fix: double was addition, which is only right for 2")
+    before = sorted(os.listdir(t))
+
+    out = subprocess.run(
+        [sys.executable, os.path.join(HERE, "factsheet.py"), "--root", t,
+         "--full"], capture_output=True, text=True, timeout=900)
+    if out.returncode not in (0, 2):
+        return f"factsheet exited {out.returncode}: {out.stderr[-200:]}"
+
+    left = [n for n in sorted(os.listdir(t)) if n not in before]
+    if left:
+        return (f"the assessment left {left} behind in the repository it was "
+                f"only supposed to read")
+
+    dirty = git(["status", "--porcelain"], t).stdout.strip()
+    if dirty:
+        return f"the assessment left the working tree dirty: {dirty[:120]}"
+    return None
+
+
+def case_a_replay_that_could_not_run_is_not_a_clean_sheet(t):
+    """A ladder of zeros is not a perfect score.
+
+    This was live: a repository whose two replayable defects both failed for
+    want of an installed dependency came out as "0 of 2 defects survive past
+    the end of a session", flagged green. `catch.py` had reported both rows as
+    unusable, with the missing module named; the dimension counted rungs and
+    threw the reason away. Exit 2 means COULD NOT JUDGE, and so does this."""
+    probe = load_probe().probe(dim_repo(t))
+    unusable = {"rows": [
+        {"sha": "aaaa", "subject": "x", "rung": None,
+         "detail": "unusable — at the fix the tests are could-not-run: "
+                   "No module named 'sqlalchemy'"},
+        {"sha": "bbbb", "subject": "y", "rung": None, "detail": "unusable — x"},
+    ]}
+    supply = {"replayable": 2, "fix_no_test": 0, "has_test_files": True,
+              "shallow": False}
+    d2 = dim_mod.assess(t, probe, None, unusable, "", supply, None,
+                        catch_mod.LADDER)[1]
+    if d2["state"] != "abstained":
+        return (f"two unusable replays produced state {d2['state']!r} and "
+                f"headline {d2['headline']!r}, not an abstention")
+    if not any("sqlalchemy" in r["note"] for r in d2["rows"]):
+        return "the abstention does not say what stopped the replay"
+
+    # And one usable row among unusable ones must still be measured, with the
+    # unusable ones outside the count rather than inside it as successes.
+    mixed = {"rows": [dict(unusable["rows"][0]),
+                      {"sha": "cccc", "subject": "z", "rung": "never",
+                       "detail": ""}]}
+    d2 = dim_mod.assess(t, probe, None, mixed, "", supply, None,
+                        catch_mod.LADDER)[1]
+    if d2["state"] != "measured" or "1 of 1" not in d2["headline"]:
+        return (f"a mix of one usable and one unusable replay gave "
+                f"{d2['state']!r}: {d2['headline']!r}")
+    return None
+
+
+def case_plugin_tokens_are_not_charged_to_the_repository(t):
+    """Skill descriptions installed on this machine are real tokens and are
+    reported -- but a repository judged on them is being scored for what
+    somebody else installed."""
+    dim_repo(t, files=[("CLAUDE.md", "x\n" * 400)])
+    d5 = dims_of(t, with_blast=False)[5]
+    floor = [r for r in d5["rows"] if r["label"].startswith("floor")][0]
+    if "from this repository" not in floor["note"]:
+        return "the floor does not say how much of it this repository owns"
+    if "from this repository" not in d5["headline"]:
+        return f"the headline does not scope the number: {d5['headline']!r}"
+    return None
+
+
+def case_a_place_repaired_twice_is_counted(t):
+    """The offline, shared version of noticing a recurrence: it is in the
+    history, so it is the same for everyone who clones."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    commit(t, "feat: thing")
+    put(t, "app.py", "x = 2\n")
+    commit(t, "fix: the thing was wrong")
+    put(t, "app.py", "x = 3\n")
+    commit(t, "fix: the thing was still wrong")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    repeat = [r for r in rows if "more than once" in r["label"]][0]
+    if repeat["value"] != "1":
+        return f"two repairs to one file counted as {repeat['value']!r}"
+    return None
+
+
+def case_a_record_nobody_reads_is_not_scored_as_learning(t):
+    """A write-only record of mistakes is the failure that looks healthiest
+    from outside: the file exists, it is long, and nothing has ever read it."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "docs/postmortem-outage.md", "we broke it\n")
+    commit(t, "init")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    rec = [r for r in rows if "mistakes are written" in r["label"]][0]
+    if rec["flag"] != "warn":
+        return f"an unreferenced record was flagged {rec['flag']!r}, not 'warn'"
+
+    put(t, "README.md", "see docs/postmortem-outage.md\n")
+    commit(t, "docs: point at it")
+    rows = dims_of(t, with_blast=False)[4]["rows"]
+    rec = [r for r in rows if "mistakes are written" in r["label"]][0]
+    if rec["flag"] != "ok":
+        return "a record that README points at was still flagged as unread"
+    return None
+
+
 CASES = [
     ("checks are found where the repository put them, not where we would",
      case_checks_are_found_outside_scripts),
@@ -453,6 +736,8 @@ CASES = [
      case_plugin_skill_cost_is_counted),
     ("a fix with a test is a replayable instance",
      case_a_fix_with_a_test_is_an_instance),
+    ("a repair is found when the commit subject is not English",
+     case_a_repair_is_found_when_the_subject_is_not_english),
     ("a documentation-only fix is not a code defect",
      case_a_docs_only_fix_is_not_a_defect),
     ("a commit too large to attribute is not one defect",
@@ -477,6 +762,28 @@ CASES = [
      case_a_targeted_refusal_is_not_a_false_block),
     ("the same repository scores the same from any branch",
      case_a_verdict_does_not_move_with_the_checkout),
+    ("a guard that crashes is not read as having allowed the action",
+     case_a_guard_that_crashes_is_not_read_as_allowed),
+    ("a guard that allows is not reported as broken",
+     case_a_guard_that_allows_is_not_reported_as_broken),
+    ("a path-scoped rule with nothing delivering it is reported",
+     case_a_scoped_rule_with_nothing_delivering_it_is_reported),
+    ("an unconditional rule is not reported as undelivered",
+     case_an_unconditional_rule_is_not_reported_as_undelivered),
+    ("verification is found where the repository put it",
+     case_verification_is_found_where_the_repository_put_it),
+    ("a test suite is recognised by its name, wherever it lives",
+     case_a_test_suite_is_recognised_by_its_name),
+    ("the instrument leaves nothing behind in the repository it read",
+     case_the_instrument_leaves_nothing_in_the_repository),
+    ("a replay that could not run is not scored as a clean sheet",
+     case_a_replay_that_could_not_run_is_not_a_clean_sheet),
+    ("an installed plugin's tokens are not charged to the repository",
+     case_plugin_tokens_are_not_charged_to_the_repository),
+    ("a place repaired twice is counted, from committed history",
+     case_a_place_repaired_twice_is_counted),
+    ("a record of mistakes nobody reads is not scored as learning",
+     case_a_record_nobody_reads_is_not_scored_as_learning),
 ]
 
 

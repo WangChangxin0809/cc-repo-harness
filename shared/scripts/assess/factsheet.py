@@ -5,6 +5,7 @@
 
     (default)  probe + blast + drift   -- seconds, no toolchain, no network
     --full     also replays defects    -- minutes, needs the repo's test tools
+    --html P   a self-contained page for a person to read once and act on
 
 Exit codes:
     0 = the page was produced    2 = cannot judge (not a git repository)
@@ -35,8 +36,10 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(HERE)
@@ -44,7 +47,9 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
-from history import mine  # noqa: E402
+import dimensions as dim_mod  # noqa: E402
+import report as report_mod  # noqa: E402
+from history import commits, mine  # noqa: E402
 
 
 def load(name, path):
@@ -111,6 +116,7 @@ def gather(root, full, instances, work):
         r["blast"] = blast_mod.assess(root, a_source_file(root),
                                       a_check_file(probe, root))
 
+    r["log"] = commits(root)
     found = mine(root)
     if found is not None:
         r["defects"] = {"replayable": len(
@@ -126,7 +132,52 @@ def gather(root, full, instances, work):
 
 # --------------------------------------------------------------------------
 
-def render(r):
+CANNOT_SAY = [
+    "Is the standing cost earning its tokens, or restating the code?",
+    "Which sentences in the docs are waffle? Quote them.",
+    "Does each wired hook address a mistake THIS repository makes?",
+    "Reading the hooks and settings: is anything you would normally need "
+    "refused? Quote the refusal.",
+]
+
+
+def repo_name(root):
+    """What this repository is called, not what the directory it was cloned
+    into is called. A page headed `target` names the reader's scratch folder."""
+    out = subprocess.run(["git", "remote", "get-url", "origin"], cwd=root,
+                         capture_output=True, text=True, timeout=30)
+    url = out.stdout.strip()
+    if out.returncode == 0 and url:
+        name = url.rstrip("/").rsplit("/", 1)[-1]
+        if name.endswith(".git"):
+            name = name[:-4]
+        if name:
+            return name
+    return os.path.basename(root.rstrip("/")) or root
+
+
+def head_of(r, full):
+    p = r["probe"]
+    return {"name": repo_name(p["root"]),
+            "root": p["root"],
+            "tracked": p["tracked_files"], "source": p["source_files"],
+            "tier": p["tier"],
+            "ran": ("Measured, not judged. Nothing in the repository was "
+                    "executed except " + ("its own tests, to replay defects."
+                                          if full else
+                                          "its hooks, which were offered "
+                                          "destructive payloads that never "
+                                          "ran. Add --full to also replay "
+                                          "defects."))}
+
+
+def dimensions_of(r):
+    return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
+                          r["catch_why"], r["defects"], r.get("log"),
+                          catch_mod.LADDER)
+
+
+def render_flat(r):
     p, d = r["probe"], r["probe"]["discipline"]
     by = r["probe"]["skill_tokens_by_origin"]
     entry = p["moments"]["1_always"]
@@ -225,16 +276,43 @@ def main():
     ap.add_argument("--instances", type=int, default=3)
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
+    ap.add_argument("--html", default="",
+                    help="also write a self-contained page for a person")
+    ap.add_argument("--flat", action="store_true",
+                    help="the ungrouped page: the same numbers, unsorted")
     a = ap.parse_args()
 
     root = os.path.abspath(a.root)
-    work = a.work or os.path.join(root, ".assess")
+    # Outside the subject repository, and removed afterwards. `catch.py` gets
+    # this right in its own `main`; defaulting to `<root>/.assess` here undid
+    # it, and left 2.6 MB of bench clone untracked in a repository this tool
+    # promises only to read. An instrument that litters its subject has changed
+    # the thing it was measuring.
+    work = a.work or tempfile.mkdtemp(prefix="assess-")
+    try:
+        return _run(a, root, work)
+    finally:
+        if not a.work:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+def _run(a, root, work):
     r = gather(root, a.full, a.instances, work)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
               file=sys.stderr)
         return 2
-    print(render(r))
+    r["root"] = root
+
+    if a.flat:
+        print(render_flat(r))
+    else:
+        head, dims = head_of(r, a.full), dimensions_of(r)
+        print(report_mod.text(head, dims, CANNOT_SAY))
+        if a.html:
+            where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)
+            print(f"  page written to {where}\n")
+        r["dimensions"] = dims
     if a.json:
         with open(a.json, "w") as fh:
             json.dump(r, fh, indent=2, ensure_ascii=False)
