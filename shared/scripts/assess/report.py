@@ -130,9 +130,14 @@ table{width:100%;border-collapse:collapse;margin-left:34px;
 td{padding:9px 0;vertical-align:top;border-top:1px solid var(--rule)}
 tr:first-child td{border-top:0}
 td.f{width:8px;padding-right:10px}
-td.l{width:38%;color:var(--dim);font-size:13.5px}
+td.l{width:38%;min-width:10rem;color:var(--dim);font-size:13.5px}
+/* `pre-wrap` rather than `nowrap`: the double space in `6/33  (18%)` has to
+   survive, but a value naming four workflow files must be allowed to wrap.
+   With `nowrap` one long row widened the table and squeezed every label in
+   the dimension into a five-line column. */
 td.v{font:600 13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
-     font-variant-numeric:tabular-nums;white-space:nowrap;padding-right:14px}
+     font-variant-numeric:tabular-nums;white-space:pre-wrap;
+     overflow-wrap:anywhere;padding-right:14px}
 .note{display:block;color:var(--faint);font-size:12.5px;font-weight:400;
       font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,
                   "Noto Sans CJK SC","PingFang SC",sans-serif;

@@ -23,7 +23,7 @@ including the reading. It never changes the repository.
 | 1 | **Controlled Execution** | can an agent working here in good faith destroy something? | your uncommitted work can be destroyed and nothing refuses |
 | 2 | **Change Validation** | when a defect is introduced, how late is it caught? | defects this repo has actually produced would reach `main` |
 | 3 | **Reliable Delivery** | when a change is called done, what is the evidence? | the green light is real, but it has nothing to do with what you changed |
-| 4 | **Learning Capture** | has a mistake made here ever turned into something that acts next time? | the same mistake will be made again, because nothing remembers |
+| 4 | **Repository Memory** | can an agent that has never seen this repo find its way, and is that because of something the repo keeps? | a newcomer edits the wrong file, and nothing here shortens the search |
 | 5 | **Context Economy** | what does the harness cost per turn, and at worst? | tokens are spent every turn on text that restates the code |
 
 A dimension earns its place only if a low score names a **specific observable
@@ -101,33 +101,58 @@ counting it twice would just say the same thing louder. The signals here:
   pull request it is indistinguishable from one that ran everything
 - whether the verdict is a command someone can run, or a description someone
   wrote
+- **how often a place was repaired again after being called done** — counted
+  from committed history, and only from commits focused enough to be
+  attributable, so it is rework rather than a busy file. It lived in dimension
+  4 until that one stopped reading history and started watching an agent
+  -> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md)
 
 These are deliberately loose, and reaching a conclusion from them is the
 reading's job, not a threshold's. This dimension also still speaks when the
 toolchain is missing and dimension 2 has abstained, which is the argument for
 its keeping its own place.
 
-## 4 — Learning Capture
+## 4 — Repository Memory
 
-Every repository makes mistakes. The question is whether any of them left
-something behind that will act the next time, or whether the record — if there
-is one — is written and never read.
+This one is not read off the repository. **An agent that has never seen it is
+sent in, and what happens is the measurement.**
 
-- how often the same place is fixed again
-- whether any guard, test or rule arrived right after a fix or a revert and
-  covers the same ground — a check with an incident behind it, rather than a
-  check somebody thought was a good idea
-- whether there is anywhere mistakes are written down at all, and **whether
-  anything reads it**
+It answers nine questions on a copy of the tree: six about the whole place — the
+components, the flows, what is generated, where the tests are, what is unusual
+here — and three micro ones, each of which is the **subject line of a real
+commit** and nothing else, asking *which files would you change to do that?*
+The commit's own diff is the answer key, so the repository wrote its own exam.
 
-The last one decides the other two. A write-only record of mistakes is worth
-nothing, and it is the failure mode that looks healthiest from outside: the file
-exists, it is long, and it has never changed anyone's behaviour.
+**Then the same nine questions are asked again**, of the same tree with
+`CLAUDE.md`, `.claude/` and every nested `CLAUDE.md` removed.
 
-The first one is counted from committed history, which is the only place a count
-like this survives — it is the same for everyone who clones, needs nothing
-running, and does not quietly become *"the third time, for me, on this
-laptop"* -> [0023](../docs/decisions/0023-nothing-counts-how-often-a-rule-is-hit.md).
+> The difference between the two runs is the memory.
+
+That is the whole design, and it is why nothing here counts skills, hooks or
+rules. A count would grade a repository on whether it adopted somebody else's
+conventions, and it would go *up* when you install this plugin — the instrument
+rewarding its own presence. A difference cannot be raised by adding files: a
+thin `CLAUDE.md` that halves the search beats six skills that change nothing
+-> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md).
+
+Three things make it trustworthy:
+
+- **The probe cannot cheat.** Both copies are made without `.git`, and the
+  probe agent is given no Bash. One `git log --grep` would answer every micro
+  question perfectly, and a rule against it could be broken silently — so the
+  history is not forbidden, it is absent.
+- **It costs two agents.** One session answers all ten questions; the second
+  run is the same session on the stripped copy. It is opt-in for that reason,
+  and without it this dimension **abstains** — a repository nobody probed is
+  not a repository an agent cannot navigate.
+- **No rates.** Three questions do not make a percentage. The rows say what
+  happened, including how many files each answer named, because recall alone is
+  answered by listing the tree.
+
+Alongside it, offline and free: whether there is anywhere mistakes are written
+down, and **whether anything reads it**. A write-only record is the failure mode
+that looks healthiest from outside — the file exists, it is long, and it has
+never changed anyone's behaviour.
 
 ## 5 — Context Economy
 

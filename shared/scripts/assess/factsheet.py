@@ -176,10 +176,12 @@ def head_of(r, full):
                                           "defects."))}
 
 
-def dimensions_of(r):
+def dimensions_of(r, memory=None):
+    """`memory` is `memory.compare()`'s output, when somebody spent the two
+    agents dimension 4 needs. Without it that dimension abstains."""
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
-                          catch_mod.LADDER)
+                          catch_mod.LADDER, memory)
 
 
 def render_flat(r):
@@ -283,6 +285,9 @@ def main():
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
                     help="also write a self-contained page for a person")
+    ap.add_argument("--memory", default="",
+                    help="JSON from `memory.py --score`; without it "
+                         "dimension 4 abstains rather than scoring zero")
     ap.add_argument("--flat", action="store_true",
                     help="the ungrouped page: the same numbers, unsorted")
     a = ap.parse_args()
@@ -312,7 +317,11 @@ def _run(a, root, work):
     if a.flat:
         print(render_flat(r))
     else:
-        head, dims = head_of(r, a.full), dimensions_of(r)
+        memory = None
+        if a.memory:
+            with open(a.memory, encoding="utf-8") as fh:
+                memory = json.load(fh)
+        head, dims = head_of(r, a.full), dimensions_of(r, memory)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)

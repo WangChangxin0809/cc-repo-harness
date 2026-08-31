@@ -70,6 +70,12 @@ they cost nothing until a repository asks for them, they arrive for teammates
 who never installed this, and they survive uninstalling it
 ([why](docs/decisions/0024-skills-are-payload-except-the-one-that-finds-them.md)).
 
+The assessment is a four-stage walkthrough, one file per stage:
+[assess](guide/1-assess.md) · [write the checklist](guide/2-checklist.md) ·
+[decide](guide/3-decide.md) · [do the work](guide/4-do-the-work.md) ·
+[re-measure](guide/5-re-measure.md). Deciding to change nothing is a valid
+ending, and stage 5 is why stage 1 exists.
+
 Plus `/assess`, which measures a repository against five dimensions and writes
 one page; two subagents (`repo-explorer` and `repo-assessor`, own context); and
 two hooks: the once-per-repository notice described below, and one that runs a

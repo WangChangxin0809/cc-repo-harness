@@ -481,6 +481,12 @@ def reliable_delivery(root, log, check_dirs=()):
                         "verifying the change: "
                         + "; ".join(c[1][:44] for c in critical[:2])})
 
+    if log is not None:
+        repair, repeats, grown = _repair_rows(log, check_dirs)
+        rows += repair
+        if repeats:
+            headline += f"; {repeats} place(s) said done twice"
+
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
             "state": state, "headline": headline, "rows": rows}
@@ -607,18 +613,16 @@ def _is_source(path, check_dirs=()):
 
 # -- 4 -----------------------------------------------------------------------
 
-def learning_capture(root, log, check_dirs=()):
-    """Has a mistake made here ever turned into something that acts next time?"""
+def _repair_rows(log, check_dirs=()):
+    """Two readings of the history that belong to dimension 3.
+
+    Both are about whether a verdict held. A place repaired twice on purpose is
+    a place where somebody said "done" and was wrong; a check that appears
+    right after a repair is the verdict getting stronger because of one. They
+    lived in dimension 4 while it was called Learning Capture, and moved when
+    that dimension stopped reading history and started watching an agent
+    -> docs/decisions/0025"""
     rows = []
-    state = "measured"
-
-    if log is None:
-        return {"n": 4, "name": "Learning Capture",
-                "question": "Has a mistake made here ever turned into "
-                            "something that acts next time?",
-                "state": "abstained", "headline": "the history cannot be read",
-                "rows": []}
-
     fixed, touched = {}, {}
     for sha, subject, paths in log:
         src = [p for p in paths if _is_source(p, check_dirs)]
@@ -678,6 +682,27 @@ def learning_capture(root, log, check_dirs=()):
                  "no check in this history arrived right after a repair to "
                  "the same ground")})
 
+    return rows, len(repeats), len(grown)
+
+
+def repository_memory(root, log, check_dirs=(), probe=None):
+    """Can an agent that has never seen this repository find its way, and is
+    that because of something the repository keeps?
+
+    The measurement is a **difference**: the same questions asked of the tree
+    as it is, and of the tree with everything it keeps in order to explain
+    itself removed. Counting what it keeps instead would grade a repository on
+    whether it adopted our conventions, would reward this plugin's own
+    presence, and would call 0024 -- which cut the standing cost by 81% -- a
+    regression while dimension 5 called it an improvement -> 0025
+
+    `probe` is the output of `memory.compare()`, and there is no way to obtain
+    it without spending two agents. Without it this dimension **abstains**. It
+    does not report zero: a repository nobody has probed is not a repository an
+    agent cannot navigate, and scoring it as one would throw away exactly the
+    repositories that read well."""
+    rows = []
+
     records = _mistake_records(root)
     if records:
         readers = _readers_of(root, records)
@@ -695,14 +720,98 @@ def learning_capture(root, log, check_dirs=()):
                      "note": "no postmortem, decision record, known-issues or "
                              "changelog anywhere in the tree"})
 
-    headline = ("nothing here remembers a mistake"
-                if not grown and not records else
-                f"{len(grown)} check(s) grew out of a focused repair"
-                + (f"; {len(repeats)} place(s) repaired twice" if repeats else ""))
-    return {"n": 4, "name": "Learning Capture",
-            "question": "Has a mistake made here ever turned into something "
-                        "that acts next time?",
-            "state": state, "headline": headline, "rows": rows}
+    if not probe:
+        rows.append({
+            "label": "an agent finding its way",
+            "value": "not probed",
+            "flag": "info",
+            "note": "two agents, one on this tree and one on a copy with "
+                    "CLAUDE.md and .claude/ removed — the difference between "
+                    "them is the memory. Run /assess with --memory"})
+        return {"n": 4, "name": "Repository Memory",
+                "question": "Can an agent that has never seen this repository "
+                            "find its way, and is that because of something "
+                            "the repository keeps?",
+                "state": "abstained",
+                "headline": "not probed — the difference was never measured",
+                "rows": rows}
+
+    for r in probe.get("rows", []):
+        w, o = r["with"], r["without"]
+        subject = r["subject"]
+        if len(subject) > 56:
+            subject = subject[:56].rsplit(" ", 1)[0] + "…"
+        rows.append({
+            "label": subject,
+            "value": f"{w['found']}/{w['of']} with  ·  "
+                     f"{o.get('found', '—')}/{o.get('of', w['of'])} without",
+            # About the question, not about the difference: a question both
+            # runs answered is not a warning. What the standing context adds
+            # is one row, below, and conflating the two made three correct
+            # answers render as three warnings.
+            "flag": "ok" if (w["found"] or 0) >= (w["of"] or 1) else
+                    ("warn" if w["found"] else "bad"),
+            "note": f"{w.get('tool_calls', '?')} tool call(s) with the "
+                    f"repository's own context, {o.get('tool_calls', '?')} "
+                    f"without; {w.get('named', '?')} file(s) named against "
+                    f"{o.get('named', '?')}"})
+
+    # Two questions, and conflating them was a real bug: the first live run of
+    # this dimension came back with a difference of zero on a repository an
+    # agent navigated easily, because what carried it was `docs/decisions/` --
+    # discovered by reading, not loaded automatically. Scoring that as a
+    # failure would mark a repository down for keeping its memory somewhere an
+    # agent has to open rather than somewhere Claude Code loads for it.
+    found = sum(r["with"]["found"] or 0 for r in probe.get("rows", []))
+    want = sum(r["with"]["of"] or 0 for r in probe.get("rows", [])) or 1
+    calls = sum(r["with"].get("tool_calls") or 0 for r in probe.get("rows", []))
+    rows.append({
+        "label": "an agent finding its way",
+        "value": f"{found}/{want} file(s), {calls} tool call(s)",
+        "flag": "ok" if found * 2 >= want else ("warn" if found else "bad"),
+        "note": "across the questions above, each asked with only a commit's "
+                "subject line on a copy with no history — this is whether the "
+                "repository can be navigated at all, before asking what makes "
+                "it navigable"})
+
+    removed = probe.get("removed") or []
+    lift = probe.get("lift", 0)
+    legible = found * 2 >= want
+    if not removed:
+        note = ("nothing was removed, because there is nothing to remove — "
+                "this repository keeps no standing context, so the two runs "
+                "were one run")
+        flag, headline = "info", "there is no standing context to measure"
+    elif lift > 0:
+        note = (f"removed for the second run: {', '.join(removed)} — without "
+                f"them the same agent found {lift} fewer file(s)")
+        flag = "ok"
+        headline = (f"what this repository loads on every turn found {lift} "
+                    f"more file(s) than the code alone")
+    elif legible:
+        note = (f"removed for the second run: {', '.join(removed)} — and it "
+                f"made no difference. The repository is navigable without "
+                f"them, so whatever is carrying an agent is being read rather "
+                f"than loaded. Dimension 5 is where to ask whether the loaded "
+                f"part is still worth its tokens")
+        flag = "info"
+        headline = ("an agent finds its way here, but not because of what is "
+                    "loaded every turn")
+    else:
+        note = (f"removed for the second run: {', '.join(removed)} — an agent "
+                f"could not find its way either way, so what is loaded on "
+                f"every turn is being paid for and is not helping")
+        flag = "bad"
+        headline = "hard to navigate, and the standing context does not help"
+
+    rows.append({"label": "what the standing context adds",
+                 "value": f"{lift:+d} file(s)", "flag": flag, "note": note})
+
+    return {"n": 4, "name": "Repository Memory",
+            "question": "Can an agent that has never seen this repository find "
+                        "its way, and is that because of something the "
+                        "repository keeps?",
+            "state": "measured", "headline": headline, "rows": rows}
 
 
 def _mistake_records(root):
@@ -825,13 +934,16 @@ def context_economy(root, probe):
 
 # ---------------------------------------------------------------------------
 
-def assess(root, probe, blast, catch, catch_why, defects, log, ladder):
+def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
+           memory=None):
+    """`probe` is what `probe_repo.py` found; `memory` is what the two
+    navigation agents came back with, or None when nobody spent them."""
     check_dirs = tuple((probe.get("discipline") or {}).get("check_dirs") or ())
     return [
         controlled_execution(root, probe, blast),
         change_validation(defects, catch, catch_why, ladder),
         reliable_delivery(root, log, check_dirs),
-        learning_capture(root, log, check_dirs),
+        repository_memory(root, log, check_dirs, memory),
         context_economy(root, probe),
     ]
 
