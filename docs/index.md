@@ -20,6 +20,8 @@
 | Know why only one skill is installed and the rest are copied | [0024](decisions/0024-skills-are-payload-except-the-one-that-finds-them.md) |
 | Know why dimension 4 watches an agent instead of counting what is kept | [0025](decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md) |
 | Know why the defect replay runs by default and the ladder is in seconds | [0026](decisions/0026-the-ladder-is-measured-in-seconds-and-runs-by-default.md) |
+| Know why dimension 4 checks whether what is written down is still true | [0027](decisions/0027-thickness-is-the-denominator-and-falsity-is-the-score.md) |
+| Know which of the mutation paper's numbers we reproduced, and which we did not | [0028](decisions/0028-mutation-testing-copied-from-a-paper-and-checked-against-its-numbers.md) |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
 and checked by `check_docs_layout.py`. **Inside each one, organise however suits
