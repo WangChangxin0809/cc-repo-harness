@@ -51,6 +51,7 @@ import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import report as report_mod  # noqa: E402
+import truth as truth_mod  # noqa: E402
 from history import commits, mine  # noqa: E402
 
 
@@ -120,6 +121,7 @@ def gather(root, full, instances, work):
                                       a_check_file(probe, root))
 
     r["log"] = commits(root)
+    r["truth"] = truth_mod.assess(root)
     found = mine(root)
     if found is not None:
         r["defects"] = {"replayable": len(
@@ -173,10 +175,11 @@ def head_of(r):
 
 def dimensions_of(r, memory=None):
     """`memory` is `memory.compare()`'s output, when somebody spent the two
-    agents dimension 4 needs. Without it that dimension abstains."""
+    agents dimension 4's navigation half needs. Without it that half abstains;
+    the truth half in `r["truth"]` costs nothing and is always there."""
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
-                          catch_mod.LADDER, memory)
+                          catch_mod.LADDER, memory, r.get("truth"))
 
 
 def render_flat(r):

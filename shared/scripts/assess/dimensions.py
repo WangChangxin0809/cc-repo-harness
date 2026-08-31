@@ -732,7 +732,7 @@ def _repair_rows(log, check_dirs=()):
     return rows, len(repeats), len(grown)
 
 
-def repository_memory(root, log, check_dirs=(), probe=None):
+def repository_memory(root, log, check_dirs=(), probe=None, truth=None):
     """Can an agent that has never seen this repository find its way, and is
     that because of something the repository keeps?
 
@@ -743,12 +743,62 @@ def repository_memory(root, log, check_dirs=(), probe=None):
     presence, and would call 0024 -- which cut the standing cost by 81% -- a
     regression while dimension 5 called it an improvement -> 0025
 
+    Two halves, and only the second costs agents.
+
+    `truth` is `truth.assess()`'s output: the cheap half, which asks not how
+    much the repository writes down but **how much of it is still true**. It
+    runs on every assessment. Thickness appears there as a denominator and
+    never as a score -- 0025's three objections to counting what a repository
+    keeps all still hold, and a denominator has none of those properties
+    -> 0027
+
     `probe` is the output of `memory.compare()`, and there is no way to obtain
-    it without spending two agents. Without it this dimension **abstains**. It
-    does not report zero: a repository nobody has probed is not a repository an
+    it without spending two agents. Without it that half **abstains**. It does
+    not report zero: a repository nobody has probed is not a repository an
     agent cannot navigate, and scoring it as one would throw away exactly the
     repositories that read well."""
     rows = []
+
+    if truth is not None:
+        t = truth["thickness"]
+        rows.append({
+            "label": "what it writes down",
+            "value": "  ".join(f"{k}:{v}" for k, v in t.items() if v),
+            "flag": "info",
+            "note": "the denominator, and never a score: adding files cannot "
+                    "raise anything on this page, because a repository is not "
+                    "better for having adopted somebody else's conventions"})
+
+        proven = truth["proven"]
+        rows.append({
+            "label": "references that do not resolve",
+            "value": (f"{len(proven)} across {truth['checked']} document(s)"
+                      if proven else
+                      f"none across {truth['checked']} document(s)"),
+            "flag": "bad" if len(proven) > 2 else ("warn" if proven else "ok"),
+            "note": ("; ".join(f"{r['file']} → {r['claim']}"
+                               for r in proven[:3])[:220]
+                     if proven else
+                     "every link in the non-historical documents points at "
+                     "something that is there. Historical records — decisions, "
+                     "changelogs, postmortems — are excluded: describing a "
+                     "state that has changed is their job")})
+
+        cands = truth["candidates"]
+        if cands:
+            by = {}
+            for c in cands:
+                by[c["tier"]] = by.get(c["tier"], 0) + 1
+            rows.append({
+                "label": "candidates for a second reading",
+                "value": "  ".join(f"T{k}:{v}" for k, v in sorted(by.items())),
+                "flag": "info",
+                "note": "NOT findings. A machine can say where to look and "
+                        "cannot say what is wrong: T1 a count the tree "
+                        "disagrees with, T2 a path resolving nowhere, T3 a "
+                        "document the code moved out from under, T4 two "
+                        "documents giving one number two values. An agent "
+                        "reads these and keeps what is real"})
 
     records = _mistake_records(root)
     if records:
@@ -775,6 +825,22 @@ def repository_memory(root, log, check_dirs=(), probe=None):
             "note": "two agents, one on this tree and one on a copy with "
                     "CLAUDE.md and .claude/ removed — the difference between "
                     "them is the memory. Run /assess with --memory"})
+        # The navigation half abstains; the truth half did not. Reporting the
+        # whole dimension as COULD NOT JUDGE when its cheap half read 31
+        # documents throws away the reading that was actually taken.
+        if truth is not None:
+            proven = len(truth["proven"])
+            head = (f"{proven} reference(s) in its documentation point at "
+                    f"nothing" if proven else
+                    f"every reference in {truth['checked']} document(s) "
+                    f"resolves")
+            return {"n": 4, "name": "Repository Memory",
+                    "question": "Can an agent that has never seen this "
+                                "repository find its way, and is that because "
+                                "of something the repository keeps?",
+                    "state": "measured",
+                    "headline": head + "; the navigation half was not probed",
+                    "rows": rows}
         return {"n": 4, "name": "Repository Memory",
                 "question": "Can an agent that has never seen this repository "
                             "find its way, and is that because of something "
@@ -982,15 +1048,17 @@ def context_economy(root, probe):
 # ---------------------------------------------------------------------------
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
-           memory=None):
-    """`probe` is what `probe_repo.py` found; `memory` is what the two
-    navigation agents came back with, or None when nobody spent them."""
+           memory=None, truth=None):
+    """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
+    read out of the documents, which costs nothing and runs every time; and
+    `memory` is what the two navigation agents came back with, or None when
+    nobody spent them."""
     check_dirs = tuple((probe.get("discipline") or {}).get("check_dirs") or ())
     return [
         controlled_execution(root, probe, blast),
         change_validation(defects, catch, catch_why, ladder),
         reliable_delivery(root, log, check_dirs),
-        repository_memory(root, log, check_dirs, memory),
+        repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe),
     ]
 
