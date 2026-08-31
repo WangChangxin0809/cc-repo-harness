@@ -214,7 +214,7 @@ def case_a_repair_is_found_when_the_subject_is_not_english(t):
     repairs nothing -- and it is the instrument's fault, not the repository's.
     Found on a real subject repository whose 53 commit messages are almost all
     Chinese: the English-only matcher classified one of them."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "tests/test_app.py", "def test_x():\n    assert True\n")
     commit(t, "初始版本")
@@ -483,7 +483,7 @@ CRASHES = "import nonexistent_module_xyz\n"
 
 def dim_repo(t, files=(), hook=None):
     """A committed repository, optionally with one PreToolUse hook wired."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     for rel, body in files:
         put(t, rel, body)
@@ -563,7 +563,7 @@ def case_verification_is_found_where_the_repository_put_it(t):
     This defect was live: a matcher that knew only test-file names read this
     project's own history -- whose checks are called `selftest.py` and live in
     `gates/` -- as 33 code changes out of 33 with nothing behind them."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     # Named so that ONLY its directory makes it verification -- no `test_`,
     # no `check_`, no `selftest`. A matcher that reads file names alone will
@@ -584,7 +584,7 @@ def case_a_test_suite_is_recognised_by_its_name(t):
     """The other half of the mechanism above: a directory nobody would call a
     check directory, recognised because test suites are named from a small and
     stable vocabulary."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "spec/thing.rb", "describe 'x'\n")
     commit(t, "feat: a change, with a spec beside it")
@@ -651,7 +651,7 @@ def case_plugin_tokens_are_not_charged_to_the_repository(t):
 def case_a_place_repaired_twice_is_counted(t):
     """The offline, shared version of noticing a recurrence: it is in the
     history, so it is the same for everyone who clones."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     commit(t, "feat: thing")
     put(t, "app.py", "x = 2\n")
@@ -668,7 +668,7 @@ def case_a_place_repaired_twice_is_counted(t):
 def case_a_record_nobody_reads_is_not_scored_as_learning(t):
     """A write-only record of mistakes is the failure that looks healthiest
     from outside: the file exists, it is long, and nothing has ever read it."""
-    git(["init", "-q"], t)
+    repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "docs/postmortem-outage.md", "we broke it\n")
     commit(t, "init")
