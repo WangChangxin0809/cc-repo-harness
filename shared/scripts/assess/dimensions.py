@@ -973,8 +973,19 @@ def _readers_of(root, records):
 
 # -- 5 -----------------------------------------------------------------------
 
-def context_economy(root, probe):
-    """What does the harness cost per turn, and what can it cost at worst?"""
+def context_economy(root, probe, blast=None, value=None):
+    """What does the harness cost per turn, what at worst -- and on what?
+
+    A token count is a bill with no itemisation. Two repositories with the same
+    thousand-token floor are not in the same position: one spends it on four
+    constraints an agent could not have guessed, the other on forty
+    prohibitions against things nobody was going to do.
+
+    `value` is `value.assess()`'s reading of the floor, and `blast` is
+    dimension 1's, which is what makes the sharpest row here possible: a
+    prohibition against something the repository's hooks **already refuse and
+    were measured refusing** is paying rent on every turn to restate what the
+    machine says better -> 0029"""
     always = probe["always_on_skill_tokens"]
     by_origin = probe.get("skill_tokens_by_origin") or {}
     from_plugins = by_origin.get("plugin", 0)
@@ -1025,6 +1036,46 @@ def context_economy(root, probe):
          "note": f"{len(scoped)} scoped rule(s), {len(nested)} nested "
                  f"CLAUDE.md — this is the escape hatch, not the bill"},
     ]
+    if value:
+        pro, req = value["prohibitions"], value["requirements"]
+        total = pro + req or 1
+        rows.append({
+            "label": "what the floor is spent on",
+            "value": f"{pro} prohibition(s) · {req} requirement(s) · "
+                     f"{value['kinds'].get('statement', 0)} statement(s)",
+            # Not a threshold on prohibitions as such -- some repositories are
+            # dangerous and should be full of them. A floor that is almost
+            # entirely `don't` is usually a list of one-off incidents nobody
+            # deleted, which is worth a look and is not a failure.
+            "flag": "warn" if pro > 3 * req and pro > 8 else "info",
+            "note": "a prohibition earns its place against a mistake somebody "
+                    "actually makes; a requirement is working every time the "
+                    "thing it requires comes up"})
+
+        enforced = value["already_enforced"]
+        if enforced:
+            rows.append({
+                "label": "prohibitions a guard already enforces",
+                "value": f"{len(enforced)} of {pro}",
+                "flag": "warn",
+                "note": "these restate something dimension 1 measured this "
+                        "repository actually refusing — the guard is not "
+                        "optional, does not depend on the agent having read "
+                        "anything, and costs nothing until it fires: "
+                        + "; ".join(f"{h['file']}: {h['text'][:60]}"
+                                    for h in enforced[:2])})
+
+        loaded = value["path_scoped_but_loaded"]
+        if loaded:
+            rows.append({
+                "label": "sentences about one path, paid for on every turn",
+                "value": str(len(loaded)),
+                "flag": "info",
+                "note": "not wrong, misfiled — the same words under a "
+                        "path-scoped rule cost nothing until somebody touches "
+                        "that path: "
+                        + "; ".join(f"{h['about']}" for h in loaded[:4])})
+
     if not entry and not uncond:
         # Zero standing cost and no harness at all are the same measurement.
         # Printed alone, the number reads as praise for the repository that
@@ -1048,7 +1099,7 @@ def context_economy(root, probe):
 # ---------------------------------------------------------------------------
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
-           memory=None, truth=None):
+           memory=None, truth=None, value=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time; and
     `memory` is what the two navigation agents came back with, or None when
@@ -1059,7 +1110,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
         change_validation(defects, catch, catch_why, ladder),
         reliable_delivery(root, log, check_dirs),
         repository_memory(root, log, check_dirs, memory, truth),
-        context_economy(root, probe),
+        context_economy(root, probe, blast, value),
     ]
 
 

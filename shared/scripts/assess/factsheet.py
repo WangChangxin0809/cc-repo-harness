@@ -52,6 +52,7 @@ import catch as catch_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import report as report_mod  # noqa: E402
 import truth as truth_mod  # noqa: E402
+import value as value_mod  # noqa: E402
 from history import commits, mine  # noqa: E402
 
 
@@ -107,7 +108,7 @@ def a_check_file(probe, root):
     return ""
 
 
-def gather(root, full, instances, work):
+def gather(root, full, instances, work, command=None):
     probe_mod = load("probe_repo", os.path.join(PARENT, "probe_repo.py"))
     probe = probe_mod.probe(root) if probe_mod else None
     if probe is None:
@@ -122,6 +123,8 @@ def gather(root, full, instances, work):
 
     r["log"] = commits(root)
     r["truth"] = truth_mod.assess(root)
+    r["value"] = value_mod.assess(
+        root, value_mod.guards_from_blast(r.get("blast")))
     found = mine(root)
     if found is not None:
         r["defects"] = {"replayable": len(
@@ -131,7 +134,8 @@ def gather(root, full, instances, work):
             "shallow": found["shallow"]}
 
     if full:
-        r["catch"], r["catch_why"] = catch_mod.assess(root, instances, work)
+        r["catch"], r["catch_why"] = catch_mod.assess(
+            root, instances, work, command)
     return r
 
 
@@ -179,7 +183,8 @@ def dimensions_of(r, memory=None):
     the truth half in `r["truth"]` costs nothing and is always there."""
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
-                          catch_mod.LADDER, memory, r.get("truth"))
+                          catch_mod.LADDER, memory, r.get("truth"),
+                          r.get("value"))
 
 
 def render_flat(r):
@@ -284,6 +289,11 @@ def main():
                     default=True,
                     help="skip the defect replay (dimension 2 then abstains)")
     ap.add_argument("--instances", type=int, default=3)
+    ap.add_argument("--test-command", default="",
+                    help="how this repository's tests run. The built-in table "
+                         "recognises a handful of conventions and misses most "
+                         "repositories that do not follow one — including this "
+                         "one. An agent that has read the repo can say.")
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
@@ -318,13 +328,16 @@ def preflight(root, a, work):
     is said first, with the command named, rather than explained afterwards in
     a footnote nobody reads."""
     eco, cmd = catch_mod.find(root)
+    if a.test_command:
+        cmd = a.test_command.split()
     ci = catch_mod.ci_command(root)
     lines = [f"  assessing {root}",
              f"  replaying up to {a.instances} of this repository's own "
              f"defects, in a clone under {work}"]
     lines.append("  it will run: " + (" ".join(cmd) if cmd else
                                       "nothing — no runnable test command "
-                                      "found, so dimension 2 will abstain"))
+                                      "found. Pass --test-command, or "
+                                      "dimension 2 will abstain"))
     if ci:
         lines.append("  and its CI entry point: " + " ".join(ci))
     lines.append("  --no-full skips all of it")
@@ -334,7 +347,8 @@ def preflight(root, a, work):
 def _run(a, root, work):
     if a.full:
         preflight(root, a, work)
-    r = gather(root, a.full, a.instances, work)
+    r = gather(root, a.full, a.instances, work,
+               a.test_command or None)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
               file=sys.stderr)

@@ -41,6 +41,7 @@ import dimensions as dim_mod       # noqa: E402
 import history as history_mod      # noqa: E402
 import memory as memory_mod        # noqa: E402
 import truth as truth_mod          # noqa: E402
+import value as value_mod          # noqa: E402
 import arid as arid_mod            # noqa: E402
 import judge as judge_mod          # noqa: E402
 import mutate as mutate_mod        # noqa: E402
@@ -1394,6 +1395,205 @@ def case_an_unanswered_mutant_moves_the_score_neither_way(t):
     return None
 
 
+# --------------------------------------------------------------------------
+# value: what the standing context is spent ON
+# --------------------------------------------------------------------------
+
+def case_a_supplied_test_command_is_used(t):
+    """The ecosystem table is a fast path, not the only path.
+
+    It knows a handful of conventions -- a `tests/` directory plus a packaging
+    marker, a `package.json`, a `Cargo.toml`. Measured: of five real Python
+    repositories cloned to test the mutation work, it produced a green suite
+    for **one**. This repository is another miss; its suites are `selftest.py`
+    scripts, so dimension 2 abstained on its own author while a perfectly good
+    suite sat in the tree.
+
+    Unit tests may also simply not exist, and reporting that is correct. What
+    must not happen is abstaining because a table did not recognise a
+    convention, when an agent could have read the CI file and said."""
+    repo(t)
+    put(t, "app/calc.py", "def add(a, b):\n    return a - b\n")
+    # Named test-shaped so the history miner recognises the fix as one that
+    # touched a test; kept OUT of a `tests/` directory so the ecosystem table
+    # still cannot guess how to run it. The fixture has to defeat exactly one
+    # of the two, or it is not testing what it says.
+    put(t, "test_calc.py",
+        "import sys, os\n"
+        "sys.path.insert(0, os.path.dirname(__file__))\n"
+        "from app.calc import add\n"
+        "sys.exit(0 if add(2, 3) == 5 else 1)\n")
+    put(t, "app/__init__.py", "")
+    git(["add", "-A"], t)
+    git(["commit", "-q", "-m", "feat: a calculator"], t)
+    put(t, "app/calc.py", "def add(a, b):\n    return a + b\n")
+    put(t, "test_calc.py",
+        open(os.path.join(t, "test_calc.py")).read()
+        + "sys.exit(0 if add(1, 1) == 2 else 1)\n")
+    git(["add", "-A"], t)
+    git(["commit", "-q", "-m", "fix: add was subtracting"], t)
+
+    # The table cannot see this suite: no tests/ directory, no packaging marker.
+    _eco, guessed = catch_mod.find(t)
+    if guessed is not None:
+        return (f"the fixture was supposed to defeat the ecosystem table and "
+                f"did not: it guessed {guessed}")
+
+    work = os.path.join(t, "..", "work-" + os.path.basename(t))
+    r, why = catch_mod.assess(t, 1, work)
+    if r is not None:
+        return "the table found a command it should not have"
+    if "--test-command" not in why:
+        return (f"the abstention does not mention how to supply a command: "
+                f"{why!r}")
+
+    r, why = catch_mod.assess(t, 1, work + "-2",
+                              command=[sys.executable, "test_calc.py"])
+    if r is None:
+        return f"a supplied test command was not used: {why}"
+    if not r["rows"]:
+        return "the command was accepted and nothing was replayed"
+    return None
+
+
+def case_a_prohibition_a_guard_enforces_is_named(t):
+    """The sharpest row on dimension 5, and it needs dimension 1 to exist.
+
+    A rule saying *never force-push to main* in a repository whose hooks were
+    **measured refusing** force-pushes to main is paying tokens on every turn
+    to restate a thing that cannot happen. The guard is strictly better: not
+    optional, does not depend on the agent having read anything, costs nothing
+    until it fires.
+
+    The cross-reference is to what dimension 1 *measured*, not to what the
+    settings claim. A prohibition restating a guard that does not fire is the
+    one sentence on the floor that is definitely earning its place."""
+    repo(t)
+    put(t, "CLAUDE.md",
+        "# Rules\n\n"
+        "Never force-push to main. It overwrites other people's commits.\n\n"
+        "Always run the tests before you open a pull request.\n\n"
+        "The billing service talks to the ledger over gRPC.\n")
+    stopped = {"rows": [{"probe": "force-push the default branch",
+                         "stopped": True, "false_block": False}]}
+    guards = value_mod.guards_from_blast(stopped)
+    if "force push" not in guards:
+        return f"dimension 1's refusal did not map to a rule topic: {guards}"
+    r = value_mod.assess(t, guards)
+    if not r["already_enforced"]:
+        return ("a prohibition against the exact thing the hooks were measured "
+                "refusing was not reported")
+
+    # And a guard that does NOT fire must leave the sentence alone.
+    open_ = {"rows": [{"probe": "force-push the default branch",
+                       "stopped": False, "false_block": False}]}
+    r2 = value_mod.assess(t, value_mod.guards_from_blast(open_))
+    if r2["already_enforced"]:
+        return ("a prohibition was called redundant while the guard it "
+                "restates does not actually refuse anything")
+
+    # A guard that refuses the legitimate action too has discriminated nothing
+    # and must not count as enforcement either.
+    false = {"rows": [{"probe": "force-push the default branch",
+                       "stopped": True, "false_block": True}]}
+    if value_mod.guards_from_blast(false):
+        return "a guard that refuses everything was counted as enforcement"
+    return None
+
+
+def case_prohibitions_and_requirements_are_counted_apart(t):
+    """Both are legitimate; they are not doing the same work.
+
+    A prohibition earns its place against a mistake somebody actually makes. A
+    requirement is working every time the thing it requires comes up. A floor
+    that is nine-tenths `don't` is usually a list of one-off incidents nobody
+    deleted, and a single token count cannot see the difference."""
+    repo(t)
+    put(t, "CLAUDE.md",
+        "Never commit generated files.\n\n"
+        "Do not edit the vendored code.\n\n"
+        "Always regenerate the client after changing the schema.\n\n"
+        "The parser lives in src/parse and is generated from grammar.ebnf.\n")
+    r = value_mod.assess(t, ())
+    if r is None:
+        return "nothing was read from a CLAUDE.md that is plainly there"
+    if r["prohibitions"] < 2:
+        return f"two prohibitions were not counted: {r['kinds']}"
+    if r["requirements"] < 1:
+        return f"the requirement was not counted: {r['kinds']}"
+    if r["kinds"].get("statement", 0) < 1:
+        return ("the plain statement of fact was classified as an "
+                "instruction — most of a good CLAUDE.md is neither")
+    return None
+
+
+def case_a_command_in_a_fence_is_not_a_prohibition(t):
+    """A fenced block shows what to do; it does not instruct.
+
+    A document demonstrating `git push --force` inside a code block would
+    otherwise be classified as being made of prohibitions, which turns every
+    well-written guide into a warning."""
+    repo(t)
+    put(t, "CLAUDE.md",
+        "# How to release\n\n"
+        "```bash\n"
+        "# never do this by hand, and do not skip the checks\n"
+        "git push --force origin main\n"
+        "```\n\n"
+        "Run the release script.\n")
+    r = value_mod.assess(t, ())
+    if r is None:
+        return "nothing was read"
+    for row in value_mod.classify(open(os.path.join(t, "CLAUDE.md")).read()):
+        if "--force" in row["text"] or "never do this by hand" in row["text"]:
+            return f"a fenced line was classified as prose: {row['text']!r}"
+    return None
+
+
+def case_a_path_scoped_sentence_on_the_floor_is_flagged(t):
+    """Not wrong — misfiled, and the distinction is the whole row.
+
+    A paragraph about the frontend build, paid for on every turn including the
+    ones that never leave the database layer. The same words under a
+    path-scoped rule cost nothing until somebody touches that path."""
+    repo(t)
+    put(t, "CLAUDE.md",
+        "In `frontend/src/` the components must be function components.\n\n"
+        "Write commit messages in the imperative mood.\n")
+    r = value_mod.assess(t, ())
+    if not r["path_scoped_but_loaded"]:
+        return "a sentence about one directory was not flagged as misfiled"
+    hit = r["path_scoped_but_loaded"][0]
+    if "frontend" not in hit["about"]:
+        return f"the wrong path was named: {hit['about']!r}"
+    if len(r["path_scoped_but_loaded"]) > 1:
+        return ("the general rule about commit messages was also flagged — "
+                "a row that fires on everything says nothing")
+    return None
+
+
+def case_a_scoped_rule_file_is_not_on_the_floor(t):
+    """A rule with a path glob is parked, and parked is not the bill.
+
+    This is 0024's whole point measured from the other side: text that arrives
+    only when asked for is not what dimension 5 is about, and counting it would
+    make moving something off the floor look like no change at all."""
+    repo(t)
+    put(t, "CLAUDE.md", "Always write a test.\n")
+    put(t, ".claude/rules/frontend.md",
+        "---\npaths: [\"frontend/**\"]\n---\n"
+        "Never use class components. Do not import from src/legacy.\n")
+    r = value_mod.assess(t, ())
+    if any("frontend.md" in f for f in r["files"]):
+        return ("a path-scoped rule was charged to the floor — it arrives "
+                "only when somebody touches that path")
+    put(t, ".claude/rules/always.md", "Never commit secrets.\n")
+    r2 = value_mod.assess(t, ())
+    if not any("always.md" in f for f in r2["files"]):
+        return "an unconditional rule was NOT charged to the floor"
+    return None
+
+
 def case_plugin_tokens_are_not_charged_to_the_repository(t):
     """Skill descriptions installed on this machine are real tokens and are
     reported -- but a repository judged on them is being scored for what
@@ -1984,6 +2184,18 @@ CASES = [
      case_productivity_is_reported_with_its_judge_named),
     ("an unanswered mutant moves the score neither way",
      case_an_unanswered_mutant_moves_the_score_neither_way),
+    ("a supplied test command is used when the table cannot guess",
+     case_a_supplied_test_command_is_used),
+    ("a prohibition a guard already enforces is named",
+     case_a_prohibition_a_guard_enforces_is_named),
+    ("prohibitions and requirements are counted apart",
+     case_prohibitions_and_requirements_are_counted_apart),
+    ("a command in a fence is not a prohibition",
+     case_a_command_in_a_fence_is_not_a_prohibition),
+    ("a path-scoped sentence on the floor is flagged as misfiled",
+     case_a_path_scoped_sentence_on_the_floor_is_flagged),
+    ("a scoped rule file is parked, not on the floor",
+     case_a_scoped_rule_file_is_not_on_the_floor),
     ("an installed plugin's tokens are not charged to the repository",
      case_plugin_tokens_are_not_charged_to_the_repository),
     ("the probe cannot reach the history it is being tested on",

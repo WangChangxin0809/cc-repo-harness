@@ -339,7 +339,21 @@ def false_block(repo, row, pre, post):
     return ""
 
 
-def assess(root, instances, work):
+def assess(root, instances, work, command=None):
+    """`command` is how this repository's tests run, when somebody has read it.
+
+    The ecosystem table is a fast path that knows a handful of conventions --
+    a `tests/` directory plus a packaging marker, a `package.json`, a
+    `Cargo.toml`. A repository it has never seen will often match none of
+    them, and the honest measurement of how often is: of five real Python
+    repositories cloned to test the mutation work, the table produced a green
+    suite for **one**. This repository is another miss; its suites are
+    `selftest.py` scripts, so dimension 2 abstained on its own author.
+
+    Unit tests may also simply not exist, and that is a finding rather than a
+    failure. What must not happen is abstaining because a table did not
+    recognise a convention, while the repository has a perfectly good suite an
+    agent could have found by reading its CI file in one call."""
     found = mine(root)
     if found is None or found["shallow"]:
         return None, ("cannot judge: no history to mine — a shallow clone has "
@@ -351,10 +365,18 @@ def assess(root, instances, work):
 
     repo = bench(root, work)
     eco, cmd = find(repo)
+    if command:
+        cmd = command if isinstance(command, list) else command.split()
+        eco = eco or type("Given", (), {
+            "name": "given", "tool": None,
+            "install": staticmethod(lambda p: []),
+            "scope": staticmethod(lambda c, t: None)})()
     if cmd is None:
         return None, ("cannot judge: no runnable test command"
-                      + (f" ({eco.name} needs {eco.tool}, which is not on PATH)"
-                         if eco else ""))
+                      + (f" ({eco.name} needs {eco.tool}, which is not on "
+                         f"PATH)" if eco and eco.tool else "")
+                      + " — pass --test-command if this repository has a "
+                        "suite the table does not recognise")
     for step in eco.install(repo):
         sh(step, repo, 900)
     pre, post = wired(root, "PreToolUse"), wired(root, "PostToolUse")
