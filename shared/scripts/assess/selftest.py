@@ -206,6 +206,45 @@ def case_a_fix_with_a_test_is_an_instance(t):
     return ""
 
 
+def case_source_files_named_in_another_language_are_not_invisible(t):
+    """git C-quotes non-ASCII paths unless `core.quotePath=false`.
+
+    `git ls-files` returns `"docs/\\344\\270\\255..."`, quotes included, and
+    `git log --name-only` does the same. Every extension test then fails, so a
+    repository whose source files are named in its own language goes missing
+    from the file counts and from dimensions 2, 3 and 4 -- silently, and worst
+    for exactly the repositories this instrument is least likely to have been
+    tried on."""
+    repo(t)
+    put(t, "后端/服务.py", "x = 1\n")
+    put(t, "tests/test_服务.py", "def test_x():\n    assert True\n")
+    commit(t, "init")
+    put(t, "后端/服务.py", "x = 2\n")
+    put(t, "tests/test_服务.py", "def test_x():\n    assert 1\n")
+    commit(t, "fix: 服务算错了")
+
+    log = history_mod.commits(t)
+    if log is None:
+        return "the history could not be read at all"
+    paths = [p for _sha, _subj, ps in log for p in ps]
+    if any(p.startswith('"') for p in paths):
+        return f"paths came back C-quoted: {[p for p in paths if p[0] == chr(34)][:2]}"
+    if "后端/服务.py" not in paths:
+        return f"the Chinese-named source file is missing from the log: {paths}"
+
+    probe = load_probe().probe(t)
+    if probe["source_files"] < 1:
+        return (f"a repository whose only source file is named in Chinese "
+                f"counted {probe['source_files']} source files")
+
+    d3 = dims_of(t, with_blast=False)[3]
+    bare = [r for r in d3["rows"] if "verified nothing" in r["label"]][0]
+    if not bare["value"].startswith("0/"):
+        return (f"a Chinese-named change with a test beside it counted as "
+                f"unverified: {bare['value']}")
+    return None
+
+
 def case_a_repair_is_found_when_the_subject_is_not_english(t):
     """A defect miner that only reads English reports a repository with years
     of history as having nothing to replay.
@@ -580,6 +619,72 @@ def case_verification_is_found_where_the_repository_put_it(t):
     return None
 
 
+def case_a_check_only_its_author_can_run_is_not_coverage(t):
+    """A check that hardcodes a path into one person's home directory is inert
+    for everybody else, while still looking from outside like coverage.
+
+    Found in the wild by reading, not by measuring: a screenshot check whose
+    Chrome path was `/home/<author>/.cache/ms-playwright/...`. It had an
+    incident behind it and was counted as a point in the repository's favour.
+    Nothing could run it."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "scripts/viewcheck.mjs",
+        "const CHROME = '/home/nobody-at-all-xyz/.cache/chrome'\n")
+    commit(t, "init")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    hit = [r for r in rows if "author" in r["label"]]
+    if not hit:
+        return "a check hardcoding another person's home directory passed"
+    if hit[0]["flag"] != "bad":
+        return f"flagged {hit[0]['flag']!r}, not 'bad'"
+
+    # A path that DOES resolve here is somebody's working setup, not a defect.
+    # It has to match the same shape -- a directory INSIDE a home directory --
+    # or this half passes because nothing matched, not because the check held.
+    real = os.path.expanduser("~/.claude")
+    if not os.path.isdir(real):
+        real = os.path.join(os.path.expanduser("~"), os.listdir(
+            os.path.expanduser("~"))[0])
+    put(t, "scripts/viewcheck.mjs", f"const CHROME = {real!r}\n")
+    commit(t, "chore: point it somewhere real")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    if [r for r in rows if "author" in r["label"]]:
+        return "a hardcoded path that exists on this machine was called dead"
+    return None
+
+
+def case_an_unverified_change_to_the_machinery_is_singled_out(t):
+    """Most unverified changes are not worth anyone's attention. A change to
+    the thing that does the verifying is, because when it breaks, what would
+    have caught the mistake is what changed."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "tests/test_app.py", "def test_x():\n    assert True\n")
+    commit(t, "init")
+    put(t, "app.py", "x = 2\n")
+    put(t, ".github/workflows/ci.yml", "on: push\n")
+    commit(t, "ci: change the workflow and nothing else")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    hit = [r for r in rows if "machinery" in r["label"]]
+    if not hit:
+        return "an unverified CI change was not singled out"
+
+    # An ordinary unverified change must not land in that row.
+    repo2 = t + "-plain"
+    os.makedirs(repo2, exist_ok=True)
+    repo(repo2)
+    put(repo2, "app.py", "x = 1\n")
+    put(repo2, "tests/test_app.py", "def test_x():\n    assert True\n")
+    commit(repo2, "init")
+    put(repo2, "app.py", "x = 2\n")
+    commit(repo2, "feat: a small change with no test")
+    rows = dims_of(repo2, with_blast=False)[3]["rows"]
+    if [r for r in rows if "machinery" in r["label"]]:
+        return "an ordinary unverified change was reported as machinery"
+    return None
+
+
 def case_a_test_suite_is_recognised_by_its_name(t):
     """The other half of the mechanism above: a directory nobody would call a
     check directory, recognised because test suites are named from a small and
@@ -736,6 +841,8 @@ CASES = [
      case_plugin_skill_cost_is_counted),
     ("a fix with a test is a replayable instance",
      case_a_fix_with_a_test_is_an_instance),
+    ("source files named in another language are not invisible",
+     case_source_files_named_in_another_language_are_not_invisible),
     ("a repair is found when the commit subject is not English",
      case_a_repair_is_found_when_the_subject_is_not_english),
     ("a documentation-only fix is not a code defect",
@@ -772,6 +879,10 @@ CASES = [
      case_an_unconditional_rule_is_not_reported_as_undelivered),
     ("verification is found where the repository put it",
      case_verification_is_found_where_the_repository_put_it),
+    ("a check only its author can run is not counted as coverage",
+     case_a_check_only_its_author_can_run_is_not_coverage),
+    ("an unverified change to the machinery itself is singled out",
+     case_an_unverified_change_to_the_machinery_is_singled_out),
     ("a test suite is recognised by its name, wherever it lives",
      case_a_test_suite_is_recognised_by_its_name),
     ("the instrument leaves nothing behind in the repository it read",

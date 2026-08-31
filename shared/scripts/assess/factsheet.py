@@ -85,7 +85,8 @@ def drift_pairs(root):
 
 
 def a_source_file(root):
-    out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True,
+    out = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files"],
+                         cwd=root, capture_output=True,
                          text=True, timeout=120)
     for f in out.stdout.split():
         if f.endswith((".py", ".ts", ".js", ".go", ".rs", ".rb", ".java")):
