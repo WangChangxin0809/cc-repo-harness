@@ -596,6 +596,45 @@ def case_a_test_suite_is_recognised_by_its_name(t):
     return None
 
 
+def case_the_instrument_leaves_nothing_in_the_repository(t):
+    """Assessing must not change the thing being assessed.
+
+    `factsheet.py --full` defaulted its bench directory to `<root>/.assess`
+    and left 2.6 MB of clone untracked in a repository whose own page says
+    nothing in it was executed. Found by pointing the assessor at somebody
+    else's repository and reading what it complained about afterwards."""
+    repo(t)
+    put(t, "app.py", "def double(n):\n    return n + n\n")
+    put(t, "tests/test_app.py",
+        "from app import double\n\n\ndef test_double():\n"
+        "    assert double(2) == 4\n")
+    commit(t, "feat: double")
+    # A replayable defect, or the replay abstains before it ever builds the
+    # bench directory this case exists to look for.
+    put(t, "app.py", "def double(n):\n    return n * 2\n")
+    put(t, "tests/test_app.py",
+        "from app import double\n\n\ndef test_double():\n"
+        "    assert double(3) == 6\n")
+    commit(t, "fix: double was addition, which is only right for 2")
+    before = sorted(os.listdir(t))
+
+    out = subprocess.run(
+        [sys.executable, os.path.join(HERE, "factsheet.py"), "--root", t,
+         "--full"], capture_output=True, text=True, timeout=900)
+    if out.returncode not in (0, 2):
+        return f"factsheet exited {out.returncode}: {out.stderr[-200:]}"
+
+    left = [n for n in sorted(os.listdir(t)) if n not in before]
+    if left:
+        return (f"the assessment left {left} behind in the repository it was "
+                f"only supposed to read")
+
+    dirty = git(["status", "--porcelain"], t).stdout.strip()
+    if dirty:
+        return f"the assessment left the working tree dirty: {dirty[:120]}"
+    return None
+
+
 def case_a_replay_that_could_not_run_is_not_a_clean_sheet(t):
     """A ladder of zeros is not a perfect score.
 
@@ -735,6 +774,8 @@ CASES = [
      case_verification_is_found_where_the_repository_put_it),
     ("a test suite is recognised by its name, wherever it lives",
      case_a_test_suite_is_recognised_by_its_name),
+    ("the instrument leaves nothing behind in the repository it read",
+     case_the_instrument_leaves_nothing_in_the_repository),
     ("a replay that could not run is not scored as a clean sheet",
      case_a_replay_that_could_not_run_is_not_a_clean_sheet),
     ("an installed plugin's tokens are not charged to the repository",

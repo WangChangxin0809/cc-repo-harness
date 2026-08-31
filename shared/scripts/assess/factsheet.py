@@ -36,8 +36,10 @@ import argparse
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(HERE)
@@ -281,7 +283,20 @@ def main():
     a = ap.parse_args()
 
     root = os.path.abspath(a.root)
-    work = a.work or os.path.join(root, ".assess")
+    # Outside the subject repository, and removed afterwards. `catch.py` gets
+    # this right in its own `main`; defaulting to `<root>/.assess` here undid
+    # it, and left 2.6 MB of bench clone untracked in a repository this tool
+    # promises only to read. An instrument that litters its subject has changed
+    # the thing it was measuring.
+    work = a.work or tempfile.mkdtemp(prefix="assess-")
+    try:
+        return _run(a, root, work)
+    finally:
+        if not a.work:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+def _run(a, root, work):
     r = gather(root, a.full, a.instances, work)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
