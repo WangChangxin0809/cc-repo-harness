@@ -133,5 +133,5 @@ plugin must not change what a repository does.
 | Scoping to the tests a commit touched recovers instances whole-suite greenness discards | **measured**: 12 → 26 on the same candidates |
 | A repository with tests and no hooks catches its defects at L2 | **measured**, and a selftest case |
 | Blanket refusal registers as a false block, targeted refusal does not | **measured**, two selftest cases |
-| Four of five dimensions need no model | true of what is built; dimension 4 is not built |
+| Four of five dimensions need no model | true of what is built; dimension 4 is not built — **it is now, and it works the way this row predicted** -> 0025 |
 | Repositories differ enough that resemblance-scoring would misjudge them | judgement, supported by the corpus survey |
