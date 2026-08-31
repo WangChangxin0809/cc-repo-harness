@@ -24,6 +24,25 @@ repository's own history and is the only thing that fills in dimension 2. It
 takes minutes, prints what it is about to run before running it, and may
 abstain — that is fine.
 
+**If it says no test command was found, that is your job, not a verdict.** The
+ecosystem table knows a handful of conventions and misses most repositories.
+Open the CI workflow, the `Makefile`, the `contributing` guide — find how this
+project actually runs its tests, and pass it back:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<what you found>" \
+        --html assessment.html --json assessment.json
+```
+
+Two outcomes are different and must not be reported the same way. *This
+repository has no tests* is a real finding, and one of the more important ones
+this page can produce. *A table did not recognise this repository's convention*
+is a fact about the table. Only report the first after you have looked.
+
+And do not write tests to make the number better. If a suite exists, run it. If
+none exists, the honest page says so.
+
 Read what it printed before you read anything else. **Do not recompute what it
 gave you.** You cannot count tokens, you will not give the same figure twice,
 and if the numbers come from you then re-measuring later compares two opinions

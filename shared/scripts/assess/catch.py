@@ -453,12 +453,17 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--instances", type=int, default=3)
     ap.add_argument("--work", default="")
+    ap.add_argument("--test-command", default="",
+                    help="how to run this repository's tests, when the "
+                         "ecosystem table does not recognise it. The table is "
+                         "a fast path, not the only one.")
     ap.add_argument("--json", default="")
     a = ap.parse_args()
 
     work = a.work or tempfile.mkdtemp(prefix="assess-catch-")
     try:
-        r, why = assess(os.path.abspath(a.root), a.instances, work)
+        r, why = assess(os.path.abspath(a.root), a.instances, work,
+                        a.test_command or None)
         if r is None:
             print(why, file=sys.stderr)
             return 2

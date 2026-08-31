@@ -1,6 +1,6 @@
 ---
 description: Measure this repository as a place for an agent to work — five dimensions, one page, nothing changed
-argument-hint: "[path] [--full]"
+argument-hint: "[path] [--no-full] [--test-command CMD]"
 allowed-tools: Bash, Read, Grep, Glob, Task
 ---
 
@@ -32,10 +32,15 @@ score with `--score --with-answers … --without-answers …`. The difference
 between the runs is the measurement; the `with` run alone is not a score.
 Without this, dimension 4 abstains, which is a result and not a zero.
 
-Pass `--full` as well if the caller asked for it, or if the repository's test
-toolchain is present. It replays real defects from the repository's own history
-to find how late each is caught — minutes, and it runs that repository's tests.
-It may abstain, which is a result and not a zero.
+The replay runs by default: it takes real defects from the repository's own
+history and finds how late each one is caught. It costs minutes and it runs
+that repository's tests, so the command is printed before it runs. Pass
+`--no-full` only if the caller asked to skip it.
+
+If the page says no test command was found, that is a fact about the ecosystem
+table, not about the repository. Read the CI file yourself and pass what you
+find as `--test-command`. *No tests exist* is a real finding and must still be
+reported as one; *a table did not recognise this convention* is not.
 
 Exit 2 means COULD NOT JUDGE. Say so and stop.
 

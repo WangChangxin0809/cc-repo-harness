@@ -82,14 +82,15 @@ criterion; if the criterion cannot be checked, the step is not done.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo>
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --full
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --no-full
 ```
 
 One page, every line measured: the standing per-turn cost and where it comes
 from, which of the seven moments are wired, which irreversible actions are
 refused *before they happen* — and whether any legitimate action is refused
 along with them — how many defects the repository's own history can supply, and,
-with `--full`, how late those defects are actually caught. A repository whose
+how late those defects are actually caught. `--no-full` is the second line
+above: it skips the replay, which is the only slow part. A repository whose
 tests will not run here **abstains**; it does not score zero.
 
 Then you read, **holding those numbers rather than producing them**. A model
@@ -244,7 +245,7 @@ under injection.
 ### 5. Re-measure, and close the rows
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo> --full
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py --root <repo>
 ```
 
 Same command, same units. Every `measured` row on the checklist now closes or
