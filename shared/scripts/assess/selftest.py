@@ -631,13 +631,29 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
     put(t, "app.py", "x = 1\n")
     put(t, "scripts/viewcheck.mjs",
         "const CHROME = '/home/nobody-at-all-xyz/.cache/chrome'\n")
+    # The second shape, and the one a home-directory matcher misses. Both were
+    # in one real repository: a Linux script and a Windows script, so no single
+    # machine could run both, while from outside it looked like coverage.
+    put(t, "scripts/shot.mjs",
+        "const EDGE = 'C:\\\\Program Files (x86)\\\\Edge\\\\msedge.exe'\n")
     commit(t, "init")
     rows = dims_of(t, with_blast=False)[3]["rows"]
-    hit = [r for r in rows if "author" in r["label"]]
+    hit = [r for r in rows if "one machine" in r["label"]]
     if not hit:
-        return "a check hardcoding another person's home directory passed"
+        return "a check hardcoding a path only one machine has passed"
     if hit[0]["flag"] != "bad":
         return f"flagged {hit[0]['flag']!r}, not 'bad'"
+    if hit[0]["value"] != "2":
+        return (f"found {hit[0]['value']} of the two pinned paths — a home "
+                f"directory and an install root are the same defect")
+
+    # An absolute path that is an argument, not an installed binary, is fine.
+    put(t, "scripts/out.sh", "OUT='/tmp/shot.png'\n")
+    commit(t, "chore: an output path")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    again = [r for r in rows if "one machine" in r["label"]]
+    if again and again[0]["value"] != "2":
+        return f"an ordinary /tmp output path was counted: {again[0]['value']}"
 
     # A path that DOES resolve here is somebody's working setup, not a defect.
     # It has to match the same shape -- a directory INSIDE a home directory --
@@ -648,9 +664,11 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
             os.path.expanduser("~"))[0])
     put(t, "scripts/viewcheck.mjs", f"const CHROME = {real!r}\n")
     commit(t, "chore: point it somewhere real")
+    os.remove(os.path.join(t, "scripts", "shot.mjs"))
+    commit(t, "chore: drop the windows one")
     rows = dims_of(t, with_blast=False)[3]["rows"]
-    if [r for r in rows if "author" in r["label"]]:
-        return "a hardcoded path that exists on this machine was called dead"
+    if [r for r in rows if "one machine" in r["label"]]:
+        return "a pinned path that exists on this machine was called dead"
     return None
 
 
@@ -879,7 +897,7 @@ CASES = [
      case_an_unconditional_rule_is_not_reported_as_undelivered),
     ("verification is found where the repository put it",
      case_verification_is_found_where_the_repository_put_it),
-    ("a check only its author can run is not counted as coverage",
+    ("a check only one machine can run is not counted as coverage",
      case_a_check_only_its_author_can_run_is_not_coverage),
     ("an unverified change to the machinery itself is singled out",
      case_an_unverified_change_to_the_machinery_is_singled_out),

@@ -66,15 +66,25 @@ VERIFIES = re.compile(r"(^|/)(tests?|spec|specs|__tests__|e2e)(/|$)"
                       r"|(^|/)(test_|conftest|selftest)"
                       r"|(_test|\.test|\.spec|_spec|_selftest)\.[a-z]+$", re.I)
 
-# An absolute path into somebody's home directory, hardcoded in something that
-# is supposed to run. Found in the wild: a screenshot check whose Chrome path
-# was `/home/<author>/.cache/ms-playwright/...`, which made it inert for every
-# person but its author while still looking, from the outside, like a check the
-# repository had. Windows and macOS spellings included because the repository
-# being read is not necessarily written on the machine reading it.
-HOME_PATH = re.compile(
+# An absolute path pinned to one machine, hardcoded in something that is
+# supposed to run. Two shapes, and the second was missed until an agent read
+# the files this regex had already scored:
+#
+#   a home directory   /home/<author>/.cache/ms-playwright/.../chrome
+#   an install root    C:\Program Files (x86)\Microsoft\Edge\...\msedge.exe
+#
+# Both were in the same repository -- one script assuming Linux, the other
+# assuming Windows, so no single machine could run both, while from outside the
+# repository looked like it had viewport coverage.
+#
+# Deliberately not "any absolute path": `/tmp/shot.png` as an output argument is
+# fine, and flagging it would make the row noise. The list is the places
+# software gets installed per-machine, and nothing else.
+PINNED_PATH = re.compile(
     r"""['"](/home/[^/'"]+/[^'"]*|/Users/[^/'"]+/[^'"]*"""
-    r"""|[A-Za-z]:\\Users\\[^\\'"]+\\[^'"]*)['"]""")
+    r"""|/Applications/[^'"]*|/opt/[^'"]*"""
+    r"""|[A-Za-z]:\\{1,2}Users\\{1,2}[^\\'"]+[^'"]*"""
+    r"""|[A-Za-z]:\\{1,2}Program Files[^'"]*)['"]""")
 
 RUNNABLE_EXT = (".py", ".js", ".mjs", ".cjs", ".ts", ".sh", ".bash", ".rb",
                 ".pl", ".ps1")
@@ -355,13 +365,13 @@ def reliable_delivery(root, log, check_dirs=()):
     stranded = _stranded_checks(root, check_dirs)
     if stranded:
         rows.append({
-            "label": "checks only their author can run",
+            "label": "checks only one machine can run",
             "value": str(len(stranded)),
             "flag": "bad",
             "note": "; ".join(f"{f} hardcodes {p}" for f, p in stranded[:2])
-                    + " — the path does not exist on this machine, so the "
-                      "check is inert for everyone but whoever wrote it, "
-                      "while still looking from outside like coverage"})
+                    + " — absent here, so the check is inert for everyone but "
+                      "whoever set that machine up, while still looking from "
+                      "outside like coverage"})
 
     if log is None:
         rows.append({"label": "changes that verified nothing", "value": "—",
@@ -405,7 +415,7 @@ def reliable_delivery(root, log, check_dirs=()):
 
 
 def _stranded_checks(root, check_dirs):
-    """Checks that hardcode a path into one person's home directory.
+    """Checks that hardcode a path only one machine has.
 
     Only reported when the path is absent here: on the author's own machine it
     resolves, and calling their working setup broken would be the instrument
@@ -427,8 +437,8 @@ def _stranded_checks(root, check_dirs):
                         body = fh.read(200000)
                 except OSError:
                     continue
-                for m in HOME_PATH.finditer(body):
-                    hit = m.group(1)
+                for m in PINNED_PATH.finditer(body):
+                    hit = m.group(1).replace("\\\\", "\\")
                     if not os.path.exists(hit):
                         out.append((os.path.relpath(full, root), hit))
                         break
