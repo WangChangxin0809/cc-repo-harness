@@ -111,7 +111,7 @@ def sh(args, cwd=None):
 
 
 def tracked(root):
-    out = sh(["git", "ls-files"], root)
+    out = sh(["git", "-c", "core.quotePath=false", "ls-files"], root)
     return out.stdout.split() if out.returncode == 0 else None
 
 

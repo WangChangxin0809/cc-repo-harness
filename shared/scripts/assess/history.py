@@ -105,8 +105,8 @@ def is_source(path):
 
 def commits(root):
     """Every non-merge commit as (sha, subject, [paths]), newest first."""
-    raw = sh(["git", "log", "--no-merges", "--name-only",
-              "--format=%x01%H%x00%s"], root)
+    raw = sh(["git", "-c", "core.quotePath=false", "log", "--no-merges",
+              "--name-only", "--format=%x01%H%x00%s"], root)
     if raw is None:
         return None
     out = []

@@ -66,6 +66,28 @@ VERIFIES = re.compile(r"(^|/)(tests?|spec|specs|__tests__|e2e)(/|$)"
                       r"|(^|/)(test_|conftest|selftest)"
                       r"|(_test|\.test|\.spec|_spec|_selftest)\.[a-z]+$", re.I)
 
+# An absolute path into somebody's home directory, hardcoded in something that
+# is supposed to run. Found in the wild: a screenshot check whose Chrome path
+# was `/home/<author>/.cache/ms-playwright/...`, which made it inert for every
+# person but its author while still looking, from the outside, like a check the
+# repository had. Windows and macOS spellings included because the repository
+# being read is not necessarily written on the machine reading it.
+HOME_PATH = re.compile(
+    r"""['"](/home/[^/'"]+/[^'"]*|/Users/[^/'"]+/[^'"]*"""
+    r"""|[A-Za-z]:\\Users\\[^\\'"]+\\[^'"]*)['"]""")
+
+RUNNABLE_EXT = (".py", ".js", ".mjs", ".cjs", ".ts", ".sh", ".bash", ".rb",
+                ".pl", ".ps1")
+
+# Rare, and load-bearing: when one of these changes and nothing verifies it,
+# the thing that would have caught the mistake is the thing that changed.
+CRITICAL_PATH = re.compile(
+    r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)Jenkinsfile$"
+    r"|(^|/)(Dockerfile|docker-compose[^/]*\.ya?ml)$"
+    r"|(^|/)(Makefile|justfile|noxfile\.py|tox\.ini)$"
+    r"|(^|/)(pyproject\.toml|package\.json|go\.mod|Cargo\.toml)$"
+    r"|(^|/)\.pre-commit-config\.ya?ml$|(^|/)requirements[^/]*\.txt$", re.I)
+
 # One command that returns a verdict. Any of these counts; the name is not the
 # point, the existence of something runnable is.
 VERDICT_FILES = (
@@ -330,6 +352,17 @@ def reliable_delivery(root, log, check_dirs=()):
                 "with no runnable verdict, whether a change is accepted "
                 "depends on who happened to be looking"})
 
+    stranded = _stranded_checks(root, check_dirs)
+    if stranded:
+        rows.append({
+            "label": "checks only their author can run",
+            "value": str(len(stranded)),
+            "flag": "bad",
+            "note": "; ".join(f"{f} hardcodes {p}" for f, p in stranded[:2])
+                    + " — the path does not exist on this machine, so the "
+                      "check is inert for everyone but whoever wrote it, "
+                      "while still looking from outside like coverage"})
+
     if log is None:
         rows.append({"label": "changes that verified nothing", "value": "—",
                      "flag": "info", "note": "the history cannot be read"})
@@ -350,9 +383,56 @@ def reliable_delivery(root, log, check_dirs=()):
             "note": "the green light can be real and still have nothing to "
                     "do with what was changed"})
 
+        # Most unverified changes are not worth anyone's attention -- in a
+        # repository that writes tests, the ones without are usually small.
+        # Changes to the machinery that does the verifying are the exception:
+        # rare, and when one of them breaks, the thing that would have caught
+        # it is the thing that changed.
+        critical = [c for c in bare if any(CRITICAL_PATH.search(p)
+                                           for p in c[2])]
+        if critical:
+            rows.append({
+                "label": "unverified changes to the machinery itself",
+                "value": str(len(critical)),
+                "flag": "warn",
+                "note": "CI, build or dependency files changed with nothing "
+                        "verifying the change: "
+                        + "; ".join(c[1][:44] for c in critical[:2])})
+
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def _stranded_checks(root, check_dirs):
+    """Checks that hardcode a path into one person's home directory.
+
+    Only reported when the path is absent here: on the author's own machine it
+    resolves, and calling their working setup broken would be the instrument
+    inventing a defect."""
+    out = []
+    roots = list(check_dirs) + ["scripts", "tools", "bin", "ci"]
+    for rel in roots:
+        base = os.path.join(root, rel)
+        if not os.path.isdir(base):
+            continue
+        for here, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if not f.endswith(RUNNABLE_EXT):
+                    continue
+                full = os.path.join(here, f)
+                try:
+                    with open(full, encoding="utf-8", errors="replace") as fh:
+                        body = fh.read(200000)
+                except OSError:
+                    continue
+                for m in HOME_PATH.finditer(body):
+                    hit = m.group(1)
+                    if not os.path.exists(hit):
+                        out.append((os.path.relpath(full, root), hit))
+                        break
+    return sorted(out)[:8]
 
 
 def _verifies(path, check_dirs=()):

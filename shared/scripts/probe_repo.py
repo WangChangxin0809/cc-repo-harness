@@ -133,7 +133,7 @@ def load_json(path):
 
 
 def probe(root):
-    tracked = sh(["git", "ls-files"], root)
+    tracked = sh(["git", "-c", "core.quotePath=false", "ls-files"], root)
     if tracked is None:
         return None
     files = [f for f in tracked.splitlines() if f]
