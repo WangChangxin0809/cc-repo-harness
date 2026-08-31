@@ -55,20 +55,27 @@ actually get enforced"* — or invoke `bootstrap-repo-harness` directly.
 
 ## What is in it
 
-| Skill | Enter it when |
-|---|---|
-| `bootstrap-repo-harness` | Once, to lay the foundation |
-| `writing-docs` | Every time you write or restructure a document |
-| `writing-checks` | Every time a rule needs enforcing rather than documenting |
-| `writing-github-docs` | README, CONTRIBUTING, and the community health files |
-| `repo-index` | Large repo; an agent cannot find the relevant code |
-| `consolidating-notes` | Notes have accumulated, drifted, or contradicted |
+| Skill | Enter it when | Where it lives |
+|---|---|---|
+| `bootstrap-repo-harness` | Once, to lay the foundation | the plugin |
+| `writing-docs` | Every time you write or restructure a document | your repo |
+| `writing-checks` | Every time a rule needs enforcing rather than documenting | your repo |
+| `writing-github-docs` | README, CONTRIBUTING, and the community health files | your repo |
+| `repo-index` | Large repo; an agent cannot find the relevant code | your repo |
+| `consolidating-notes` | Notes have accumulated, drifted, or contradicted | your repo |
 
-Plus one subagent (`repo-explorer`, small model, own context) and two hooks:
-the once-per-repository notice described below, and one that runs a repository's
-own guards during the window before it has wired them — see [Trust](#trust),
-because that second one executes code from the repository and therefore asks
-first.
+Only the first is charged to every session on your machine. The other five are
+copied into the repository during bootstrap, at the tier that earns them — so
+they cost nothing until a repository asks for them, they arrive for teammates
+who never installed this, and they survive uninstalling it
+([why](docs/decisions/0024-skills-are-payload-except-the-one-that-finds-them.md)).
+
+Plus `/assess`, which measures a repository against five dimensions and writes
+one page; two subagents (`repo-explorer` and `repo-assessor`, own context); and
+two hooks: the once-per-repository notice described below, and one that runs a
+repository's own guards during the window before it has wired them — see
+[Trust](#trust), because that second one executes code from the repository and
+therefore asks first.
 
 ## The argument
 

@@ -17,6 +17,7 @@
 | Know why the assessment measures behaviour rather than resemblance | [0020](decisions/0020-the-assessment-measures-behaviour-not-resemblance.md) |
 | Know why assessing is one step, and why the plugin speaks once | [0022](decisions/0022-one-assessment-step-that-may-end-in-nothing.md) |
 | Know why nothing counts how often a rule is hit | [0023](decisions/0023-nothing-counts-how-often-a-rule-is-hit.md) |
+| Know why only one skill is installed and the rest are copied | [0024](decisions/0024-skills-are-payload-except-the-one-that-finds-them.md) |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
 and checked by `check_docs_layout.py`. **Inside each one, organise however suits
