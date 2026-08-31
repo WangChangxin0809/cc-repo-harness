@@ -67,7 +67,21 @@ FIX_SUBJECT = re.compile(
     r"|\bfix(e[sd])?\b(?!up)",
     re.I,
 )
-REVERT_SUBJECT = re.compile(r"^\s*revert\b|\bthis reverts commit\b", re.I)
+REVERT_SUBJECT = re.compile(
+    r"^\s*revert\b|\bthis reverts commit\b"
+    r"|回滚|回退|还原|撤销|撤回",
+    re.I,
+)
+
+# Commit subjects are not always in English, and a defect miner that only reads
+# English reports a repository with years of history as having nothing to
+# replay -- which is indistinguishable, on the page, from a repository that
+# genuinely repairs nothing. Measured against a repository whose 53 subjects
+# are almost all Chinese: the English matcher found 1 repair, this finds 6.
+#
+# The one-character form is deliberately narrow. 修改 is "modify" rather than
+# "repair", so it is excluded; the rest are unambiguous.
+FIX_SUBJECT_CJK = re.compile(r"修(?!改)|订正|解决|改回")
 
 # Above this a revert is a refactor with a bug somewhere inside it, and nothing
 # that goes red afterwards can be attributed to one change.
@@ -124,10 +138,12 @@ def mine(root):
                "tests": tst, "small": len(src) <= SMALL}
         if REVERT_SUBJECT.search(subject):
             r["revert"].append(row)
+        repairs = bool(FIX_SUBJECT.search(subject)
+                       or FIX_SUBJECT_CJK.search(subject))
         if tst:
-            if FIX_SUBJECT.search(subject):
+            if repairs:
                 r["fix_test"].append(row)
-        elif FIX_SUBJECT.search(subject):
+        elif repairs:
             r["fix_no_test"].append(row)
     return r
 
