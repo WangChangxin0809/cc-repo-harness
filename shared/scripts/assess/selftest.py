@@ -4231,7 +4231,80 @@ def case_a_suite_that_shells_out_is_still_measured(t):
     return None
 
 
+
+def case_a_description_is_not_an_unenforced_rule(t):
+    """`cannot` describes; it does not instruct.
+
+    "It parses the workflow, so the two cannot drift" is a fact about how a
+    script works. Counted as a prohibition, it became an unenforced rule on
+    this repository's own floor -- and the fix for an unenforced rule is to
+    write a guard, so the page was asking somebody to enforce a sentence about
+    a parser. Two of the five it reported were this."""
+    put(t, "CLAUDE.md",
+        "# r\n\nIt parses the workflow, so the two cannot drift.\n\n"
+        "A step it cannot classify is exit 2.\n\n"
+        "Never force-push the default branch.\n")
+    r = value_mod.assess(t)
+    if r["prohibitions"] != 1:
+        d = value_mod.floor_text(t)
+        got = [" ".join(x.split())[:60] for x in value_mod.sentences(d["CLAUDE.md"])
+               if value_mod.PROHIBIT.search(x)]
+        return "counted %d prohibition(s), wanted 1: %s" % (r["prohibitions"], got)
+    return None
+
+
+def case_a_guard_that_exists_gets_the_rule_credited(t):
+    """A map left behind reads exactly like a guard that does not exist.
+
+    `FROM_BLAST` turns "this repository was measured refusing X" into the rule
+    labels X covers. `silence a failing check` mapped to nothing for as long as
+    no guard here could refuse it -- and stayed empty after one could. The
+    repository stated the rule, shipped the guard, was measured refusing the
+    probe, and the rule still counted as unenforced on every assessment."""
+    row = {"probe": "silence a failing check", "stopped": True,
+           "false_block": False}
+    if "silenced check" not in value_mod.guards_from_blast({"rows": [row]}):
+        return "a measured refusal credited no rule label"
+    # ...and a guard that was measured *failing* credits nothing, which is the
+    # half that makes the first half worth having.
+    row["false_block"] = True
+    if value_mod.guards_from_blast({"rows": [row]}):
+        return "a guard that blocked legitimate work was credited anyway"
+    return None
+
+
+
+def case_coverage_is_given_the_command_the_replay_found(t):
+    """One page cannot disagree with itself about whether a suite exists.
+
+    The replay discovers a test command when nobody passed `--test-command`;
+    coverage was handed only the flag. So a repository whose suite the table
+    recognises perfectly well had its ladder measured and its coverage
+    reported as "no test command to instrument", on the same page, from the
+    same tree."""
+    put(t, "pyproject.toml", "[project]\nname = 'x'\n")
+    put(t, "tests/test_x.py", "def test_x():\n    assert True\n")
+    put(t, "app.py", "def f():\n    return 1\n")
+    commit(t, "init")
+    eco, cmd = catch_mod.find(t)
+    if cmd is None:
+        return "the fixture is wrong: nothing discovered a command here"
+    if not cover_mod.Python().available(t):
+        return None
+    r, why = cover_mod.assess(t, cmd, os.path.join(t, "w"))
+    if r is None and "no test command" in (why or ""):
+        return ("coverage was not given the command the replay found: %s"
+                % why)
+    return None
+
+
 CASES = [
+    ("coverage is given the command the replay found",
+     case_coverage_is_given_the_command_the_replay_found),
+    ("a description is not an unenforced rule",
+     case_a_description_is_not_an_unenforced_rule),
+    ("a guard that exists gets the rule credited",
+     case_a_guard_that_exists_gets_the_rule_credited),
     ("a suite that shells out is still measured",
      case_a_suite_that_shells_out_is_still_measured),
     ("an entry point the parked commit never had",

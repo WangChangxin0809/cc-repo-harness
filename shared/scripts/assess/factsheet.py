@@ -173,6 +173,15 @@ def gather(root, full, instances, work, command=None, mutate=0):
         cwork = os.path.join(work, "cover")
         cbench = catch_mod.bench(root, cwork)
         catch_mod.park(cbench, "HEAD")
+        # `command` is only what somebody typed after `--test-command`. The
+        # replay above discovers one when nobody did, and coverage was not
+        # given it -- so a repository whose suite the table recognises still
+        # reported "no test command to instrument" unless the flag was passed
+        # by hand. Two parts of one page disagreeing about whether this
+        # repository has a suite is worse than either answer.
+        if not command:
+            _eco, found_cmd = catch_mod.find(cbench)
+            command = found_cmd
         r["cover"], r["cover_why"] = cover_mod.assess(cbench, command, cwork)
 
     # Second injection, and the only one that is opt-in. The replay asks how

@@ -65,9 +65,9 @@ python3 scripts/check.py            # everything CI will run, that a laptop can
 python3 scripts/check.py --list     # what it would run, and what it skips
 ```
 
-It does not restate CI -- it *parses* `.github/workflows/ci.yml` and runs the
-steps from it, so the two cannot drift. A step it cannot classify, or a linter
-this machine lacks, is exit 2: COULD NOT JUDGE, never a pass.
+It reads `.github/workflows/ci.yml` and runs the steps out of it, so there is
+no second list to drift. Unreadable step, or a linter this machine lacks: exit
+2, by rule 3 below.
 
 The pieces, when you want one of them alone:
 

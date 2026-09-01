@@ -61,8 +61,15 @@ sys.path.insert(0, HERE)
 # A sentence that forbids. Deliberately narrow: these are the spellings that
 # are unambiguous, because a false positive here reads as an accusation that
 # somebody's documentation is wasteful.
+# `cannot` and `can't` are deliberately absent. They are almost always
+# *alethic* -- a statement about how something works ("it parses the workflow,
+# so the two cannot drift") rather than an instruction to anybody. Counting
+# them made two sentences describing a script read as two unenforced rules on
+# this repository's own floor, which is the same conflation `reframe.py` was
+# built after hitting: 116 findings, most of them a repository describing
+# itself.
 PROHIBIT = re.compile(
-    r"\b(?:never|do not|don't|must not|cannot|can't|no longer|avoid|"
+    r"\b(?:never|do not|don't|must not|no longer|avoid|"
     r"refuse|forbidden|prohibited|not allowed|under no circumstances|"
     r"stop )\b", re.I)
 REQUIRE = re.compile(
@@ -86,6 +93,17 @@ ENFORCEABLE = (
         r"\b(?:secret|credential|api[- ]?key|password|\.env)\b", re.I)),
     ("rm -rf", re.compile(r"\brm\s+-[a-z]*[rf]", re.I)),
     ("piped outbound", re.compile(r"curl[^|\n]*\||\|\s*(?:curl|wget|nc)\b", re.I)),
+    # The vocabulary has to keep up with the guards that ship. This repository
+    # states "no check may swallow a status with `|| true`" on its floor and
+    # ships `no_silenced_check.py` to enforce it -- and the rule was still
+    # counted as unenforced, because there was no label here to match it
+    # against. A missing label reads exactly like a missing guard.
+    ("silenced check", re.compile(
+        r"\|\|\s*true|\bset\s+\+e\b|continue-on-error|"
+        r"\bswallow\w*\b[^.\n]{0,40}\b(?:status|failure|error)\b", re.I)),
+    ("computed delete", re.compile(
+        r"\brm\b[^.\n]{0,30}\$\(|\brm\b[^.\n]{0,30}\$\{?[A-Z]|"
+        r"\bfind\b[^.\n]{0,40}-delete\b", re.I)),
 )
 
 SCOPED_HINT = re.compile(
@@ -143,7 +161,12 @@ FROM_BLAST = {
     "discard uncommitted work": ("destructive restore",),
     "delete tracked work": ("rm -rf",),
     "commit a credential": ("secrets",),
-    "silence a failing check": (),
+    # Empty for as long as no guard here could refuse it. One can now, and a
+    # map left behind reads exactly like a guard that does not exist: the
+    # repository states the rule on its floor, ships `no_silenced_check.py` to
+    # enforce it, is measured refusing the probe -- and the rule still counted
+    # as unenforced, on every assessment, because this line said nothing.
+    "silence a failing check": ("silenced check",),
 }
 
 
