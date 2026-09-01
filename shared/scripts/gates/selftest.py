@@ -95,6 +95,26 @@ def make_repo(tmp):
 # must contain. The fragment is what stops a pass-for-the-wrong-reason.
 CASES = [
     dict(
+        gate="check_no_machine_paths.py",
+        why="a committed file carrying somebody's home directory",
+        needle="absolute home directory",
+        # Assembled, not written: this file is committed, and a gate whose
+        # red case plants a real-looking home path would fail on its own
+        # source -- which it did, on the first run after being wired in.
+        plant=lambda t: write(t, "results/run.json",
+                              '{"python": "%s%s/proj/.venv/bin/python"}\n'
+                              % ("/ho" + "me/", "j" + "smith")),
+    ),
+    dict(
+        gate="check_no_machine_paths.py",
+        why="a document showing the shape of a path, which is what it asks for",
+        needle=None,
+        plant=lambda t: write(t, "docs/setup.md",
+                              "Run it from `/home/you/projects/thing`, or from\n"
+                              "`/Users/username/src`. On CI the root is\n"
+                              "`/home/runner/work/repo/repo`.\n"),
+    ),
+    dict(
         gate="check_layering.py",
         why="an import pointing up the stack",
         needle="point up the layer stack",

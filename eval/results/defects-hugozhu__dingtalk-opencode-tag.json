@@ -12,7 +12,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_brain_flash_model.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_brain_flash_model.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_brain_flash_model.py"
@@ -32,7 +32,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_brain_turn_error.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_brain_turn_error.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_brain_turn_error.py"
@@ -51,7 +51,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_question_capability.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_question_capability.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_question_capability.py"
@@ -70,7 +70,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_ack_capability.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_ack_capability.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_ack_capability.py"
@@ -89,7 +89,7 @@
       "test": 2,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/e2e_llm_unavailable_test.py tests/custom/test_ack_capability.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/e2e_llm_unavailable_test.py tests/custom/test_ack_capability.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/e2e_llm_unavailable_test.py",
@@ -105,7 +105,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_image_capability.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_image_capability.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_image_capability.py"
@@ -125,7 +125,7 @@
       "test": 2,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/core/test_agent_common.py tests/custom/test_digital_employee.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/core/test_agent_common.py tests/custom/test_digital_employee.py",
       "scope": "touched tests",
       "tests": [
         "tests/core/test_agent_common.py",
@@ -147,7 +147,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_digital_employee.py"
@@ -167,7 +167,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_reply_chunk.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_reply_chunk.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_reply_chunk.py"
@@ -188,7 +188,7 @@
       "test": 1,
       "small": true,
       "ecosystem": "python",
-      "command": "/home/fulu4477/.claude/plugins/agent-harness/eval/.defects/hugozhu__dingtalk-opencode-tag/.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
+      "command": "./.venv-defects/bin/python -m pytest -q tests/custom/test_digital_employee.py",
       "scope": "touched tests",
       "tests": [
         "tests/custom/test_digital_employee.py"

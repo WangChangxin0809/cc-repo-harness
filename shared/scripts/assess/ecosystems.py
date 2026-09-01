@@ -300,6 +300,18 @@ CANNOT_RUN = (
     "no tests ran", "INTERNALERROR", "ModuleNotFoundError", "ImportError",
     "ERROR collecting", "cannot find module", "Cannot find module",
     "MODULE_NOT_FOUND", "command not found", "is not on PATH",
+    # The entry point is not there at this commit. A repository's test command
+    # is discovered at HEAD and the replay checks out its history, so a suite
+    # that was introduced last week does not exist at the commit being
+    # replayed -- and an interpreter that cannot open its own script exits
+    # non-zero exactly like a failing test. Reading that as red would report
+    # every commit older than the suite as broken.
+    # Only the interpreter's own wording. A bare "No such file or directory"
+    # was here for one revision and taken out again: a test that fails on a
+    # missing fixture prints exactly that, and calling it could-not-run would
+    # hide a real defect. A shell script that is not there exits 127, which is
+    # already handled above.
+    "can't open file", "cannot open file",
 )
 
 

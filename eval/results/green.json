@@ -42,7 +42,7 @@
     {
       "repo": "bmatusiak/rectify-webpack-react-nw-app",
       "verdict": "could-not-run",
-      "detail": "npm install failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_23_46_298Z-debug-0.log",
+      "detail": "npm install failed: npm ERR!     ~/.npm/_logs/2026-08-29T18_23_46_298Z-debug-0.log",
       "seconds": null,
       "ecosystem": "node",
       "command": "npm test --silent"
@@ -82,7 +82,7 @@
     {
       "repo": "Synchronium/Debian.tips",
       "verdict": "could-not-run",
-      "detail": "npm ci failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_28_50_874Z-debug-0.log",
+      "detail": "npm ci failed: npm ERR!     ~/.npm/_logs/2026-08-29T18_28_50_874Z-debug-0.log",
       "seconds": null,
       "ecosystem": "node",
       "command": "npm test --silent"
@@ -146,7 +146,7 @@
     {
       "repo": "Swih/mistral-mcp",
       "verdict": "could-not-run",
-      "detail": "npm ci failed: npm ERR!     /home/fulu4477/.npm/_logs/2026-08-29T18_31_19_638Z-debug-0.log",
+      "detail": "npm ci failed: npm ERR!     ~/.npm/_logs/2026-08-29T18_31_19_638Z-debug-0.log",
       "seconds": null,
       "ecosystem": "node",
       "command": "npm test --silent"

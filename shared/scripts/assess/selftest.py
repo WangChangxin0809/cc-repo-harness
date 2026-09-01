@@ -647,7 +647,11 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
     repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "scripts/viewcheck.mjs",
-        "const CHROME = '/home/nobody-at-all-xyz/.cache/chrome'\n")
+        # A placeholder name on purpose. The dimension-1 check reads the
+        # *shape* of the path, so `you` exercises it exactly as a real
+        # username would -- and a real-looking one in a committed fixture is
+        # the thing check_no_machine_paths.py exists to stop.
+        "const CHROME = '/home/you/.cache/chrome'\n")
     # The second shape, and the one a home-directory matcher misses. Both were
     # in one real repository: a Linux script and a Windows script, so no single
     # machine could run both, while from outside it looked like coverage.
@@ -4092,7 +4096,32 @@ def case_a_convention_beats_a_document(t):
     return None
 
 
+
+def case_an_entry_point_that_predates_the_commit_is_not_a_red_suite(t):
+    """The command is found at HEAD; the replay runs in the past.
+
+    A repository that introduced its suite last week has a history of commits
+    where the entry point does not exist. The interpreter exits non-zero there
+    for the same reason a failing test does, and reading it as red reports
+    every commit older than the suite as broken. This repository hit it on the
+    first run after gaining a documented entry point.
+
+    The other half is what must NOT be swallowed: a test failing because a
+    fixture is missing prints the same words, and it is a real defect."""
+    if not eco_mod.unusable("python3: can't open file "
+                            "'/tmp/x/scripts/check.py': [Errno 2] "
+                            "No such file or directory"):
+        return "a missing entry point was read as a failing suite"
+    if eco_mod.unusable("FileNotFoundError: [Errno 2] No such file or "
+                        "directory: 'tests/fixtures/sample.json'"):
+        return ("a test failing on a missing fixture was swallowed as "
+                "could-not-run")
+    return None
+
+
 CASES = [
+    ("an entry point that predates the commit is not a red suite",
+     case_an_entry_point_that_predates_the_commit_is_not_a_red_suite),
     ("a repository that documents its own suite is not invisible",
      case_a_repository_that_documents_its_own_suite_is_not_invisible),
     ("a command a document warns against is not run",

@@ -115,6 +115,15 @@ jobs:
       - name: docs routing table resolves
         run: python3 shared/scripts/gates/check_docs_index.py --root .
 
+      # A second instrument scoring this repository found a username in three
+      # committed result files. It was right, and the answer to a finding a
+      # paragraph could have prevented is a check rather than a paragraph.
+      - name: nobody's home directory is committed
+        run: python3 shared/scripts/gates/check_no_machine_paths.py --root .
+
+      - name: that gate can still turn red
+        run: python3 shared/scripts/gates/check_no_machine_paths.py --selftest
+
       # The gate that found four shipped commands in this repository's own
       # skills that exited with `unrecognized arguments`. Documentation is the
       # one artefact here that nobody ever executes, which is why it drifts
