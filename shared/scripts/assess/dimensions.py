@@ -789,7 +789,7 @@ def mutation_rows(m, ladder_names, judged=None):
 
 # -- 3 -----------------------------------------------------------------------
 
-def reliable_delivery(root, log, check_dirs=()):
+def reliable_delivery(root, log, check_dirs=(), gate=None):
     """When a change is called done, what is the evidence?"""
     rows = []
     verdicts = [name for f, name in VERDICT_FILES
@@ -897,11 +897,55 @@ def reliable_delivery(root, log, check_dirs=()):
                         "verifying the change: "
                         + "; ".join(c[1][:44] for c in critical[:2])})
 
-    if log is not None:
-        repair, repeats, grown = _repair_rows(log, check_dirs)
-        rows += repair
-        if repeats:
-            headline += f"; {repeats} place(s) said done twice"
+    # The repair log is gone. It counted places repaired more than once and
+    # read that as churn, and the reading does not hold: plenty of code is
+    # revised repeatedly on purpose, and a counter cannot tell that from a
+    # place nobody can get right. A number nobody can act on is worse than no
+    # number, because it occupies the space where an actionable one would go.
+
+    # Whether anything is *obliged* to look before a change lands. Not whether
+    # the checks work -- dimension 2 injects defects and measures that. This
+    # is the failure a repository can have while every check passes.
+    if gate:
+        p = gate["protection"]
+        if p.get("readable"):
+            required = p.get("required_checks") or []
+            rows.append({
+                "label": "can the verification be skipped",
+                "value": gate["state"],
+                "flag": "ok" if required else "bad",
+                "note": ("required to merge: " + ", ".join(required))
+                        if required else
+                        ("nothing is required on `%s`, so a red run can be "
+                         "merged past. Running on pull requests and being "
+                         "required to pass are different settings, and every "
+                         "surface a person normally sees — the green tick, the "
+                         "badge, the workflow file — shows only the first"
+                         % p.get("branch", "the default branch"))})
+        else:
+            rows.append({
+                "label": "can the verification be skipped",
+                "value": "not readable",
+                "flag": "info",
+                "note": p.get("why", "") + " — this is not the same as "
+                        "`nothing is required`, and reporting it that way "
+                        "would be a confident claim about a repository "
+                        "nobody read"})
+        if gate["swallow_candidates"]:
+            unexplained = [c for c in gate["swallow_candidates"]
+                           if not c["reason_given"]]
+            rows.append({
+                "label": "steps that could turn a red run green",
+                "value": "%d candidate(s), %d with no reason given"
+                         % (len(gate["swallow_candidates"]), len(unexplained)),
+                "flag": "warn" if unexplained else "info",
+                "note": "`continue-on-error: true` and `|| true`. Not counted "
+                        "as findings: legitimate uses exist and every one this "
+                        "project has seen carried a comment saying why, which "
+                        "is a signal an agent can use and a counter cannot"
+                        + ("; unexplained: " + ", ".join(
+                            "%s:%d" % (c["file"], c["line"])
+                            for c in unexplained[:3]) if unexplained else "")})
 
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
@@ -1028,78 +1072,6 @@ def _is_source(path, check_dirs=()):
 
 
 # -- 4 -----------------------------------------------------------------------
-
-def _repair_rows(log, check_dirs=()):
-    """Two readings of the history that belong to dimension 3.
-
-    Both are about whether a verdict held. A place repaired twice on purpose is
-    a place where somebody said "done" and was wrong; a check that appears
-    right after a repair is the verdict getting stronger because of one. They
-    lived in dimension 4 while it was called Learning Capture, and moved when
-    that dimension stopped reading history and started watching an agent
-    -> docs/decisions/0025"""
-    rows = []
-    fixed, touched = {}, {}
-    for sha, subject, paths in log:
-        src = [p for p in paths if _is_source(p, check_dirs)]
-        for p in src:
-            touched[p] = touched.get(p, 0) + 1
-        if not (FIX_SUBJECT.search(subject) or REVERT_SUBJECT.search(subject)):
-            continue
-        # The same attribution rule dimension 2 uses: above a few files, a
-        # commit that says "fix" is a commit that also did four other things,
-        # and nothing in it can be pinned on any one file. Without this, the
-        # row just ranks files by size -- the biggest router in the tree is
-        # touched by everything, so it tops the list in every repository
-        # regardless of how much rework it actually took.
-        if len(src) > FOCUSED:
-            continue
-        for p in src:
-            fixed.setdefault(p, []).append(sha)
-
-    repeats = sorted(((p, len(v)) for p, v in fixed.items() if len(v) >= 2),
-                     key=lambda x: -x[1])
-    rows.append({
-        "label": "places repaired more than once, on purpose",
-        "value": str(len(repeats)),
-        "flag": "warn" if repeats else "ok",
-        "note": (", ".join(f"{p} ×{n} of {touched.get(p, n)} touches"
-                           for p, n in repeats[:3])
-                 + (" …" if len(repeats) > 3 else "")
-                 + " — counting only focused repairs, so this is rework "
-                   "rather than a busy file")
-        if repeats else
-        f"no file was the subject of two separate small repairs "
-        f"(commits of at most {FOCUSED} source files)"})
-
-    # A check that arrived because of an incident, rather than because somebody
-    # thought it was a good idea: a commit that introduces something verifying
-    # AND touches a path an earlier commit had already fixed.
-    fixed_before = set()
-    grown = []
-    for sha, subject, paths in reversed(log):
-        src = [p for p in paths if _is_source(p, check_dirs)]
-        verifying = [p for p in paths if _verifies(p, check_dirs)]
-        # Same rule again. A commit touching thirty files will touch something
-        # repaired earlier and something that verifies, every time, so without
-        # the size limit this counts most of the history and means nothing.
-        if (verifying and len(src) <= FOCUSED
-                and any(p in fixed_before for p in src)):
-            grown.append((sha, subject))
-        if ((FIX_SUBJECT.search(subject) or REVERT_SUBJECT.search(subject))
-                and len(src) <= FOCUSED):
-            fixed_before.update(src)
-    rows.append({
-        "label": "checks that grew out of a repair",
-        "value": str(len(grown)),
-        "flag": "ok" if grown else "warn",
-        "note": ((grown[-1][1][:64].rstrip() + "…"
-                  if len(grown[-1][1]) > 64 else grown[-1][1]) if grown else
-                 "no check in this history arrived right after a repair to "
-                 "the same ground")})
-
-    return rows, len(repeats), len(grown)
-
 
 def repository_memory(root, log, check_dirs=(), probe=None, truth=None):
     """Can an agent that has never seen this repository find its way, and is
@@ -1470,7 +1442,7 @@ def context_economy(root, probe, blast=None, value=None):
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
            judged=None, cover=None, cover_why="", observe=None,
-           observe_judged=None):
+           observe_judged=None, gate=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1481,7 +1453,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
         controlled_execution(root, probe, blast, observe, observe_judged),
         change_validation(defects, catch, catch_why, ladder, mutants,
                           mutants_why, judged, cover, cover_why, probe, value),
-        reliable_delivery(root, log, check_dirs),
+        reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe, blast, value),
     ]

@@ -27,6 +27,7 @@
 | Know why coverage is reported as a denominator and never as a score | [0031](decisions/0031-coverage-is-the-denominator-and-its-inference-runs-one-way.md) |
 | Know why the ladder is read against an inventory of what could have caught it | [0032](decisions/0032-a-rung-cannot-be-read-without-the-layer-behind-it.md) |
 | Know why coverage is read from the ecosystem's tool and never measured here | [0033](decisions/0033-the-tools-do-the-measuring.md) |
+| Know why a check that runs is not a check that is required | [0034](decisions/0034-running-and-being-required-are-different-settings.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed

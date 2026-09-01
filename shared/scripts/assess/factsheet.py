@@ -52,7 +52,8 @@ sys.path.insert(0, HERE)
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
 import coverage_tools as cover_mod
-import observe as observe_mod  # noqa: E402
+import observe as observe_mod
+import merge as merge_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402
 import run_mutants as mutants_mod  # noqa: E402
@@ -130,6 +131,7 @@ def gather(root, full, instances, work, command=None, mutate=0):
     # starts nothing and costs one walk, so it runs every time -- but the row
     # only prints once an agent has judged the evidence, per its own module.
     r["observe"], r["observe_why"] = observe_mod.assess(root)
+    r["gate"], r["gate_why"] = merge_mod.assess(root)
     if r["observe"]:
         r["observe_brief"] = observe_mod.brief(r["observe"])
 
@@ -225,7 +227,7 @@ def dimensions_of(r, memory=None, judged=None, observed=None):
                           r.get("value"), r.get("mutants"),
                           r.get("mutants_why", ""), judged,
                           r.get("cover"), r.get("cover_why", ""),
-                          r.get("observe"), observed)
+                          r.get("observe"), observed, r.get("gate"))
 
 
 def render_flat(r):

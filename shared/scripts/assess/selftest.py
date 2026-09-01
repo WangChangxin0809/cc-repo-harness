@@ -50,6 +50,7 @@ import run_mutants as run_mod      # noqa: E402
 import factsheet as fact_mod       # noqa: E402
 import coverage_tools as cover_mod  # noqa: E402
 import observe as observe_mod      # noqa: E402
+import merge as merge_mod          # noqa: E402
 
 
 def git(args, cwd):
@@ -2319,98 +2320,6 @@ def case_the_page_names_where_it_looked_for_tests(t):
     return None
 
 
-def case_a_busy_file_is_not_mistaken_for_a_reworked_one(t):
-    """Touching a file often is not the same as reworking it.
-
-    A commit that says "fix" and changes thirty files also did four other
-    things, and nothing in it can be attributed to any one of them. Without a
-    size limit the row just ranks files by how busy they are -- the biggest
-    router in the tree is touched by everything, so it tops the list in every
-    repository, which is a fact about file size and not about rework. Measured
-    on a real repository: 13 places "repaired twice" became 2, and 38 "checks
-    with an incident behind them" became 4.
-
-    Dimension 2 has drawn this line since the beginning. Dimension 4 read the
-    same history without it."""
-    repo(t)
-    names = [f"m{i}.py" for i in range(8)]
-    for n in names:
-        put(t, n, "x = 1\n")
-    commit(t, "init")
-    for round_ in (2, 3):
-        for n in names:
-            put(t, n, f"x = {round_}\n")
-        # A test file in the sweep too: a commit this broad touches something
-        # that verifies AND something repaired earlier every single time, so
-        # the "grew out of a repair" count is worthless without the same limit.
-        put(t, "tests/test_m.py", f"def test_{round_}():\n    assert True\n")
-        commit(t, f"fix: a sweep touching everything, round {round_}")
-
-    rows = dims_of(t, with_blast=False)[3]["rows"]
-    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
-    if repeat["value"] != "0":
-        return (f"two eight-file sweeps counted {repeat['value']} reworked "
-                f"places; a commit that broad cannot be pinned on any one file")
-    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
-    if grew["value"] != "0":
-        return (f"a sweep that happened to touch a test counted "
-                f"{grew['value']} check(s) as growing out of a repair")
-
-    # A focused repair to the same file twice IS rework, and must still count.
-    put(t, "m0.py", "x = 9\n")
-    commit(t, "fix: m0 specifically")
-    put(t, "m0.py", "x = 10\n")
-    commit(t, "fix: m0 again, properly this time")
-    rows = dims_of(t, with_blast=False)[3]["rows"]
-    repeat = [r for r in rows if "repaired more than once" in r["label"]][0]
-    if repeat["value"] != "1":
-        return (f"two focused repairs to one file counted "
-                f"{repeat['value']}, not 1")
-
-    # Now that m0.py is known-repaired, a sweep that happens to touch it and
-    # a test must still not count. This is the half the earlier sweeps cannot
-    # test: back there nothing had been repaired yet, so the count was zero
-    # for the wrong reason.
-    for n in names:
-        put(t, n, "x = 20\n")
-    put(t, "tests/test_broad.py", "def test_broad():\n    assert True\n")
-    commit(t, "feat: a sweep that happens to touch m0 and a test")
-    rows = dims_of(t, with_blast=False)[3]["rows"]
-    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
-    if grew["value"] != "0":
-        return (f"an eight-file sweep touching one repaired file and one test "
-                f"counted {grew['value']} check(s) as growing out of a repair")
-
-    # A focused commit that adds a check beside ground repaired earlier is the
-    # thing this dimension exists to find, and must still be found.
-    put(t, "m0.py", "x = 11\n")
-    put(t, "tests/test_m0.py", "def test_m0():\n    assert True\n")
-    commit(t, "test: pin down what kept breaking in m0")
-    rows = dims_of(t, with_blast=False)[3]["rows"]
-    grew = [r for r in rows if "grew out of a repair" in r["label"]][0]
-    if grew["value"] == "0":
-        return ("a focused check added beside ground repaired twice was not "
-                "counted as growing out of a repair")
-    return None
-
-
-def case_a_place_repaired_twice_is_counted(t):
-    """The offline, shared version of noticing a recurrence: it is in the
-    history, so it is the same for everyone who clones."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    commit(t, "feat: thing")
-    put(t, "app.py", "x = 2\n")
-    commit(t, "fix: the thing was wrong")
-    put(t, "app.py", "x = 3\n")
-    commit(t, "fix: the thing was still wrong")
-    rows = dims_of(t, with_blast=False)[3]["rows"]
-    repeat = [r for r in rows if "more than once" in r["label"]][0]
-    if repeat["value"] != "1":
-        return f"two repairs to one file counted as {repeat['value']!r}"
-    return None
-
-
 def case_an_unprobed_repository_abstains_rather_than_scoring_zero(t):
     """Nobody has spent the two agents, so nothing is known.
 
@@ -2877,7 +2786,130 @@ def case_an_uninstalled_tool_names_itself_and_how_to_get_it(t):
     return None
 
 
+
+def _workflow(t, name, body):
+    where = os.path.join(t, ".github", "workflows")
+    os.makedirs(where, exist_ok=True)
+    with open(os.path.join(where, name), "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return t
+
+
+def case_a_404_is_an_answer_and_a_403_is_not(t):
+    """The distinction the whole module's honesty rests on.
+
+    GitHub answers 404 `Branch not protected` for a branch with no protection
+    rule -- that is a fact about the repository. A 403 is this tool lacking
+    the right to look, and reporting it as `nothing is required` would be a
+    confident claim about a repository nobody read. A tool that turns its own
+    blindness into a finding is worse than one that abstains."""
+    got = merge_mod.interpret(1, "", '{"message":"Branch not protected",'
+                                    '"status":"404"}\ngh: Branch not protected')
+    if not got.get("readable"):
+        return "a 404 was treated as unreadable, but it is an answer"
+    if got.get("protected"):
+        return "a 404 was read as protected"
+
+    for body in ('{"message":"Must have admin rights","status":"403"}',
+                 '{"message":"Bad credentials","status":"401"}',
+                 "gh: could not connect"):
+        got = merge_mod.interpret(1, "", body)
+        if got.get("readable"):
+            return f"a failure to read was treated as an answer: {body!r}"
+        if "required_checks" in got:
+            return (f"an unreadable protection produced a required_checks "
+                    f"field, which reads as `nothing is required`: {body!r}")
+
+    got = merge_mod.interpret(0, json.dumps(
+        {"required_status_checks": {"contexts": ["ci"]},
+         "required_pull_request_reviews": {"x": 1}}), "")
+    if got.get("required_checks") != ["ci"]:
+        return f"a protected branch's required checks were lost: {got}"
+    return None
+
+
+def case_unreadable_protection_does_not_become_not_required(t):
+    """The same rule one level up, where the state string is produced.
+
+    A fixture with no remote at all: protection is a server-side fact and
+    there is no server to ask. The state must say so, and must not say the
+    checks are not required."""
+    _workflow(t, "ci.yml", "on:\n  pull_request:\n\njobs:\n  t:\n"
+                           "    runs-on: ubuntu-latest\n")
+    r, why = merge_mod.assess(t)
+    if not r:
+        return f"nothing was read: {why}"
+    if "not readable" not in r["state"]:
+        return (f"with no remote to ask, the state came out as {r['state']!r} "
+                f"— an unread server setting was turned into a finding")
+    if r["protection"].get("readable"):
+        return "protection was reported readable with no remote"
+    return None
+
+
+def case_a_workflow_on_push_only_is_not_a_merge_gate(t):
+    """Running after the merge is not verification before it.
+
+    A workflow triggered only on `push` to the default branch tells you the
+    trunk broke. That is monitoring, and this row is about whether anything
+    was obliged to look first."""
+    _workflow(t, "nightly.yml", "on:\n  push:\n    branches: [main]\n  schedule:\n"
+                                "    - cron: '0 0 * * *'\n\njobs:\n  t:\n"
+                                "    runs-on: ubuntu-latest\n")
+    r, why = merge_mod.assess(t)
+    if not r:
+        return f"nothing was read: {why}"
+    if r["state"] != "nothing on pull requests":
+        return (f"a push-only workflow was read as a merge gate: "
+                f"{r['state']!r}")
+    return None
+
+
+def case_a_comment_about_swallowing_is_not_swallowing(t):
+    """This repository was the false positive.
+
+    ci.yml carries a line saying no step may swallow a status with `|| true`,
+    and the first version of this reader flagged that sentence as a violation
+    of itself. The reason beside a real one is carried instead, because every
+    legitimate use this project has seen came with a sentence explaining why
+    and every illegitimate one did not -- a signal an agent can use and a
+    counter cannot."""
+    _workflow(t, "ci.yml",
+              "on:\n  pull_request:\n\njobs:\n  t:\n"
+              "    runs-on: ubuntu-latest\n"
+              "    steps:\n"
+              "      # No step may swallow a status with || true\n"
+              "      - run: pytest\n"
+              "      # the corpus measurement must not fail the job\n"
+              "      - name: measure\n"
+              "        continue-on-error: true\n"
+              "        run: python3 measure.py\n"
+              "      - run: cleanup.sh || true\n")
+    r, why = merge_mod.assess(t)
+    if not r:
+        return f"nothing was read: {why}"
+    got = r["swallow_candidates"]
+    if len(got) != 2:
+        return ("expected the two real ones and not the comment, got: "
+                + repr([(c["line"], c["text"]) for c in got]))
+    with_reason = [c for c in got if c["reason_given"]]
+    if len(with_reason) != 1:
+        return ("the comment explaining a deliberate swallow was not carried "
+                "to the one it explains: " + repr(got))
+    if "corpus" not in with_reason[0]["reason_given"]:
+        return "the wrong comment was attached: " + with_reason[0]["reason_given"]
+    return None
+
+
 CASES = [
+    ("a 404 is an answer and a 403 is not",
+     case_a_404_is_an_answer_and_a_403_is_not),
+    ("unreadable protection does not become `not required`",
+     case_unreadable_protection_does_not_become_not_required),
+    ("a workflow on push only is not a merge gate",
+     case_a_workflow_on_push_only_is_not_a_merge_gate),
+    ("a comment about swallowing is not swallowing",
+     case_a_comment_about_swallowing_is_not_swallowing),
     ("a criterion the tool does not produce is absent, not zero",
      case_a_criterion_the_tool_does_not_produce_is_absent_not_zero),
     ("lcov carries function coverage",
@@ -3061,10 +3093,6 @@ CASES = [
      case_a_pipeline_that_runs_nothing_is_not_a_verdict),
     ("the page names the directories it took the verdict from",
      case_the_page_names_where_it_looked_for_tests),
-    ("a busy file is not mistaken for a reworked one",
-     case_a_busy_file_is_not_mistaken_for_a_reworked_one),
-    ("a place repaired twice is counted, from committed history",
-     case_a_place_repaired_twice_is_counted),
     ("an unprobed repository abstains rather than scoring zero",
      case_an_unprobed_repository_abstains_rather_than_scoring_zero),
     ("the memory is the difference removing it makes, not the thickness",
