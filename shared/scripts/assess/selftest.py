@@ -3315,6 +3315,119 @@ def case_a_claim_has_to_name_something_executable(t):
 
 
 
+
+def case_a_test_that_does_not_parse_never_became_evidence(t):
+    """CASCADE drops an uncompilable test; Python has to be told to.
+
+    A test with a syntax error exits non-zero on both runs, so it crosses as
+    `f2f` and reaches the right verdict -- but only after a second agent round
+    has been spent on the claim. Worse, a claim whose *only* failing tests were
+    typos goes `pending`, which is what schedules that round. Parsing costs
+    nothing and answers before the bill."""
+    ok, dropped = promises_mod.runnable([
+        {"name": "good", "source": "print('fine')\n"},
+        {"name": "typo", "source": "def broken(:\n"},
+    ])
+    if [c["name"] for c in ok] != ["good"]:
+        return f"a test that does not parse was kept: {[c['name'] for c in ok]}"
+    if [d["name"] for d in dropped] != ["typo"]:
+        return f"the unparseable test was not reported: {dropped}"
+    return None
+
+
+def case_a_missing_import_is_the_finding_and_is_never_dropped(t):
+    """The drop is syntax only, and widening it would delete the findings.
+
+    A test that reaches for something the document promised and the code does
+    not have fails at import time. That failure is exactly what dimension 4.3
+    is looking for -- round two decides whether the document or the test was
+    wrong -- so it has to run. A filter that also dropped tests which fail to
+    import would silently make the method incapable of reporting the most
+    common inconsistency there is."""
+    ok, dropped = promises_mod.runnable([
+        {"name": "absent", "source": "import a_module_that_is_not_here\n"},
+        {"name": "attr", "source": "import os\nos.promised_by_the_doc()\n"},
+    ])
+    if dropped:
+        return f"a test that parses was dropped before it ran: {dropped}"
+    if len(ok) != 2:
+        return "a runnable test was lost"
+    return None
+
+
+def case_a_claim_whose_tests_all_failed_to_parse_is_untested(t):
+    """Not `pending`, which would buy it a second agent round for nothing.
+
+    The paper's equivalent returns negative when nothing compiled after three
+    repairs. Reporting it as pending instead would spend the most expensive
+    round on the page to discover that the agent typed a bracket wrong."""
+    claims = [{"id": 1, "doc": "d.md", "says": "it exits 2", "names": ["x.py"],
+               "kind": "exit code"}]
+    got = promises_mod.check(t, claims, {"tests": [
+        {"claim_id": 1, "targets": "x.py",
+         "cases": [{"name": "one", "source": "def (:\n"}]}]}, t)
+    if got[0].get("verdict") != "not tested":
+        return ("a claim with no parseable test was reported as "
+                + repr(got[0].get("verdict")))
+    if not got[0].get("dropped"):
+        return "the claim does not say which tests were dropped"
+    return None
+
+
+
+def case_a_claim_still_waiting_on_round_two_is_not_a_pass(t):
+    """The one direction this row cannot afford to be wrong in.
+
+    A `pending` claim is one whose test the real code *failed*; what has not
+    happened is the round that decides whether the document or the test was
+    at fault. Counting it under `ok` beside "the code passed it" turns the
+    most expensive measurement on the page into a clean bill for the exact
+    repository it was run to catch."""
+    def row_for(verdict):
+        got = dim_mod.repository_memory(
+            t, None, promises=[{"doc": "d.md", "says": "it exits 2",
+                                "verdict": verdict}])
+        for r in got.get("rows", []):
+            if "promises the code does not keep" in r.get("label", ""):
+                return r
+        return None
+
+    if (row_for("consistent") or {}).get("flag") != "ok":
+        return "a claim the real code passed was not reported as ok"
+    row = row_for("pending")
+    if row is None:
+        return "the promises row vanished once a claim had been run"
+    if row.get("flag") == "ok":
+        return "a claim whose test the real code failed was reported as ok"
+    if "passed it" in row.get("note", ""):
+        return "a pending claim was described as the code having passed"
+    return None
+
+def case_the_blind_agent_cannot_read_the_repository(t):
+    """The tool list is the experiment, not a sentence in the prompt.
+
+    A test written after reading the implementation agrees with it by
+    construction. `repo-promise-tester` is given `Write` and nothing else so
+    that the blind is a fact about what it can do -- an instruction asking it
+    not to look is one an agent can talk itself out of, and the whole method
+    is worthless the moment it does."""
+    import re as _re
+    plugin = os.path.dirname(os.path.dirname(PARENT))
+    path = os.path.join(plugin, "agents", "repo-promise-tester.md")
+    if not os.path.exists(path):
+        return "the agent that writes the tests is missing"
+    head = open(path, encoding="utf-8").read().split("---")[1]
+    m = _re.search(r"^tools:\s*(.+)$", head, _re.M)
+    if not m:
+        return "the agent declares no tool list, so it inherits everything"
+    tools = {x.strip() for x in m.group(1).split(",")}
+    can_read = tools & {"Read", "Grep", "Glob", "Bash", "Task", "WebFetch",
+                        "NotebookEdit", "Edit"}
+    if can_read:
+        return ("the blind agent can reach the code it is not allowed to "
+                "read: " + ", ".join(sorted(can_read)))
+    return None
+
 LONG_A = ("The runner refuses to continue when the tree is dirty, because a "
           "half-applied change is indistinguishable from a finished one. ")
 LONG_B = ("Every check writes its reason to standard error, since that is the "
@@ -3335,6 +3448,68 @@ def _unit(t, rel, body):
     return full
 
 
+
+def case_a_document_nobody_loads_is_not_a_context_cost(t):
+    """A guide is read the way any file is read: somebody opens it.
+
+    This dimension is about text the harness puts in front of the model
+    without anyone asking. Sweeping every markdown file in the tree charges a
+    repository for having explained itself, and reported this project's own
+    assessment guide as the most expensive file it owns -- 4.6x the median
+    document, and nothing loads it. That is not an over-count, it is the wrong
+    population.
+
+    The fixture makes the un-loaded file enormous on purpose: if it were in,
+    it would dominate."""
+    repo(t)
+    _unit(t, "CLAUDE.md", "# rules\n\nKeep it short.\n")
+    _unit(t, "guide/1-assess.md", "# guide\n\n" + ("A long explanation. " * 900))
+    _unit(t, "docs/decisions/0001-a-thing.md", "# 0001\n\n" + ("Because. " * 900))
+    _unit(t, "README.md", "# readme\n\n" + ("Welcome here. " * 900))
+    commit(t, "docs: a small floor and three long documents")
+    r, why = units_mod.measure(t)
+    if r is None:
+        return f"nothing was measured at all: {why}"
+    seen = {u["path"] for u in r["units"]}
+    leaked = sorted(seen & {"guide/1-assess.md", "README.md",
+                            "docs/decisions/0001-a-thing.md"})
+    if leaked:
+        return "documents nobody loads were charged as context: " + repr(leaked)
+    if "CLAUDE.md" not in seen:
+        return "the one file that is loaded was dropped along with them"
+    return None
+
+
+def case_a_skills_reference_is_loaded_and_is_counted(t):
+    """The other side of the same line, and the reason it is a line not a rule
+    about directories.
+
+    A skill's `references/` reach the model when the skill fires, so they are
+    in. A document sitting beside them is not. Dropping the whole of a skill
+    directory would lose the finding this dimension is best at -- the same
+    paragraph in a SKILL.md and in its own reference, paid for twice whenever
+    that skill runs and free to drift apart."""
+    repo(t)
+    _unit(t, "CLAUDE.md", "# rules\n\nKeep it short.\n")
+    shared = ("Every check must be watched failing before it counts as a "
+              "check, because a check nobody has seen turn red is a file.\n")
+    _unit(t, "skills/writing/SKILL.md", "# writing\n\n" + shared + "\nMore.\n")
+    _unit(t, "skills/writing/references/kinds.md",
+          "# kinds\n\n" + shared + "\nOther things.\n")
+    commit(t, "docs: a skill and its reference share a sentence")
+    r, why = units_mod.measure(t)
+    if r is None:
+        return f"nothing was measured at all: {why}"
+    seen = {u["path"] for u in r["units"]}
+    if "skills/writing/references/kinds.md" not in seen:
+        return "a skill reference was dropped as though nothing loads it"
+    dup = r.get("duplicated_sentences") or []
+    if not dup:
+        return ("the sentence shared by a skill and its own reference was not "
+                "reported as paid for twice")
+    return None
+
+
 def case_a_repeated_table_is_not_a_repeated_paragraph(t):
     """Two files sharing a reference table are usually sharing it on purpose.
 
@@ -3342,8 +3517,10 @@ def case_a_repeated_table_is_not_a_repeated_paragraph(t):
     first version of this reported a garbled table row as the duplicated
     prose. Duplication here is about paragraphs: the same paragraph in two
     loaded files is the thing that drifts."""
-    _unit(t, "docs/a.md", "# A\n\n" + TABLE + "\n" + LONG_A)
-    _unit(t, "docs/b.md", "# B\n\n" + TABLE + "\n" + LONG_B)
+    # On rule paths, not docs/: a document nobody loads is outside this
+    # dimension entirely, so a fixture written in docs/ measures nothing.
+    _unit(t, ".claude/rules/a.md", "# A\n\n" + TABLE + "\n" + LONG_A)
+    _unit(t, ".claude/rules/b.md", "# B\n\n" + TABLE + "\n" + LONG_B)
     subprocess.run(["git", "init", "-q"], cwd=t, check=True)
     subprocess.run(["git", "add", "-A"], cwd=t, check=True)
     r, why = units_mod.measure(t)
@@ -3353,7 +3530,7 @@ def case_a_repeated_table_is_not_a_repeated_paragraph(t):
         return ("a shared table was counted as a repeated paragraph: %d"
                 % r["duplicated_sentences"])
 
-    _unit(t, "docs/b.md", "# B\n\n" + TABLE + "\n" + LONG_A)
+    _unit(t, ".claude/rules/b.md", "# B\n\n" + TABLE + "\n" + LONG_A)
     subprocess.run(["git", "add", "-A"], cwd=t, check=True)
     r, _why = units_mod.measure(t)
     if r["duplicated_sentences"] != 1:
@@ -3413,12 +3590,13 @@ def case_an_untracked_file_is_not_loadable_context(t):
 
     A draft nobody committed is not what the repository loads, and counting
     it moves every median."""
-    _unit(t, "docs/kept.md", LONG_A * 2)
-    _unit(t, "docs/scratch.md", LONG_A * 2)
+    _unit(t, ".claude/rules/kept.md", LONG_A * 2)
+    _unit(t, ".claude/rules/scratch.md", LONG_A * 2)
     subprocess.run(["git", "init", "-q"], cwd=t, check=True)
-    subprocess.run(["git", "add", "docs/kept.md"], cwd=t, check=True)
+    subprocess.run(["git", "add", ".claude/rules/kept.md"], cwd=t,
+                   check=True)
     r, _why = units_mod.measure(t)
-    if [u["path"] for u in r["units"]] != ["docs/kept.md"]:
+    if [u["path"] for u in r["units"]] != [".claude/rules/kept.md"]:
         return ("an untracked draft was counted as loadable context: "
                 + repr([u["path"] for u in r["units"]]))
     return None
@@ -3516,6 +3694,120 @@ def case_a_ci_step_that_is_a_template_is_not_a_command(t):
     return None
 
 
+
+def _ranked(sides, counts=None):
+    """Candidate pairs built by hand, so a criterion can be held still.
+
+    `sides` is a list of pairs, each ((ts, floor, values), (ts, floor,
+    values)). Going through `narrow` instead would mean forging commit dates,
+    and the arithmetic under test does not care where the numbers came from."""
+    pairs = []
+    for a, b in sides:
+        pair = {"subject": "`k`", "kind": "different number",
+                "a": {"path": "a.md", "value": a[2], "says": "",
+                      "last_changed": a[0], "on_floor": a[1]},
+                "b": {"path": "b.md", "value": b[2], "says": "",
+                      "last_changed": b[0], "on_floor": b[1]}}
+        if counts:
+            pair["code_says_count"] = counts
+        pairs.append(pair)
+    weights = conflict_mod.rank(pairs)
+    return pairs, weights
+
+
+def case_a_signal_that_never_varies_is_weighted_to_zero(t):
+    """The property the entropy step is here for.
+
+    `on_floor` is false on every candidate in most repositories. A reader
+    skipping past the same "neither is on the floor" on every pair is doing by
+    hand what the weight says once. ConflictRAG III-C: higher entropy is less
+    discriminating power, so lower weight."""
+    _pairs, w = _ranked([((1000, False, ["1"]), (2000, False, ["2"])),
+                         ((1500, False, ["3"]), (9000, False, ["4"]))])
+    if w.get("on_floor") != 0.0:
+        return (f"a criterion identical on every candidate still carried "
+                f"weight {w.get('on_floor')}")
+    if not w.get("recency"):
+        return f"the criterion that did vary was not weighted: {w}"
+    return None
+
+
+def case_raw_timestamps_collapse_every_weight(t):
+    """Why the matrix is min-maxed before the entropy, and not after.
+
+    Commit times inside one repository agree to four significant figures.
+    Feed them in raw and every p_ij is uniform to a rounding error, so recency
+    comes out with the entropy of a constant and a weight near zero. The
+    signal is dropped and nothing says it was.
+
+    Recency has to be made to *compete* to show this. Alone it survives the
+    bug: the other two criteria are constant, their entropy is exactly 1, and
+    a lone non-degenerate column normalises to the whole weight however
+    little it discriminates. Against a criterion that does discriminate, raw
+    timestamps take 0.00 and min-maxed ones take about half."""
+    now = 1_750_000_000
+    day = 86_400
+    counts = {"1": 50, "2": 3, "3": 3, "4": 50}
+    _pairs, w = _ranked([((now, False, ["1"]), (now + 200 * day, False, ["2"])),
+                         ((now + 5 * day, False, ["3"]),
+                          (now + 100 * day, False, ["4"]))],
+                        counts=counts)
+    if w.get("recency", 0) < 0.2:
+        return (f"eight months between two documents weighed "
+                f"{w.get('recency')} against a criterion that did vary — raw "
+                f"timestamps were fed to the entropy step")
+    return None
+
+
+def case_a_truncated_grep_is_not_the_strength_of_the_signal(t):
+    """Three is how many files a reader will open, not how much evidence.
+
+    `_code_says` caps its file list at three for display. Ranking on that list
+    read a value in fifty files and a value in three as equal evidence, and
+    `code_agrees` then weighted itself to zero for having said nothing."""
+    counts = {"1": 50, "2": 3}
+    pairs, w = _ranked([((1000, False, ["1"]), (1000, False, ["2"])),
+                        ((1000, False, ["2"]), (1000, False, ["1"]))],
+                       counts=counts)
+    if not w.get("code_agrees"):
+        return ("fifty files against three did not separate the sides: "
+                f"code_agrees weighed {w.get('code_agrees')}")
+    if pairs[0]["a"]["credibility"] <= pairs[0]["b"]["credibility"]:
+        return "the value the code contains fifty times did not outrank three"
+    return None
+
+
+def case_the_score_ranks_and_does_not_decide(t):
+    """The divergence from the paper, and the one worth a guard.
+
+    ConflictRAG selects a source and generates from it. This is a diagnostic:
+    it hands the number over and the agent still answers `believe`. A
+    diagnostic that started picking winners would have stopped being one."""
+    pairs, _w = _ranked([((1000, False, ["1"]), (9000, True, ["2"]))])
+    pair = pairs[0]
+    for side in ("a", "b"):
+        if pair[side].get("credibility") is None:
+            return f"side {side} came back without a score at all"
+    for key in ("believe", "real", "verdict", "winner"):
+        if key in pair or key in pair["a"] or key in pair["b"]:
+            return (f"the ranking wrote `{key}` into the candidate — it has "
+                    f"started answering the question it is meant to inform")
+    return None
+
+
+def case_a_tie_is_a_tie_and_not_a_column_order(t):
+    """Two sides no criterion separates score 0.5, both of them.
+
+    D+ and D- are both zero there, and the ratio is undefined. Returning
+    anything but a tie would invent a finding out of a division."""
+    pairs, _w = _ranked([((1000, False, ["1"]), (1000, False, ["2"]))])
+    a = pairs[0]["a"]["credibility"]
+    b = pairs[0]["b"]["credibility"]
+    if a != b:
+        return f"identical candidates were ranked apart: {a} against {b}"
+    return None
+
+
 CASES = [
     ("nothing wired cannot fail the legitimate row",
      case_nothing_wired_cannot_fail_the_legitimate_row),
@@ -3525,6 +3817,10 @@ CASES = [
      case_only_a_shell_fence_is_a_documented_command),
     ("a CI step that is a template is not a command",
      case_a_ci_step_that_is_a_template_is_not_a_command),
+    ("a document nobody loads is not a context cost",
+     case_a_document_nobody_loads_is_not_a_context_cost),
+    ("a skill's reference is loaded and is counted",
+     case_a_skills_reference_is_loaded_and_is_counted),
     ("a repeated table is not a repeated paragraph",
      case_a_repeated_table_is_not_a_repeated_paragraph),
     ("a file is compared to its own kind",
@@ -3543,6 +3839,16 @@ CASES = [
      case_a_fenced_example_is_not_a_promise),
     ("a claim has to name something executable",
      case_a_claim_has_to_name_something_executable),
+    ("a test that does not parse never became evidence",
+     case_a_test_that_does_not_parse_never_became_evidence),
+    ("a missing import is the finding and is never dropped",
+     case_a_missing_import_is_the_finding_and_is_never_dropped),
+    ("a claim whose tests all failed to parse is untested",
+     case_a_claim_whose_tests_all_failed_to_parse_is_untested),
+    ("a claim still waiting on round two is not a pass",
+     case_a_claim_still_waiting_on_round_two_is_not_a_pass),
+    ("the blind agent cannot read the repository",
+     case_the_blind_agent_cannot_read_the_repository),
     ("supersession is not conflict",
      case_supersession_is_not_conflict),
     ("a value must be attached, not merely nearby",
@@ -3555,6 +3861,16 @@ CASES = [
      case_only_what_the_repository_keeps_is_its_memory),
     ("somebody else's cloned repository is not ours",
      case_somebody_elses_cloned_repository_is_not_ours),
+    ("a signal that never varies is weighted to zero",
+     case_a_signal_that_never_varies_is_weighted_to_zero),
+    ("raw timestamps collapse every weight",
+     case_raw_timestamps_collapse_every_weight),
+    ("a truncated grep is not the strength of the signal",
+     case_a_truncated_grep_is_not_the_strength_of_the_signal),
+    ("the score ranks and does not decide",
+     case_the_score_ranks_and_does_not_decide),
+    ("a tie is a tie and not a column order",
+     case_a_tie_is_a_tie_and_not_a_column_order),
     ("a 404 is an answer and a 403 is not",
      case_a_404_is_an_answer_and_a_403_is_not),
     ("unreadable protection does not become `not required`",

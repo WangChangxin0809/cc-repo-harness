@@ -92,26 +92,57 @@ def _tracked(root):
     return {x.strip() for x in (r.stdout or "").splitlines() if x.strip()}
 
 
+# --- what the harness delivers, and what a person opens ------------------
+#
+# This dimension is about text that reaches the model because the harness put
+# it there, not about every document in the tree. A guide, a decision record
+# and a README are read the way any file is read: somebody opens them. Their
+# size is a fact about the writing, and charging it here says a repository is
+# expensive for having explained itself.
+#
+# Measured on this repository the first time it swept everything: the largest
+# "context cost" in the tree was the assessment guide, which nothing loads.
+# That is not an over-count, it is the wrong population.
+DELIVERED = ("root instruction", "nested instruction", "rule", "skill",
+             "skill reference", "agent", "command")
+
+_SKILLS_DIR = re.compile(r"(?:^|/)skills/")
+_AGENTS_DIR = re.compile(r"(?:^|/)agents/")
+_COMMANDS_DIR = re.compile(r"(?:^|/)commands/")
+
+
 def kind_of(rel):
     """Which population this file's size should be compared against.
 
     Comparing a skill to a decision record would report every skill as small
     and every decision as huge, which is a fact about the two genres and not
-    about this repository."""
+    about this repository.
+
+    Anything that returns `document` is outside the measurement entirely --
+    see DELIVERED above."""
     base = os.path.basename(rel)
     if base in ROOT_INSTRUCTIONS and "/" not in rel:
         return "root instruction"
     if base in ROOT_INSTRUCTIONS:
         return "nested instruction"
-    if base == "SKILL.md":
-        return "skill"
     if rel.startswith(".claude/") or "/.claude/" in rel:
         return "rule"
+    if _SKILLS_DIR.search(rel):
+        # A skill's references reach the model when the skill fires, which is
+        # why they are in and a document beside them is not.
+        return "skill" if base == "SKILL.md" else "skill reference"
+    if _AGENTS_DIR.search(rel):
+        return "agent"
+    if _COMMANDS_DIR.search(rel):
+        return "command"
     return "document"
 
 
-def units(root):
-    """Every file that can be loaded as context, with its kind."""
+def units(root, everything=False):
+    """Every file the harness itself puts in front of the model, with its kind.
+
+    `everything=True` keeps the documents too, which is only useful for
+    showing what was left out."""
     keeps = _tracked(root)
     out = []
     for base, dirs, names in os.walk(root):
@@ -124,9 +155,12 @@ def units(root):
             rel = rel.replace(os.sep, "/")
             if keeps is not None and rel not in keeps:
                 continue
+            kind = kind_of(rel)
+            if not everything and kind not in DELIVERED:
+                continue
             text = _read(os.path.join(base, name))
             if text.strip():
-                out.append({"path": rel, "kind": kind_of(rel), "text": text})
+                out.append({"path": rel, "kind": kind, "text": text})
     return out
 
 
