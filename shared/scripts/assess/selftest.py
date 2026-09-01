@@ -46,6 +46,7 @@ import arid as arid_mod            # noqa: E402
 import judge as judge_mod          # noqa: E402
 import mutate as mutate_mod        # noqa: E402
 import run_mutants as run_mod      # noqa: E402
+import factsheet as fact_mod       # noqa: E402
 
 
 def git(args, cwd):
@@ -1375,6 +1376,158 @@ def case_productivity_is_reported_with_its_judge_named(t):
     return None
 
 
+# --------------------------------------------------------------------------
+# the second injection, on the page
+# --------------------------------------------------------------------------
+
+def _mutable_repo(t):
+    """A repository with one covered line the tests assert about, and one they
+    only execute. The second is what a mutant survives on."""
+    repo(t)
+    put(t, "app.py",
+        "def add(a, b):\n"
+        "    return a + b\n\n"
+        "def describe(n):\n"
+        "    width = n * 2\n"
+        "    return 'n'\n")
+    put(t, "suite.py",
+        "import sys, os\n"
+        "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+        "from app import add, describe\n"
+        "assert add(2, 3) == 5\n"
+        "describe(4)\n"
+        "sys.exit(0)\n")
+    commit(t, "feat: an app and a suite")
+    return [sys.executable, "suite.py"]
+
+
+def case_mutation_reaches_the_page_only_when_asked(t):
+    """`--mutate` is off by default, and off has to mean the page says so.
+
+    The replay's cost is bounded by the page -- three defects, three suite
+    runs. Mutation's is chosen by the caller, so it is the one thing here that
+    must be asked for. What must NOT happen is the page quietly reading the
+    same either way: a dimension that shows the same rows whether or not the
+    expensive half ran is a dimension nobody can tell has abstained."""
+    cmd = _mutable_repo(t)
+    off = dim_mod.change_validation(
+        {"replayable": 0, "fix_no_test": 0, "has_test_files": True,
+         "shallow": False}, None, "", catch_mod.LADDER)
+    how = [r for r in off["rows"] if r["label"] == "how the defect got in"]
+    if not how or not how[0]["value"].startswith("1 way"):
+        return f"without --mutate the page does not say one injection ran: {how}"
+
+    run, why = run_mod.assess(t, 6, command=cmd)
+    if run is None:
+        return f"the fixture could not be mutated at all: {why}"
+    on = dim_mod.change_validation(
+        {"replayable": 0, "fix_no_test": 0, "has_test_files": True,
+         "shallow": False}, None, "", catch_mod.LADDER, run)
+    how = [r for r in on["rows"] if r["label"] == "how the defect got in"]
+    if not how or not how[0]["value"].startswith("2 ways"):
+        return f"with mutation the page still reports one injection: {how}"
+    if not [r for r in on["rows"]
+            if r["label"] == "changed lines the tests noticed"]:
+        return "the mutation result did not reach dimension 2 at all"
+
+    # The replay abstained in both calls above. Mutation having produced a
+    # reading means the dimension WAS measured -- reporting it as abstained
+    # would hide a measurement somebody paid for.
+    if on["state"] != "measured":
+        return (f"mutation produced a reading and the dimension still reports "
+                f"{on['state']!r}")
+    if off["state"] == "measured":
+        return "the dimension claims a measurement with neither injection run"
+
+    # And off by default has to be the CLI's answer too, not only this
+    # function's. A page that silently ran the suite once per mutant because
+    # somebody forgot a flag has spent hours nobody asked for.
+    #
+    # The test command has to be supplied here, or the check is vacuous: the
+    # ecosystem table does not recognise this fixture, mutation would abstain
+    # for that reason instead of for being switched off, and a planted
+    # `default=8` sailed straight through this case. Supplying it means the
+    # only thing left stopping mutation is the default.
+    out = subprocess.run(
+        [sys.executable, os.path.join(HERE, "factsheet.py"), "--root", t,
+         "--no-full", "--test-command", " ".join(cmd)],
+        capture_output=True, text=True, timeout=600)
+    if "2 ways" in out.stdout:
+        return "the default run mutated the repository without being asked"
+    if "1 way" not in out.stdout:
+        return f"the default run says nothing about how a defect got in"
+    return None
+
+
+def case_a_surviving_mutant_is_a_candidate_not_a_finding(t):
+    """The row that would be wrong three times in ten if it claimed defects.
+
+    The paper reports 70.6% of the survivors it showed Python developers as
+    worth acting on, which is the same sentence as: three in ten were not.
+    This page cannot tell which three -- only something that reads the
+    enclosing code can -- so the row says candidate, names the pass that
+    judges them, and the brief for that pass is produced here."""
+    cmd = _mutable_repo(t)
+    run, why = run_mod.assess(t, 6, command=cmd)
+    if run is None:
+        return f"the fixture could not be mutated at all: {why}"
+    if not run["survived"]:
+        return ("nothing survived on a fixture built to have a line the tests "
+                "execute without asserting about -- the case cannot check "
+                "what it is for")
+    rows, headline = dim_mod.mutation_rows(run)
+    cand = [r for r in rows
+            if r["label"] == "which changes, and what to do with them"]
+    if not cand:
+        return "survivors were reported with no row saying what they are"
+    note = cand[0]["note"]
+    if "NOT findings" not in note:
+        return f"a survivor is presented as a finding: {note[:120]!r}"
+    if "mutant_brief" not in note:
+        return "the row does not say where the brief for judging them is"
+    if not headline:
+        return "survivors did not produce a headline for the dimension"
+
+    got, _why = judge_mod.brief(run, t)
+    if got is None or not got["index"]:
+        return "no brief was produced for the survivors"
+    if "def " not in got["prompt"]:
+        return ("the brief does not carry the enclosing code, so the judging "
+                "pass would be guessing from a diff line")
+    return None
+
+
+def case_a_caveat_outranks_the_figure_it_qualifies(t):
+    """A survivability figure over a flaky suite is not a survivability figure.
+
+    Both caveats are about the same failure: the number looks like the paper's
+    and is not comparable to it. Printing them below the figure invites exactly
+    the comparison they exist to refuse, so they are placed above it."""
+    run = {"killed": 8, "survived": 2, "generated": 10, "suppressed": 3,
+           "broken": 0, "timeout": 0, "unplaceable": 0, "survivability": 0.2,
+           "seconds": 4.0, "command": "pytest", "flaky": True,
+           "coverage": "NOT available — the covered-line restriction was "
+                       "dropped",
+           "rows": [{"verdict": "survived", "path": "a.py", "line": 3,
+                     "operator": "AOR", "before": "a + b", "after": "a - b"}]}
+    rows, _h = dim_mod.mutation_rows(run)
+    labels = [r["label"] for r in rows]
+    figure = labels.index("changed lines the tests noticed")
+    for caveat in ("!! the suite is flaky", "!! coverage was not available"):
+        if caveat not in labels:
+            return f"the page does not carry the caveat {caveat!r} at all"
+        if labels.index(caveat) > figure:
+            return (f"{caveat!r} is printed below the figure it disqualifies")
+        if [r for r in rows if r["label"] == caveat][0]["flag"] != "warn":
+            return f"{caveat!r} is not flagged, so it reads as a footnote"
+
+    clean = dict(run, flaky=False, coverage="measured — 40 line(s) executed")
+    labels = [r["label"] for r in dim_mod.mutation_rows(clean)[0]]
+    if [x for x in labels if x.startswith("!!")]:
+        return f"a clean run still prints a caveat: {labels}"
+    return None
+
+
 def case_an_unanswered_mutant_moves_the_score_neither_way(t):
     """Silence must not be scoreable.
 
@@ -2182,6 +2335,12 @@ CASES = [
      case_a_redundant_short_circuit_guard_is_suppressed),
     ("productivity is reported with its judge named",
      case_productivity_is_reported_with_its_judge_named),
+    ("mutation reaches the page only when it is asked for",
+     case_mutation_reaches_the_page_only_when_asked),
+    ("a surviving mutant is a candidate, not a finding",
+     case_a_surviving_mutant_is_a_candidate_not_a_finding),
+    ("a caveat is printed above the figure it disqualifies",
+     case_a_caveat_outranks_the_figure_it_qualifies),
     ("an unanswered mutant moves the score neither way",
      case_an_unanswered_mutant_moves_the_score_neither_way),
     ("a supplied test command is used when the table cannot guess",

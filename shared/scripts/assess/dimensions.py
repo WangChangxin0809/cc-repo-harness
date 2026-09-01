@@ -300,7 +300,8 @@ def secs(v):
     return f"{v / 3600:.1f}h"
 
 
-def change_validation(defects, catch, catch_why, ladder):
+def change_validation(defects, catch, catch_why, ladder, mutants=None,
+                      mutants_why=""):
     """When a defect is introduced, how late is it caught?"""
     rows = []
     if defects is None:
@@ -321,16 +322,32 @@ def change_validation(defects, catch, catch_why, ladder):
             "note": "reverts, and fixes that touched a test — this "
                     "repository's own, not synthetic ones"})
 
-    rows.append({
-        "label": "how the defect got in",
-        "value": "1 way: the repository's own fix, reverted",
-        "flag": "info",
-        "note": "the files the fix touched are taken back to their state at "
-                "its parent, so the defect is one that actually happened here "
-                "and the fix is the answer key. It is the only injection this "
-                "page has today: nothing is mutated, and no payload is "
-                "written. A repository can be caught early by this and still "
-                "have failure modes nothing on this page looks for."})
+    if mutants:
+        rows.append({
+            "label": "how the defect got in",
+            "value": "2 ways: a fix reverted, and a covered line mutated",
+            "flag": "info",
+            "note": "the first is this repository's own history — the files a "
+                    "fix touched are taken back to their state at its parent, "
+                    "so the defect actually happened here and the fix is the "
+                    "answer key. The second is synthetic and asks a different "
+                    "question: not how late a defect is caught, but whether a "
+                    "change to a line the tests already execute is noticed at "
+                    "all. They can disagree, and the disagreement is the "
+                    "finding."})
+    else:
+        rows.append({
+            "label": "how the defect got in",
+            "value": "1 way: the repository's own fix, reverted",
+            "flag": "info",
+            "note": "the files the fix touched are taken back to their state "
+                    "at its parent, so the defect is one that actually "
+                    "happened here and the fix is the answer key. It is the "
+                    "only injection that ran: nothing was mutated"
+                    + (f" — {mutants_why.replace('cannot judge: ', '')}"
+                       if mutants_why else ", and --mutate was not passed")
+                    + ". A repository can be caught early by this and still "
+                      "have failure modes nothing on this page looks for."})
 
     if catch:
         counts = {k: 0 for k in ladder}
@@ -413,9 +430,124 @@ def change_validation(defects, catch, catch_why, ladder):
                              "to put each defect back and record where it "
                              "is first caught"})
 
+    if mutants:
+        extra, mut_headline = mutation_rows(mutants)
+        rows += extra
+        # Either injection producing a reading means the dimension was
+        # measured. The replay stays the headline when it ran, because "how
+        # late" is this dimension's question and mutation answers a narrower
+        # one; mutation only speaks for the dimension when the replay did not.
+        if mut_headline and state != "measured":
+            state, headline = "measured", mut_headline
+
     return {"n": 2, "name": "Change Validation",
             "question": "When a defect is introduced, how late is it caught?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def mutation_rows(m):
+    """The second injection, as rows -- and as caveats that outrank them.
+
+    A surviving mutant is a **candidate**, never a finding. The paper this is
+    copied from reports 70.6% of the survivors it showed Python developers
+    being worth acting on, which also means most of the rest were not. Any row
+    here that reads as a defect count would be wrong three times in ten, and
+    the page has no way to tell which three -- only an agent that reads the
+    enclosing code does, which is why the brief exists."""
+    counted = m["killed"] + m["survived"]
+    rows, headline = [], ""
+    if not counted:
+        rows.append({"label": "changed lines the tests noticed",
+                     "value": "could not judge", "flag": "info",
+                     "note": "every mutant was unplaceable, or broke the "
+                             "suite's own loading — neither is a verdict "
+                             "about the tests"})
+        return rows, ""
+
+    # The caveats come first on purpose. A survivability figure taken over a
+    # flaky suite, or over lines no test executes, is not the figure the paper
+    # reports, and printing it above its own caveat invites the comparison it
+    # cannot support.
+    if m.get("flaky"):
+        rows.append({
+            "label": "!! the suite is flaky",
+            "value": "not green on all 3 baseline runs",
+            "flag": "warn",
+            "note": "a mutant is scored noticed whenever the suite goes red — "
+                    "including when it would have gone red anyway. Every "
+                    "figure below is an upper bound on what the tests really "
+                    "catch"})
+    if not m.get("coverage", "").startswith("measured"):
+        rows.append({
+            "label": "!! coverage was not available",
+            "value": "the covered-line restriction was dropped",
+            "flag": "warn",
+            "note": "so the changed lines below include lines no test "
+                    "executes, which are guaranteed survivors and say nothing "
+                    "about the tests. Not comparable to the paper's figure"})
+
+    rows.append({
+        "label": "changed lines the tests noticed",
+        "value": f"{m['killed']} of {counted}",
+        "flag": "ok" if m["killed"] == counted else "info",
+        "note": f"one line changed at a time, on lines the suite already "
+                f"executes, under `{m['command']}`. {m['generated']} mutant(s) "
+                f"run in {m['seconds']}s"})
+
+    if m["survivability"] is not None:
+        rows.append({
+            "label": "changes nothing noticed",
+            "value": f"{m['survived']}  ({100 * m['survivability']:.1f}%)",
+            "flag": "bad" if m["survived"] else "ok",
+            "note": "the paper reports 13.2% for Python, 12.5% overall, over "
+                    "16.9M mutants. Higher is not automatically worse: a "
+                    "survivor is a line the tests run without asserting "
+                    "anything about, and some of those are lines nothing "
+                    "should assert about"})
+
+    if m["survived"]:
+        headline = (f"{m['survived']} of {counted} changed lines ran through "
+                    f"the tests unnoticed")
+        seen = []
+        for row in m["rows"]:
+            if row["verdict"] == "survived" and len(seen) < 6:
+                seen.append(f"{row['path']}:{row['line']} "
+                            f"{row['before']} → {row['after']}")
+        rows.append({
+            "label": "which changes, and what to do with them",
+            "value": f"{m['survived']} candidate(s) for an agent",
+            "flag": "warn",
+            "note": "NOT findings. Roughly three in ten will be lines no test "
+                    "should assert about, and this page cannot tell which — "
+                    "only something that reads the enclosing code can. The "
+                    "brief for that pass is in the JSON under `mutant_brief`. "
+                    "First few: " + "; ".join(seen)})
+
+    if m.get("suppressed"):
+        rows.append({
+            "label": "changes not worth making",
+            "value": f"{m['suppressed']} suppressed",
+            "flag": "info",
+            "note": "mutants an arid-node rule threw away before running "
+                    "anything — a changed log string, a timeout constant, a "
+                    "flag default. 25 rules transcribed from the paper's "
+                    "Appendix A; one was not, and is marked where it is "
+                    "defined"})
+
+    if m.get("broken") or m.get("timeout"):
+        bits = []
+        if m.get("broken"):
+            bits.append(f"{m['broken']} broke the suite's loading")
+        if m.get("timeout"):
+            bits.append(f"{m['timeout']} hung past {m.get('budget_seconds')}s")
+        rows.append({
+            "label": "mutants outside the count",
+            "value": ", ".join(bits),
+            "flag": "info",
+            "note": "neither is scored as noticed. A suite that cannot import "
+                    "has not detected anything, and a hang is changed "
+                    "behaviour that no test asserted"})
+    return rows, headline
 
 
 # -- 3 -----------------------------------------------------------------------
@@ -1099,15 +1231,17 @@ def context_economy(root, probe, blast=None, value=None):
 # ---------------------------------------------------------------------------
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
-           memory=None, truth=None, value=None):
+           memory=None, truth=None, value=None, mutants=None, mutants_why=""):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
-    read out of the documents, which costs nothing and runs every time; and
+    read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
-    nobody spent them."""
+    nobody spent them; and `mutants` is the second injection into dimension 2,
+    which is None unless somebody passed `--mutate` and paid for it."""
     check_dirs = tuple((probe.get("discipline") or {}).get("check_dirs") or ())
     return [
         controlled_execution(root, probe, blast),
-        change_validation(defects, catch, catch_why, ladder),
+        change_validation(defects, catch, catch_why, ladder, mutants,
+                          mutants_why),
         reliable_delivery(root, log, check_dirs),
         repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe, blast, value),

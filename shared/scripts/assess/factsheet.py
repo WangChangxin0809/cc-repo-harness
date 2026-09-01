@@ -7,6 +7,8 @@
     --no-full  skip the defect replay -- the replay is on by default and
                costs minutes and the repo's test toolchain; without it
                dimension 2 abstains
+    --mutate N change N covered lines and see whether the tests notice --
+               OFF by default, because it runs the suite once per mutant
     --html P   a self-contained page for a person to read once and act on
 
 Exit codes:
@@ -50,6 +52,8 @@ sys.path.insert(0, HERE)
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
+import judge as judge_mod  # noqa: E402
+import run_mutants as mutants_mod  # noqa: E402
 import report as report_mod  # noqa: E402
 import truth as truth_mod  # noqa: E402
 import value as value_mod  # noqa: E402
@@ -108,14 +112,15 @@ def a_check_file(probe, root):
     return ""
 
 
-def gather(root, full, instances, work, command=None):
+def gather(root, full, instances, work, command=None, mutate=0):
     probe_mod = load("probe_repo", os.path.join(PARENT, "probe_repo.py"))
     probe = probe_mod.probe(root) if probe_mod else None
     if probe is None:
         return None
 
     r = {"probe": probe, "blast": None, "catch": None, "catch_why": "",
-         "drift": drift_pairs(root), "defects": None}
+         "drift": drift_pairs(root), "defects": None,
+         "mutants": None, "mutants_why": "", "mutant_brief": None}
 
     if os.path.isdir(os.path.join(root, ".claude")):
         r["blast"] = blast_mod.assess(root, a_source_file(root),
@@ -136,6 +141,19 @@ def gather(root, full, instances, work, command=None):
     if full:
         r["catch"], r["catch_why"] = catch_mod.assess(
             root, instances, work, command)
+
+    # Second injection, and the only one that is opt-in. The replay asks how
+    # late a defect that actually happened here is caught; mutation asks
+    # whether a change to a line the tests *already execute* is noticed at
+    # all. They can disagree, and when they do the disagreement is the
+    # finding: a repository can catch its own history early and still have a
+    # suite that runs code without asserting anything about it.
+    if mutate:
+        r["mutants"], r["mutants_why"] = mutants_mod.assess(
+            root, mutate, command=command)
+        if r["mutants"]:
+            got, _why = judge_mod.brief(r["mutants"], root)
+            r["mutant_brief"] = got
     return r
 
 
@@ -184,7 +202,8 @@ def dimensions_of(r, memory=None):
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
                           catch_mod.LADDER, memory, r.get("truth"),
-                          r.get("value"))
+                          r.get("value"), r.get("mutants"),
+                          r.get("mutants_why", ""))
 
 
 def render_flat(r):
@@ -294,6 +313,16 @@ def main():
                          "recognises a handful of conventions and misses most "
                          "repositories that do not follow one — including this "
                          "one. An agent that has read the repo can say.")
+    # Off by default, and the asymmetry with --full is deliberate. The replay
+    # runs the suite once per defect over three defects; mutation runs it once
+    # per mutant, and the number of mutants is chosen by the caller. It is the
+    # one thing on this page whose cost the page cannot bound on its own, so it
+    # is the one thing the caller has to ask for.
+    ap.add_argument("--mutate", nargs="?", type=int, const=30, default=0,
+                    metavar="N",
+                    help="change N covered lines and see whether the tests "
+                         "notice (default 30 when given without a number). "
+                         "Runs the suite once per mutant — minutes to hours.")
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
@@ -340,15 +369,21 @@ def preflight(root, a, work):
                                       "dimension 2 will abstain"))
     if ci:
         lines.append("  and its CI entry point: " + " ".join(ci))
-    lines.append("  --no-full skips all of it")
+    if a.mutate:
+        lines.append(f"  then changing up to {a.mutate} line(s) the tests "
+                     f"already execute, one at a time, and running that "
+                     f"command again for each — so up to {a.mutate + 3} more "
+                     f"runs of it")
+    lines.append("  --no-full skips all of it"
+                 + ("" if a.mutate else "; --mutate adds the second injection"))
     print("\n".join(lines) + "\n", file=sys.stderr)
 
 
 def _run(a, root, work):
-    if a.full:
+    if a.full or a.mutate:
         preflight(root, a, work)
     r = gather(root, a.full, a.instances, work,
-               a.test_command or None)
+               a.test_command or None, a.mutate)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
               file=sys.stderr)
