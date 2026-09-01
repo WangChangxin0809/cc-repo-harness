@@ -212,5 +212,9 @@ jobs:
       - name: Proxy log
         if: always()
         run: |
+          # Teardown, and the only step allowed to swallow a status. The
+          # proxy may already be gone -- the job it served has finished either
+          # way -- so `kill` failing says nothing about whether the run
+          # succeeded. Everything that judges anything is above this line.
           tail -80 /tmp/proxy.log 2>/dev/null || echo "(no proxy in this run)"
           kill "$(cat /tmp/proxy.pid)" 2>/dev/null || true

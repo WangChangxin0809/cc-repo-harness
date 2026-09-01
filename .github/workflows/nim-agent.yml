@@ -108,6 +108,10 @@ jobs:
             --opus-model    "$UPSTREAM_MODEL"
           cc-switch --app claude provider switch nvidia
           cc-switch --app claude provider current
+          # Diagnostic. `proxy show` prints the configuration for whoever
+          # reads the log later; a version of cc-switch without the subcommand
+          # is a missing convenience, not a failed setup, and the step that
+          # actually needs the proxy is the next one and does not swallow.
           cc-switch --app claude proxy show || true
 
       - name: Start the proxy and wait for it to listen
@@ -212,5 +216,8 @@ jobs:
       - name: Proxy log, whatever happened
         if: always()
         run: |
+          # Teardown, and the only step allowed to swallow a status: the
+          # proxy may already be gone, and `kill` failing says nothing about
+          # whether the run succeeded.
           echo "--- proxy ---"; tail -80 /tmp/proxy.log 2>/dev/null || echo "(none)"
           kill "$(cat /tmp/proxy.pid)" 2>/dev/null || true
