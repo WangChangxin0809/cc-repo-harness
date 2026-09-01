@@ -562,7 +562,15 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
                     .get("PreToolUse", 0)) + deny
     post = hooks.get("PostToolUse", 0)
     suite = bool((catch or {}).get("command") or (mutants or {}).get("command"))
-    ci = bool((catch or {}).get("ci") or (mutants or {}).get("ci"))
+    # Two different questions, and conflating them reported this repository --
+    # five required checks on a protected branch -- as having no CI rung at
+    # all. `catch["ci"]` is a command the replay could *run in the bench*, and
+    # it recognises `ci.sh` and `make ci`: one of which this plugin scaffolds.
+    # Grading a repository on whether it adopted our convention is the thing
+    # 0025 rejected. Whether the rung *exists* is the probe's question, and it
+    # already knew about the workflow.
+    ci_runnable = bool((catch or {}).get("ci") or (mutants or {}).get("ci"))
+    ci = ci_runnable or bool(disc.get("ci_entry"))
 
     # How many defects actually got as far as each rung. The walk stops at the
     # first red, so a lower rung showing 0 is *expected* when the rungs above
@@ -592,7 +600,10 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
         state(post, "same-turn", f"{post} hook(s)"),
         state(suite, "local-suite",
               f"{len(disc.get('check_dirs') or [])} check dir(s)"),
-        state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point"),
+        state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point")
+        + ("" if ci_runnable or not ci else
+           " (no entry point the replay could run here, so nothing was fired "
+           "at it)"),
     ]
     unenforced = 0
     if value:

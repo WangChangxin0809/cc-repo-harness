@@ -20,6 +20,18 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/shared/scripts/context/same_turn.py\"",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "*",
