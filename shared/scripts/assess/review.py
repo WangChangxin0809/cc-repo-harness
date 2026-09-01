@@ -110,6 +110,16 @@ SUBITEMS = (
     ("4.4", "documents against each other",
      "two documents naming one thing and giving it two values",
      ("documents that contradict each other",)),
+    # Not "is it worth keeping" (4.2) and not "is it true" (4.1, 4.3, 4.4).
+    # A standing instruction can be worth every token, accurate, and still
+    # written in a shape that competes with itself for attention -- which is
+    # the only thing this one asks about.
+    ("4.5", "the form of the instructions",
+     "whether what is kept is shaped so a model can act on it",
+     ("the form of the instructions",
+      "prohibitions with no stated alternative",
+      "paragraphs carrying several requirements at once",
+      "requirements asking for a quality, not a shape")),
 
     ("5.1", "usage",
      "floor, ceiling and parked -- what a turn pays before anyone types",

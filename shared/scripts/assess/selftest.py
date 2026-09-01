@@ -3658,6 +3658,41 @@ def case_an_abstention_does_not_become_a_number(t):
     return None
 
 
+def case_every_printed_row_is_claimed_by_a_sub_item(t):
+    """A measurement no sub-item claims is a measurement nobody scores.
+
+    `reframe.py` printed four rows into dimension 4 for a week and every one
+    of them landed under "Rows no sub-item claims" -- visible, which is the
+    design, and never once graded, which is not. The failure is quiet in the
+    direction that matters: the page looks complete, the radar looks complete,
+    and the thing that was measured is missing from both.
+
+    So the mapping is pinned here rather than left to whoever adds the next
+    row. The labels below are the ones the modules actually emit, indentation
+    included, because `collect` matches on a substring of the label and a row
+    that is only nearly named is a row that is not claimed."""
+    run = _run_with([
+        {"label": "the form of the instructions",
+         "value": "7 of 19 unit(s) have an opening", "flag": "info", "note": ""},
+        {"label": "  prohibitions with no stated alternative",
+         "value": "9", "flag": "info", "note": ""},
+        {"label": "  paragraphs carrying several requirements at once",
+         "value": "2", "flag": "info", "note": ""},
+        {"label": "  requirements asking for a quality, not a shape",
+         "value": "3", "flag": "info", "note": ""},
+    ])
+    items, unmapped = review_mod.collect(run)
+    if unmapped:
+        return "a printed measurement no sub-item claims: " + repr(unmapped)
+    ids = [i["id"] for i in items]
+    if ids != ["4.5"]:
+        return "the form rows did not land under one sub-item: " + repr(ids)
+    if len(items[0]["rows"]) != 4:
+        return ("%d of 4 form rows reached the sub-item"
+                % len(items[0]["rows"]))
+    return None
+
+
 def case_a_score_for_something_nobody_measured_is_refused(t):
     """The brief and the grader have to agree about what exists.
 
@@ -4459,6 +4494,8 @@ CASES = [
      case_a_table_is_data_and_an_alternative_may_come_first),
     ("a sentence about a prohibition is not one",
      case_a_sentence_about_a_prohibition_is_not_one),
+    ("every printed row is claimed by a sub-item",
+     case_every_printed_row_is_claimed_by_a_sub_item),
     ("coverage is given the command the replay found",
      case_coverage_is_given_the_command_the_replay_found),
     ("a description is not an unenforced rule",
