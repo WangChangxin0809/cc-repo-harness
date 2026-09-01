@@ -33,7 +33,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-import history as history_mod  # noqa: E402
+import history as history_mod
+import reframe as reframe_mod  # noqa: E402
 
 # A rule with no `paths:` loads at launch; one with `paths:` loads only when
 # Claude reads a matching file. The distinction decides both what a rule costs
@@ -1214,6 +1215,16 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
                      "value": "none found", "flag": "warn",
                      "note": "no postmortem, decision record, known-issues or "
                              "changelog anywhere in the tree"})
+
+    # Everything above asks what the repository writes down. This asks what
+    # shape the sentences are in, which is a separate question with its own
+    # evidence: reframing an instruction without changing what it asks moves
+    # how reliably it is followed -> reframe.py. Candidates only; which are
+    # worth rewriting is a reading, and a repository may mean its prose.
+    # It costs nothing -- no agent, no network, one walk of the tracked `.md`
+    # files -- so it runs every time, the way `truth` does. A measurement
+    # nobody has to opt into is a measurement that gets looked at.
+    rows.extend(reframe_mod.render(reframe_mod.measure(root)))
 
     # Does the repository contradict itself? Stage one is lexical and narrows
     # hard -- 1711 possible pairs to one candidate here -- because a filter

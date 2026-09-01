@@ -432,7 +432,14 @@ def preflight(root, a, work):
              f"defects, in a clone under {work}"]
     lines.append("  and once more, instrumented, to record which lines, "
                  "branches and conditions it exercises at all")
-    lines.append("  it will run: " + (" ".join(cmd) if cmd else
+    # Where the command came from, when it came from the repository's own
+    # documents rather than from a convention this tool recognises. Running
+    # somebody's documented command is reasonable; running it without saying
+    # whose it is presents their sentence as this tool's decision.
+    whose = ""
+    if cmd and not a.test_command and getattr(eco, "source", None):
+        whose = "  (declared in " + eco.source + ")"
+    lines.append("  it will run: " + (" ".join(cmd) + whose if cmd else
                                       "nothing — no runnable test command "
                                       "found. Pass --test-command, or "
                                       "dimension 2 will abstain"))

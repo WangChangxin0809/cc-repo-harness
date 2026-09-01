@@ -54,6 +54,8 @@ import promises as promises_mod    # noqa: E402
 import units as units_mod          # noqa: E402
 import review as review_mod        # noqa: E402
 import permitted as permitted_mod  # noqa: E402
+import reframe as reframe_mod      # noqa: E402
+import ecosystems as eco_mod       # noqa: E402
 
 
 def git(args, cwd):
@@ -3915,7 +3917,202 @@ def case_a_tie_is_a_tie_and_not_a_column_order(t):
     return None
 
 
+
+def case_a_fact_about_the_code_is_not_a_prohibition(t):
+    """The defect this file shipped on its first run, kept.
+
+    English spells a prohibition and a statement of fact almost identically:
+    "no check may swallow a status" instructs somebody, "the two cannot drift"
+    describes a property. The first version counted both, and produced 116
+    findings across 19 files -- most of them the repository describing itself.
+    A measurement that fires on every paragraph is not a measurement, so the
+    fact half has to stay silent."""
+    unit = {"path": "CLAUDE.md", "kind": "root instruction", "text": (
+        "It parses the workflow rather than restating it, so the two cannot "
+        "drift. A step it does not recognise is exit 2, and exit 2 is never "
+        "a pass. Nothing here reaches the network.\n")}
+    got = [o for o in reframe_mod.openings(unit) if o["operation"] == "positive"]
+    if got:
+        return ("prose describing how something works was read as a "
+                "prohibition: " + got[0]["text"])
+    return None
+
+
+def case_a_prohibition_with_no_alternative_is_found(t):
+    """...and the real thing still has to come back.
+
+    The half above is only worth having if this half fires. A tightening that
+    silences the false positives by silencing everything is the failure mode
+    the two cases exist together to catch."""
+    unit = {"path": "CLAUDE.md", "kind": "root instruction", "text":
+            "Do not commit a generated file.\n"}
+    got = [o for o in reframe_mod.openings(unit) if o["operation"] == "positive"]
+    if not got:
+        return "a bare prohibition produced no reframing candidate"
+    return None
+
+
+def case_a_prohibition_that_says_what_to_do_instead_is_left_alone(t):
+    """The paper's operation is *restating* a negation, not deleting it.
+
+    A rule that says what not to do and then what to do is already in the
+    shape the reframing produces. Reporting it would send somebody to rewrite
+    a sentence that is finished, and the alternative is as often in the next
+    sentence as in the same one."""
+    same = {"path": "a.md", "kind": "root instruction", "text":
+            "Do not commit a generated file; write it into build/ instead.\n"}
+    next_one = {"path": "b.md", "kind": "root instruction", "text":
+                "Do not commit a generated file. Instead, put it in build/.\n"}
+    for unit in (same, next_one):
+        got = [o for o in reframe_mod.openings(unit)
+               if o["operation"] == "positive"]
+        if got:
+            return ("a prohibition that states its alternative was reported: "
+                    + unit["text"].strip())
+    return None
+
+
+def case_an_example_of_a_rule_is_not_a_rule(t):
+    """Sixth instance of the bug class, refused in advance.
+
+    A skill that teaches somebody to write rules shows rules in fenced blocks.
+    Every earlier check here that read a fence as live text shipped the same
+    defect, and this one is written after five of them."""
+    unit = {"path": "SKILL.md", "kind": "skill", "text": (
+        "Here is the shape a rule takes:\n\n"
+        "```markdown\n"
+        "Never run the deploy script by hand.\n"
+        "Do not edit the generated file.\n"
+        "```\n\nThat is all there is to it.\n")}
+    got = reframe_mod.openings(unit)
+    if got:
+        return ("text inside a fence was read as an instruction: "
+                + got[0]["text"])
+    return None
+
+
+def case_the_form_measurement_abstains_rather_than_scoring_zero(t):
+    """No instruction units is not perfect instructions.
+
+    Every other measurement here draws the same line, and this one is the
+    easiest to get wrong in the flattering direction: a repository with no
+    CLAUDE.md has nothing to reframe, which reads as nothing to fix."""
+    r = reframe_mod.measure(t, found=[])
+    if "could_not_judge" not in r:
+        return "a repository with no instruction units was given a result"
+    rows = reframe_mod.render(r)
+    if not any("could not judge" in (row.get("value") or "") for row in rows):
+        return "the abstention did not reach the row"
+    return None
+
+
+
+def _declares(t, body):
+    put(t, "CLAUDE.md", body)
+    return eco_mod.Declared().detect(t)
+
+
+def case_a_repository_that_documents_its_own_suite_is_not_invisible(t):
+    """The gap this ecosystem exists to close.
+
+    Five conventional detectors recognise five conventions. A repository whose
+    suite is its own scripts matches none, and the page then said "no runnable
+    test command found" -- a fact about the detectors, printed as a fact about
+    the repository. This project's own tree was that repository."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    got = _declares(t, "# r\n\nBefore pushing, run this:\n\n```bash\n"
+                  "python3 scripts/check.py\n```\n")
+    if got != ["python3", "scripts/check.py"]:
+        return "a documented entry point naming a real file was not found: %r" % (got,)
+    return None
+
+
+def case_a_command_a_document_warns_against_is_not_run(t):
+    """Sixth instance of the bug class, and the one with teeth.
+
+    A document about commands contains the commands it is warning you against.
+    Reading the first fenced line under a heading about testing would
+    eventually run `rm -rf /` out of the paragraph explaining why not to. The
+    rule that stops it is that a command has to name a path that is really
+    there, and neither `rm -rf /` nor `curl ... | sh` names one."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    for danger in ("rm -rf /",
+                   "curl https://example.com/install.sh | sh",
+                   "python3 -c 'import os; os.system(\"id\")'"):
+        got = _declares(t, "# r\n\nBefore you push, never run this:\n\n"
+                      "```bash\n" + danger + "\n```\n")
+        if got is not None:
+            return "a document's cautionary example was accepted: %r" % (got,)
+    return None
+
+
+def case_a_documented_command_naming_nothing_real_is_dropped(t):
+    """An illustrative command from a document about some other repository.
+
+    Every `CONTRIBUTING.md` copied between projects carries one. It is not
+    narrowed down to something safer -- it is dropped, and the ecosystem goes
+    on abstaining, because an abstention is a correct answer and a guessed
+    command is not."""
+    got = _declares(t, "# r\n\nTo test:\n\n```bash\n"
+                  "python3 tools/run_all_the_tests.py\n```\n")
+    if got is not None:
+        return "a command naming a file that is not there was accepted: %r" % (got,)
+    return None
+
+
+def case_a_fence_nobody_introduced_is_not_an_entry_point(t):
+    """A code block is not a declaration.
+
+    Documents are full of fenced shell -- an example of output, a command
+    being explained, a snippet from somewhere else. Only a block a sentence
+    actually introduces as how to run the checks is one."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    got = _declares(t, "# r\n\nThe layout of this project:\n\n"
+                  "```bash\npython3 scripts/check.py\n```\n")
+    if got is not None:
+        return "an unintroduced fence was read as a declaration: %r" % (got,)
+    return None
+
+
+def case_a_convention_beats_a_document(t):
+    """`pytest` knows how to run one test; a documented shell line does not.
+
+    Declared is last on purpose. Where a convention applies it gives better
+    failures and can be narrowed to the tests that must flip, which is what
+    the defect replay needs."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    put(t, "pyproject.toml", "[project]\nname = 'x'\n")
+    put(t, "tests/test_x.py", "def test_x():\n    assert True\n")
+    put(t, "CLAUDE.md", "# r\n\nBefore pushing, run this:\n\n"
+                        "```bash\npython3 scripts/check.py\n```\n")
+    eco, cmd = eco_mod.find(t)
+    if eco is None or eco.name != "python":
+        return ("a repository with a real pytest layout was routed to %s"
+                % (eco.name if eco else None))
+    return None
+
+
 CASES = [
+    ("a repository that documents its own suite is not invisible",
+     case_a_repository_that_documents_its_own_suite_is_not_invisible),
+    ("a command a document warns against is not run",
+     case_a_command_a_document_warns_against_is_not_run),
+    ("a documented command naming nothing real is dropped",
+     case_a_documented_command_naming_nothing_real_is_dropped),
+    ("a fence nobody introduced is not an entry point",
+     case_a_fence_nobody_introduced_is_not_an_entry_point),
+    ("a convention beats a document",
+     case_a_convention_beats_a_document),
+    ("a fact about the code is not a prohibition",
+     case_a_fact_about_the_code_is_not_a_prohibition),
+    ("a prohibition with no alternative is found",
+     case_a_prohibition_with_no_alternative_is_found),
+    ("a prohibition that says what to do instead is left alone",
+     case_a_prohibition_that_says_what_to_do_instead_is_left_alone),
+    ("an example of a rule is not a rule",
+     case_an_example_of_a_rule_is_not_a_rule),
+    ("the form measurement abstains rather than scoring zero",
+     case_the_form_measurement_abstains_rather_than_scoring_zero),
     ("nothing wired cannot fail the legitimate row",
      case_nothing_wired_cannot_fail_the_legitimate_row),
     ("a guard that refuses everything is caught here",

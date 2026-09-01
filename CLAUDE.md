@@ -58,6 +58,19 @@ arrives. The other five are payload, copied into the repository that chose them
 
 ## Commands
 
+**Before pushing, run this.** It is the whole suite, about seventy seconds:
+
+```bash
+python3 scripts/check.py            # everything CI will run, that a laptop can
+python3 scripts/check.py --list     # what it would run, and what it skips
+```
+
+It does not restate CI -- it *parses* `.github/workflows/ci.yml` and runs the
+steps from it, so the two cannot drift. A step it cannot classify, or a linter
+this machine lacks, is exit 2: COULD NOT JUDGE, never a pass.
+
+The pieces, when you want one of them alone:
+
 ```bash
 python3 shared/scripts/guards/selftest.py     # guards can still turn red
 python3 shared/scripts/gates/selftest.py      # gates can still turn red
@@ -68,9 +81,6 @@ python3 shared/scripts/probe_repo.py --root . # what this repo has and lacks
 python3 shared/scripts/assess/factsheet.py --root .   # the whole assessment, one page
 claude plugin validate . --strict             # the manifest, by the first-party checker
 ```
-
-There is no `ci.sh` here. `.github/workflows/ci.yml` is the entry point, and it
-runs the scripts above one per step.
 
 ## Where to look
 

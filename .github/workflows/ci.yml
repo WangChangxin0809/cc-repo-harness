@@ -142,6 +142,14 @@ jobs:
       - name: the drift pass can still tell a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
 
+      # `scripts/check.py` is the one local command, and it works by reading
+      # this file rather than restating it -- so the failure mode is a step
+      # landing here in a shape it cannot classify, which it would then
+      # silently not run. This is the step that catches that: it parses the
+      # real workflow and goes red if anything in it is unreadable.
+      - name: the local runner can still read this file
+        run: python3 scripts/check.py --selftest
+
   acceptance:
     # The plugin's own acceptance criterion, the one the README states in prose:
     # scaffold a repository, fill in what the red list names, delete the plugin,

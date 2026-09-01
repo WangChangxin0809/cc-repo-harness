@@ -180,7 +180,118 @@ class Make(Ecosystem):
         return ["make", "test"] if "\ntest:" in "\n" + body else None
 
 
-ECOSYSTEMS = (Node(), Python(), Rust(), Go(), Make())
+class Declared(Ecosystem):
+    """The command the repository documents for itself, when nothing else fits.
+
+    Every detector above recognises a *convention* -- `pytest`, `npm test`,
+    `cargo test`. A repository whose suite is five bespoke scripts matches
+    none of them, and the assessment then reports "no runnable test command",
+    which is a fact about the detectors rather than about the repository.
+    This project's own tree was that repository: it has 142 assessment cases,
+    18 CI steps and a documented entry point, and dimension 2 abstained on it
+    for months.
+
+    ## Why reading a command out of a document is dangerous, and the rule
+
+    A `README` is prose, and prose about commands contains commands --
+    including the ones it is warning you against. Running the first fenced
+    line in a document would eventually run `rm -rf /` out of a section
+    explaining why not to. That is the failure this project has shipped five
+    times in other checks: text *about* a thing read as the thing.
+
+    So a candidate has to survive all of:
+
+    * it sits in a fenced block **introduced by a line about running checks**
+      -- a heading or sentence naming tests, checks, the suite, or pushing;
+    * it is one line, with no `;`, `&&`, `|`, redirect, backtick or `$(`, so
+      it cannot fan out into something the text never showed;
+    * it **names a path that exists in the tree**. This is the load-bearing
+      one. `python3 scripts/check.py` names a file; `rm -rf /` and
+      `curl ... | sh` name nothing, and neither does an illustrative command
+      from a document about some other repository.
+
+    A command that fails any of these is not narrowed down to something safer
+    -- it is dropped, and the ecosystem goes on abstaining. An abstention is a
+    correct answer here and a guessed command is not.
+    """
+
+    name = "declared"
+    tool = None
+    # Which document the command came from, set by `detect`. The assessment
+    # runs this against a repository nobody here has read; printing the
+    # command without saying where it was found would present somebody's
+    # documentation as this tool's own choice.
+    source = None
+
+    # Where a repository states its own entry point, most authoritative first.
+    DOCS = ("CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md", "README.md",
+            "docs/CONTRIBUTING.md", ".github/CONTRIBUTING.md")
+
+    # The line that introduces the block. `test` alone is too weak -- every
+    # README says the word -- so it has to be doing the introducing.
+    INTRO = re.compile(
+        r"(?:^|\n)[^\n]{0,120}?\b(?:before (?:you )?(?:push|commit)|"
+        r"run (?:the )?(?:tests?|checks?|suite)|the (?:whole )?suite|"
+        r"running the tests?|to test|local (?:test|check)|"
+        r"tests?\s*$|checks?\s*$)[^\n]{0,80}$", re.I | re.M)
+
+    FENCE = re.compile(r"```(?:bash|sh|shell|console)?\n(.*?)```", re.S)
+
+    # Anything that lets one line become several.
+    FANOUT = re.compile(r"[;&|><`]|\$\(")
+
+    def _candidates(self, path):
+        for rel in self.DOCS:
+            full = os.path.join(path, rel)
+            if not os.path.exists(full):
+                continue
+            try:
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            for m in self.FENCE.finditer(text):
+                intro = text[:m.start()]
+                if not self.INTRO.search(intro[-260:]):
+                    continue
+                for line in m.group(1).splitlines():
+                    line = line.split("#")[0].strip()
+                    if line.startswith("$ "):
+                        line = line[2:].strip()
+                    if line:
+                        yield rel, line
+                        break
+
+    def detect(self, path):
+        for rel, line in self._candidates(path):
+            if self.FANOUT.search(line):
+                continue
+            parts = line.split()
+            # The load-bearing rule: some argument has to be a file that is
+            # really there. Without it this would run text.
+            # Relative only. `os.path.join(root, "/")` is `/`, which exists
+            # on every machine -- so without this line `rm -rf /` satisfies
+            # the rule that a command must name something real. The
+            # repository's own selftest caught that on its first run.
+            named = [p.strip("\"'") for p in parts[1:]
+                     if "/" in p or p.endswith((".py", ".sh", ".js", ".ts"))]
+            named = [p for p in named
+                     if p and not os.path.isabs(p) and ".." not in p.split("/")]
+            if not named:
+                continue
+            if not any(os.path.exists(os.path.join(path, p)) for p in named):
+                continue
+            if shutil.which(parts[0]) is None:
+                continue
+            self.source = rel
+            return parts
+        return None
+
+
+# Last, deliberately. Where a convention applies it is the better answer --
+# `pytest` knows how to name a single test and a documented shell line does
+# not. This is the fallback for the repositories the conventions cannot see.
+ECOSYSTEMS = (Node(), Python(), Rust(), Go(), Make(), Declared())
 
 # A suite that is red because nothing could be imported is not a red suite. A
 # missing dependency and a failing test both exit non-zero, and scoring the
