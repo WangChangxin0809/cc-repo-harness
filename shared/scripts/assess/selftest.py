@@ -4369,7 +4369,39 @@ def case_a_guard_catching_no_ordinary_bug_is_the_right_outcome(t):
     return None
 
 
+
+def case_a_judged_conflict_can_reach_the_page(t):
+    """`dimensions.py` took `conflict_judged` and nothing ever set it.
+
+    Every other half-machine-half-agent measurement here has a flag for the
+    reading that finishes it -- `--observe-answers`, `--legitimate-actions`,
+    `--mutant-answers`. Contradictions had the parameter, the grader and the
+    brief, and no way to get an answer from one to the other. So the row said
+    "not yet judged" on every run of every repository, for as long as the
+    repository existed, and a reading nobody can record is a reading nobody
+    does."""
+    r = {"candidates": [{"subject": "--budget", "a": "x.md", "b": "y.md"}],
+         "candidates_total": 1, "possible_pairs": 2, "documents": 2,
+         "excluded_by_supersession": 0}
+    graded, why = conflict_mod.grade(r, {"pairs": [
+        {"subject": "--budget", "a": "x.md", "b": "y.md", "real": False,
+         "believe": None, "why": "two examples, not two claims"}]})
+    if graded is None:
+        return "a dismissal could not be recorded: %s" % why
+    if graded["judged"] != 1 or graded["real"]:
+        return "a dismissed candidate came back as a finding: %r" % (graded,)
+    got = dim_mod.repository_memory(t, [], (), None, None, r, graded)
+    hit = [x for x in got["rows"] if "contradict each other" in x["label"]]
+    if not hit:
+        return "the judged row never reached the page"
+    if "not yet judged" in hit[0]["value"]:
+        return "a judged candidate still printed as unjudged: %s" % hit[0]["value"]
+    return None
+
+
 CASES = [
+    ("a judged conflict can reach the page",
+     case_a_judged_conflict_can_reach_the_page),
     ("a guard catching no ordinary bug is the right outcome",
      case_a_guard_catching_no_ordinary_bug_is_the_right_outcome),
     ("a table is data and an alternative may come first",

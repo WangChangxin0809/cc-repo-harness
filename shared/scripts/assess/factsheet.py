@@ -375,6 +375,12 @@ def main():
                          "verdict on whether an agent can watch its own change "
                          "run here. Without it dimension 1 prints two rows "
                          "instead of three, rather than guessing the third.")
+    ap.add_argument("--conflict-answers", default="",
+                    help="JSON from the agent that read `conflict.py --brief` "
+                         "— which candidate pairs are real contradictions. "
+                         "Without it dimension 4 reports them as unjudged "
+                         "for as long as the repository exists, which is "
+                         "what it did until this flag was added.")
     ap.add_argument("--legitimate-actions", default="",
                     help="JSON from the agent that read `permitted_brief` — "
                          "this repository's own legitimate work, fired at its "
@@ -519,6 +525,13 @@ def _run(a, root, work):
                 print(f"  --legitimate-actions ignored: {why}\n")
             else:
                 r["permitted"] = fired
+        if a.conflict_answers and r.get("conflict"):
+            with open(a.conflict_answers, encoding="utf-8") as fh:
+                cj, why = conflict_mod.grade(r["conflict"], json.load(fh))
+            if cj is None:
+                print(f"  --conflict-answers ignored: {why}\n")
+            else:
+                r["conflict_judged"] = cj
         observed = None
         if a.observe_answers and r.get("observe"):
             with open(a.observe_answers, encoding="utf-8") as fh:
