@@ -1,8 +1,7 @@
 # Assess a repository
 
-An agent reads the repository against the five dimensions below and writes a
-checklist. It has one instrument, which it runs first and then holds while it
-reads:
+This is how the assessment works and why each row is on the page. An agent runs
+the instrument first and then holds it while it reads:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
@@ -11,56 +10,112 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 
 `--html` writes a self-contained page — no network, no fonts, no scripts — which
 is the thing a person actually reads. The defect replay is on by default: it
-runs the repository's own tests, so it names the command before running it,
-and `--no-full` skips it at the cost of dimension 2 abstaining.
+runs the repository's own tests, so it names the command before running it, and
+`--no-full` skips it at the cost of dimension 2 abstaining.
 
 The [`repo-assessor`](../agents/repo-assessor.md) agent does all of this,
 including the reading. It never changes the repository.
 
-## Five dimensions
+## Two rules that shape every row below
 
-| | Dimension | The question | A low score means |
-|---|---|---|---|
-| 1 | **Controlled Execution** | can an agent working here in good faith destroy something? | your uncommitted work can be destroyed and nothing refuses |
-| 2 | **Change Validation** | when a defect is introduced, how late is it caught? | defects this repo has actually produced would reach `main` |
-| 3 | **Reliable Delivery** | when a change is called done, what is the evidence? | the green light is real, but it has nothing to do with what you changed |
-| 4 | **Repository Memory** | can an agent that has never seen this repo find its way, and is that because of something the repo keeps? | a newcomer edits the wrong file, and nothing here shortens the search |
-| 5 | **Context Economy** | what does the harness cost per turn, and at worst? | tokens are spent every turn on text that restates the code |
+**A row nobody can judge is not printed.** Not printed as zero, not printed as
+"unknown" — absent. A repository with no Go toolchain installed has no Go branch
+coverage, and printing `0%` there reads as a failing grade for something that
+was never measured. An absent row is a question this repository does not raise.
 
-A dimension earns its place only if a low score names a **specific observable
-failure** — the right-hand column. That filter is also why none of the five
-scores whether a repository has adopted this project's conventions: a repo that
-stops destruction with a hand-written `bash` hook scores full marks on 1.
+**Every number carries its denominator.** *Three of six destructive actions
+refused* means nothing without *and none of the repository's own legitimate work
+was refused*, because a hook that refuses everything scores six of six. Each
+dimension has a row for what the repository **could** catch and a row for what it
+**did**.
 
-## 1 — Controlled Execution
+Where a row says *agent judges*, the machine narrows and stops. It collects the
+evidence, discards what is certainly not a finding, and hands over the rest —
+which is a far better question than *read this and tell me what you think*, and
+still not a verdict.
 
-Six destructive actions are aimed at the repository's own hooks and **never
-run** — the payload is offered, the answer is read. What is graded is what it
+---
+
+## 1 — Execution: what can the agent do here?
+
+### 1.1 Dangerous behaviour
+
+Some actions have effects nobody can undo. Before an agent takes one, the
+repository should refuse it, record it, or leave it revertible.
+
+Six destructive actions are aimed at the repository's real hooks and **never
+run** — the payload is offered, the answer is read, because a hook that is
+configured and a hook that fires are different things. What is graded is what it
 would cost to undo:
 
 | | Class | Undo | Examples |
 |---|---|---|---|
 | **A** | fully recoverable | one git command, by anyone | edit, create, delete a tracked file |
 | **B** | git recovers, state is lost | reflog, and knowing it exists | commit, merge, rebase |
-| **C** | it left the machine | social — others already have it | pushing, forced pushes, remote, CI config, lockfile |
+| **C** | it left the machine | social — others already have it | publishing, remotes, CI config, lockfile |
 | **D** | no clean recovery | nothing local holds the old state | untracked files deleted, uncommitted work overwritten, refs destroyed, a secret committed |
 
 Class alone decides nothing — a commit is B and happens fifty times a day. The
 second axis is how often the action is legitimate, and the two together say what
-the harness owes: **nothing** for A and B, **leave a trace** for most of C, and
-a **hard block** only for D actions that are rarely right. The asymmetry flips
-at the D line: below it a false block costs more than a miss, at D it does not.
+the harness owes: **nothing** for A and B, **leave a trace** for most of C, and a
+**hard block** only for D actions that are rarely right. The asymmetry flips at
+the D line: below it a false block costs more than a miss, at D it does not.
 
-Two more things this dimension covers: whether a rule in `.claude/rules/` is
-actually delivered at the moment it matters, and whether the harness blocks work
-the agent legitimately needed to do. A harness that blocks everything fails here
-as completely as one that blocks nothing.
+*Why it earns its place:* a bad reading here means your uncommitted work can be
+destroyed by an agent acting in good faith, and nothing says no.
 
-## 2 — Change Validation
+### 1.2 Legitimate work
 
-Real defects from this repository's own history — reverts, and fixes that
-touched a test — are put back one at a time, and what is recorded is **where
-each was first caught**:
+An agent needs certain rights to finish a task. Which rights are legitimate is a
+property of the repository, not of the command — deleting a build directory is
+routine in one tree and a catastrophe in another — so no list written in advance
+survives contact with a repository nobody has seen.
+
+Two halves. Six of the destructive probes carry a legitimate twin, and a twin
+that is also refused disqualifies its probe. Then the repository's **own** work:
+an agent proposes twenty or so actions that are unambiguously fine here, and they
+are fired through the same machinery, so the two numbers are comparable.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/permitted.py --root .
+```
+
+The machine supplies the evidence to write that list with — the commands CI
+already runs on every push, the commands the documentation tells a person to run,
+the hooks that are actually wired — and the agent supplies the list.
+*Agent judges* -> [0038](../docs/decisions/0038-a-guard-that-refuses-everything-scores-full-marks.md)
+
+*Why it earns its place:* without it, 1.1 is free to any repository that refuses
+everything and has improved nothing. A block here is a finding about the guard,
+not necessarily a fault — a team may deliberately require a human for its deploy.
+
+### 1.3 Can an agent watch its own change run?
+
+An agent has to convince itself its change works. Sometimes reading the code is
+not enough: it needs to run the thing, drive it, read a log, see the screen.
+
+Six angles, collected without starting anything: ways to run, port and container
+isolation, where logs go, what surface a person sees, what drives it, and whether
+it tears itself down. Repositories differ too much for a threshold, so the
+collection is offline and the reading is not.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/observe.py --root .
+```
+
+*Agent judges.* A tree of scripts with no service to isolate and no log to tail
+is the right shape for what it is, not a gap — and only somebody who has read the
+repository can say which it is.
+
+*Why it earns its place:* a bad reading means every change is argued for on
+inspection alone, and the first time anyone finds out is in production.
+
+---
+
+## 2 — Validation: how late is a defect caught?
+
+Everything in this dimension is graded against one ladder, because *caught* is
+not a yes or no. The later the rung, the more it cost:
 
 ```
 before-write   a guard refused it            costs nothing
@@ -71,103 +126,253 @@ ci             the server                    costs a round trip
 never          nothing                       it is in main
 ```
 
-The headline is one sentence — *N of M survive past the end of a session*. Not a
-count: one caught at `ci` is not comparable to one caught before it was written.
+### 2.1 Coverage
 
-The defects are the repository's own on purpose. A synthetic bug measures
-whether *our* idea of a defect resembles what this repo checks for. And if the
-toolchain is not installed this abstains rather than scoring zero — a repo whose
-tests cannot run here is not a repo with bad tests.
+Line, function, branch, and MC/DC where it exists — taken from **the ecosystem's
+own tool and never from one written here**. `coverage.py`, `lcov`, JaCoCo,
+Cobertura, `go tool cover`, `gcov`, whichever the repository already has; if it
+produces a report on disk, that is read instead.
 
-## 3 — Reliable Delivery
+A criterion the tool does not produce is **absent, not zero**. Go's tooling has
+no branch coverage at all, and no mainstream tool outside the compilers computes
+MC/DC — GCC 14 (`-fcondition-coverage`), Clang 18 (`-fcoverage-mcdc`), Rust
+nightly and GNATcoverage do; Python, Java, JavaScript and C# have nothing. A
+missing row is a fact about the ecosystem, not about this repository
+-> [0033](../docs/decisions/0033-the-tools-do-the-measuring.md)
 
-Dimension 2 asks whether a wrong change gets through. This one asks the other
-half: when a change is called done, **what makes that believable**. A repository
-can have a green light that covers none of what was touched, and then whether
-work is accepted depends on who happened to be looking.
+*Why it earns its place:* coverage predicts very little in the upward direction —
+high coverage is not evidence of good tests. It is airtight downward: a line no
+test executes **cannot** be caught at `local-suite`. That is the only inference
+drawn from it.
 
-So what is read is coverage rather than existence — the entry point that
-returns pass/fail is already observed by dimension 2's `local-suite` rung, and
-counting it twice would just say the same thing louder. The signals here:
+### 2.2 Mutation
 
-- of the recent changes, how many touched code and touched nothing that
-  verifies it
-- **where those tests are**, named directory by directory. Every repository
-  puts them somewhere different, so a percentage nobody can trace back is a
-  number that looks the same whether coverage is poor or the suite is simply
-  somewhere the instrument did not look. Naming the directories makes a miss
-  correctable, and the reading is expected to open the repository and correct it
-- whether CI **runs** the suite, or only exists. A pipeline that installs,
-  lints, builds and deploys goes green on every push, and from the tick on the
-  pull request it is indistinguishable from one that ran everything
-- whether the verdict is a command someone can run, or a description someone
-  wrote
-- **how often a place was repaired again after being called done** — counted
-  from committed history, and only from commits focused enough to be
-  attributable, so it is rework rather than a busy file. It lived in dimension
-  4 until that one stopped reading history and started watching an agent
-  -> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md)
+Five operators on **covered lines only** — a mutant on an uncovered line survives
+because the code is untested, which 2.1 already said at a fraction of the cost.
+Each mutant then walks the same ladder a real defect walks.
 
-These are deliberately loose, and reaching a conclusion from them is the
-reading's job, not a threshold's. This dimension also still speaks when the
-toolchain is missing and dimension 2 has abstained, which is the argument for
-its keeping its own place.
+An agent rules on every survivor, because a change the tests ignored is not
+automatically a defect: plenty of mutants are semantically identical or alter
+something nobody promised. Opt-in with `--mutate`, since it runs the suite once
+per mutant.
 
-## 4 — Repository Memory
+*Agent judges.*
 
-This one is not read off the repository. **An agent that has never seen it is
-sent in, and what happens is the measurement.**
+### 2.3 Real defect replay
 
-It answers nine questions on a copy of the tree: six about the whole place — the
-components, the flows, what is generated, where the tests are, what is unusual
-here — and three micro ones, each of which is the **subject line of a real
-commit** and nothing else, asking *which files would you change to do that?*
-The commit's own diff is the answer key, so the repository wrote its own exam.
+A fix from this repository's own history, put back: the files the fix touched are
+taken to their state at its parent, so the defect actually happened here and the
+fix is the answer key.
 
-**Then the same nine questions are asked again**, of the same tree with
-`CLAUDE.md`, `.claude/` and every nested `CLAUDE.md` removed.
+*Why it earns its place:* this is the strongest evidence on the page. A synthetic
+bug measures whether *our* idea of a defect resembles what this repository checks
+for. And if the toolchain is not installed it abstains rather than scoring zero —
+a repository whose tests cannot run here is not a repository with bad tests.
+
+### 2.4 What could have caught it
+
+The layer inventory, printed above the ladder. A rung reading `0` means two
+different things — **wired and silent**, or **not there at all** — and the ladder
+prints the same character for both. A rung nothing reached is a third thing
+again: the walk stops at the first red.
+
+*Why it earns its place:* "add CI" and "your CI caught nothing" are different
+pieces of advice, and the ladder alone cannot tell you which one you need.
+
+---
+
+## 3 — Reliable delivery: is verification required, or merely possible?
+
+### 3.1 Tested
+
+When a change adds behaviour, a test for it should arrive in the same change.
+Otherwise nobody knows the behaviour still holds once the next twenty changes
+land on top.
+
+The denominator is narrow on purpose. A rename across forty files, a reformat and
+a dependency bump all touch source and none of them owe a test, so they are read
+off the commit type and excluded. **An untyped subject is counted, not guessed
+at** — inferring intent from free-form English would shrink the denominator on
+every repository at once, every score would improve and nothing would have
+changed -> [0039](../docs/decisions/0039-tidying-is-not-an-untested-change.md)
+
+Two things make the number traceable. The tests are located and **named directory
+by directory**, because a percentage nobody can trace back looks the same whether
+coverage is poor or the suite is simply somewhere the instrument did not look.
+And changes to the machinery that does the verifying are singled out, without
+narrowing: a workflow change owes no unit test and still owes evidence, because
+when it breaks, the thing that would have caught the mistake is the thing that
+changed.
+
+### 3.2 Verified
+
+Three states, not two:
+
+```
+nothing runs on pull requests
+something runs, and a red run can be merged past
+something is required, and it cannot
+```
+
+The first two separate offline from the workflow file alone; the third is a
+branch-protection setting, and a `403` reading it is **not** an answer while a
+`404` is -> [0034](../docs/decisions/0034-running-and-being-required-are-different-settings.md)
+
+*Why it earns its place:* every surface a person normally sees — the green tick,
+the badge, the workflow file — shows only that CI *ran*. Whether it was *required*
+is invisible from all three, and it is the whole question. Steps that could turn
+a red run green (`|| true`, `continue-on-error`) are listed but not counted as
+findings: legitimate uses exist, and the ones that carry a comment saying why are
+a signal an agent can use and a counter cannot.
+
+Whether the checks *work* is dimension 2's job. This row only asks whether they
+can be walked around.
+
+---
+
+## 4 — Repository memory: is what is written down true, and worth its place?
+
+Whether the memory **works** is not read off the repository. An agent that has
+never seen it answers nine questions on a copy of the tree — six about the whole
+place, three that are the subject lines of real commits, with the commits' own
+diffs as the answer key — and then the same nine on a copy with `CLAUDE.md`,
+`.claude/` and every nested `CLAUDE.md` removed.
 
 > The difference between the two runs is the memory.
 
-That is the whole design, and it is why nothing here counts skills, hooks or
-rules. A count would grade a repository on whether it adopted somebody else's
-conventions, and it would go *up* when you install this plugin — the instrument
-rewarding its own presence. A difference cannot be raised by adding files: a
-thin `CLAUDE.md` that halves the search beats six skills that change nothing
+That is why nothing below counts files. A count grades a repository on whether it
+adopted somebody else's conventions, and it goes *up* when you install this
+plugin — the instrument rewarding its own presence. A difference cannot be raised
+by adding files
 -> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md).
+It costs two agent sessions, so it is opt-in, and without it this half abstains.
 
-Three things make it trustworthy:
+The four rows below ask the other question: given that the memory exists, is it
+true and is it worth its place?
 
-- **The probe cannot cheat.** Both copies are made without `.git`, and the
-  probe agent is given no Bash. One `git log --grep` would answer every micro
-  question perfectly, and a rule against it could be broken silently — so the
-  history is not forbidden, it is absent.
-- **It costs two agents.** One session answers all ten questions; the second
-  run is the same session on the stripped copy. It is opt-in for that reason,
-  and without it this dimension **abstains** — a repository nobody probed is
-  not a repository an agent cannot navigate.
-- **No rates.** Three questions do not make a percentage. The rows say what
-  happened, including how many files each answer named, because recall alone is
-  answered by listing the tree.
+### 4.1 Dimensions
 
-Alongside it, offline and free: whether there is anywhere mistakes are written
-down, and **whether anything reads it**. A write-only record is the failure mode
-that looks healthiest from outside — the file exists, it is long, and it has
-never changed anyone's behaviour.
+What kinds of memory exist: root and nested `CLAUDE.md`, skills, hooks, rules,
+settings, documents. This is the denominator for everything under it and **never
+a score**.
 
-## 5 — Context Economy
+One thing this row exists to say: a rule with a `paths:` glob is delivered only
+when the agent reads a matching file. A rule that needs a script behind it and
+does not have one is not a constraint, it is a hope — and it costs tokens either
+way.
 
-The unit is settled — characters over four, offline, no network — and the three
-numbers are named: **floor** (what every turn pays before anyone types),
-**ceiling** (the worst a single turn can reach), **parked** (what is installed
-but only arrives when something asks for it). The page still prints two of them
-in units it does not add up, which is why this section is short.
+### 4.2 Is each memory worth keeping?
+
+Context is the scarcest thing an agent has, so anything paid for on every turn
+has to earn it. Three splits a machine can make: prohibition, requirement or
+plain statement; already enforced by a hook that was *measured* firing; scoped to
+one path but loaded anyway.
+
+*Agent judges.* A machine cannot tell whether a constraint is one an agent could
+have guessed, or whether an example earns its lines.
+
+*Why it earns its place:* a prohibition restating a guard that already refuses the
+thing is paying rent every turn to say what the machine says better — the guard is
+not optional and does not depend on anyone having read anything.
+
+### 4.3 Do the documents agree with the code? (CASCADE)
+
+Where the documentation and the code disagree, an agent writing against the
+documentation writes the wrong thing. Method after
+[CASCADE](https://arxiv.org/abs/2604.19400):
+
+1. Tests are generated **from the documentation alone** and run against the real
+   code.
+2. An implementation is generated **from the same documentation** and the same
+   tests run against it.
+3. The two runs cross into `p2p / f2f / f2p / p2f`, and a disagreement is
+   reported only when **`f2p > 0` and `p2f == 0`** — the test fails on the real
+   code and passes on the code the document describes, with nothing going the
+   other way.
+
+That second condition is the whole method. Without it the finding is
+indistinguishable from a bad test, and the naive baseline reports roughly 27
+false positives per 71 real ones
+-> [0036](../docs/decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/promises.py --root .
+```
+
+### 4.4 Do the documents agree with each other? (ConflictRAG)
+
+Two documents naming the same thing with two different values will send two
+agents in two directions. Method after
+[ConflictRAG](https://arxiv.org/abs/2605.17301): a cheap filter first, an
+expensive reader only on what survives.
+
+The filter is lexical and deliberately harsh — one rule, not three. Its own
+author's repository produced 553 candidates before it was narrowed, and a filter
+that emits half the pairs has not filtered, it has moved the reading problem
+somewhere else -> [0035](../docs/decisions/0035-a-filter-that-emits-half-the-pairs-has-not-filtered.md)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/conflict.py --root .
+```
+
+*Agent judges,* and it usually says no: two documents giving one number two
+values are as often an example beside a default. Supersession — a decision record
+that deliberately overrules an older one — is contradiction on purpose and is
+excluded before the filter runs.
+
+---
+
+## 5 — Context economy: what does the harness cost every turn?
+
+### 5.1 Usage
+
+Three numbers, all in characters over four:
+
+```
+floor     what every turn pays before anyone types
+ceiling   floor + the largest scoped rule + the largest nested CLAUDE.md
+parked    installed, but arrives only when something asks for it
+```
+
+The unit is an approximation on purpose. A real tokenizer is not one number
+either — it changes between model families, and the same file has counted about
+30% differently across them — and a stable approximation both sides can reproduce
+offline is worth more here than a precise number that needs the network and still
+is not the model's own.
+
+Parked is the escape hatch, not the bill. A repository that moves a paragraph
+under a path glob has not deleted it; it has stopped paying for it on turns that
+never touch that path.
+
+### 5.2 Files unlike their neighbours
+
+A total is right and not actionable. Twelve hundred tokens across twenty lean
+files and twelve hundred across nineteen lean files and one bloated one are the
+same number and not the same problem, and nobody can act on the sum
+-> [0037](../docs/decisions/0037-a-total-hides-the-one-file-worth-finding.md)
+
+So the same measurement runs **per unit**, and each file is compared to the
+median of **its own kind** — a rule against the other rules, a skill against the
+other skills. A threshold chosen here would be a threshold chosen for a
+repository nobody has seen, and comparing a skill to a decision record reports
+every skill as huge, which is a fact about two genres.
+
+Four things it can say: size against its own kind (with a floor, because three
+times nothing is still nothing), what its sentences are, how much of it is fenced
+code, and **paragraphs it repeats from another loaded file** — the sharpest of the
+four and the only one that is certain rather than suggestive, because the same
+paragraph in two loaded files is paid for twice every turn and one copy will
+drift.
+
+Offline, no network, no API.
+
+---
 
 ## What comes out
 
 One artefact: the [assessment checklist](2-checklist.md). Five sections in the
-order that ignoring them costs you, and every row points at something specific
-in the repository.
+order that ignoring them costs you, and every row points at something specific in
+the repository.
 
 The hardest questions are the ones with no number behind them — is the standing
 cost earning its tokens, which sentences are waffle, does each hook address a
