@@ -210,7 +210,7 @@ def html_page(head, dims, cannot_say):
         "<footer>Every line above is measured, not judged. Token figures are "
         "characters over four — the same approximation Claude Code uses, and "
         "reproducible offline. A dimension that could not be judged says so "
-        "and is never scored as a zero.</footer>")
+        "and is never printed as a zero.</footer>")
     parts.append("</div>")
     return (
         '<!doctype html>\n<html lang="en">\n<head>\n'

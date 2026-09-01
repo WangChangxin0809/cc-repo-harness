@@ -741,7 +741,7 @@ def mutation_rows(m, ladder_names, judged=None):
             "label": "!! the suite is flaky",
             "value": "not green on all 3 baseline runs",
             "flag": "warn",
-            "note": "a mutant is scored caught whenever the suite goes red — "
+            "note": "a mutant counts as caught whenever the suite goes red — "
                     "including when it would have gone red anyway. Every "
                     "mutation figure here is an upper bound on what this "
                     "repository really catches"})
@@ -1162,7 +1162,8 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
             "label": "what it writes down",
             "value": "  ".join(f"{k}:{v}" for k, v in t.items() if v),
             "flag": "info",
-            "note": "the denominator, and never a score: adding files cannot "
+            "note": "the denominator every row below is read against: "
+                    "adding files cannot "
                     "raise anything on this page, because a repository is not "
                     "better for having adopted somebody else's conventions"})
 

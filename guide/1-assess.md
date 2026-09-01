@@ -25,7 +25,7 @@ was never measured. An absent row is a question this repository does not raise.
 
 **Every number carries its denominator.** *Three of six destructive actions
 refused* means nothing without *and none of the repository's own legitimate work
-was refused*, because a hook that refuses everything scores six of six. Each
+was refused*, because a hook that refuses everything gets six of six. Each
 dimension has a row for what the repository **could** catch and a row for what it
 **did**.
 
@@ -133,28 +133,66 @@ own tool and never from one written here**. `coverage.py`, `lcov`, JaCoCo,
 Cobertura, `go tool cover`, `gcov`, whichever the repository already has; if it
 produces a report on disk, that is read instead.
 
-A criterion the tool does not produce is **absent, not zero**. Go's tooling has
-no branch coverage at all, and no mainstream tool outside the compilers computes
-MC/DC — GCC 14 (`-fcondition-coverage`), Clang 18 (`-fcoverage-mcdc`), Rust
-nightly and GNATcoverage do; Python, Java, JavaScript and C# have nothing. A
-missing row is a fact about the ecosystem, not about this repository
+What each ecosystem can actually produce, and what it cannot:
+
+| Language | Tool | line | function | branch | MC/DC |
+|---|---|---|---|---|---|
+| Python | `coverage.py --branch` | yes | — | yes | — |
+| JavaScript, TypeScript | `c8` / `nyc` -> lcov | yes | yes | yes | — |
+| Java, Kotlin | JaCoCo | yes | method | yes | — |
+| C# / .NET | coverlet -> Cobertura | yes | — | yes | — |
+| Ruby | SimpleCov | yes | — | yes | — |
+| Go | `go tool cover` | statement | — | **none** | — |
+| C, C++ | GCC 14 `-fcondition-coverage` | yes | yes | yes | **yes** (masking) |
+| C, C++ | Clang 18 `-fcoverage-mcdc` | yes | yes | yes | **yes** (masking) |
+| Rust | `cargo llvm-cov --mcdc` | yes | yes | yes | **nightly** |
+| Ada, C, C++, Rust | GNATcoverage | yes | yes | yes | **yes** (certification) |
+
+Two things fall out of that table. **Go has no branch coverage at all** — not a
+gap in this instrument, a gap in the toolchain. And **MC/DC exists only where a
+compiler computes it**: GCC and Clang arrived at masking MC/DC independently,
+and Python, Java, JavaScript, C# and Ruby have nothing at any price. Where a
+criterion cannot be produced, the row is **absent, not zero** — writing `0%`
+there reads as a failing grade for something nobody measured
 -> [0033](../docs/decisions/0033-the-tools-do-the-measuring.md)
+
+Reports already on disk are read rather than regenerated, in whichever format
+the repository happens to leave them: `coverage.json`, `lcov.info`,
+`coverage.xml` / Cobertura, JaCoCo XML, `coverage.out`, `gcov` JSON. For C, C++,
+Rust and Java that is the only path, because those builds cannot be driven
+blind.
 
 *Why it earns its place:* coverage predicts very little in the upward direction —
 high coverage is not evidence of good tests. It is airtight downward: a line no
 test executes **cannot** be caught at `local-suite`. That is the only inference
 drawn from it.
 
-### 2.2 Mutation
+### 2.2 Mutation — Google's method, not ours
 
-Five operators on **covered lines only** — a mutant on an uncovered line survives
-because the code is untested, which 2.1 already said at a fraction of the cost.
-Each mutant then walks the same ladder a real defect walks.
+The generator is a transcription of *Practical Mutation Testing at Scale: A View
+from Google* (Petrovic, Ivankovic, Fraser, Just; TSE 2021,
+[arXiv:2102.11378](https://arxiv.org/abs/2102.11378)) and its predecessor *State
+of Mutation Testing at Google* (ICSE-SEIP 2018). Nothing about the selection is
+invented here. Three of their findings do all the work:
 
-An agent rules on every survivor, because a change the tests ignored is not
-automatically a defect: plenty of mutants are semantically identical or alter
-something nobody promised. Opt-in with `--mutate`, since it runs the suite once
-per mutant.
+**Mutate only covered lines.** A mutant on an uncovered line survives because the
+code is untested — a coverage result, which 2.1 already gave at a fraction of the
+cost.
+
+**Suppress arid nodes.** Their central result: most surviving mutants are
+*unproductive* — trivially equivalent to the original, or in code where no test
+should exist (logging, debug output, defensive branches). Every rule in
+[`arid.py`](../shared/scripts/assess/arid.py) is transcribed from Appendix A of
+that paper, rule by rule, with their examples kept in the docstrings so the
+transcription can be checked. Without this step the output is unreadable, which
+is the finding, not a detail.
+
+**One mutant per line.** Ten mutants on one line is ten reports of the same
+missing test.
+
+Each surviving mutant then walks the same ladder a real defect walks, and an
+agent rules on each: a change the tests ignored is not automatically a defect.
+Opt-in with `--mutate`, since it runs the suite once per mutant.
 
 *Agent judges.*
 
@@ -176,6 +214,24 @@ different things — **wired and silent**, or **not there at all** — and the l
 prints the same character for both. A rung nothing reached is a third thing
 again: the walk stops at the first red.
 
+The shapes these layers usually take. This table is a starting point for the
+reading, not a checklist to tick off — repositories differ enough that what
+occupies a rung here may be unrecognisable there, and only somebody who has read
+the repository can say what its `local-suite` actually is:
+
+| Rung | Usually | Typically catches | Costs |
+|---|---|---|---|
+| before-write | a `PreToolUse` hook, a guard script | the action nobody should take at all | nothing |
+| same-turn | a `PostToolUse` hook: formatter, type-check, lint on the file just written | syntax, types, style, an import that does not resolve | one turn |
+| local-suite | `make test`, `pre-commit`, the repository's own check script | anything the tests assert about | minutes |
+| ci | the server workflow | what only a clean machine reveals: a missing dependency, a platform difference, a test that passes only locally | a round trip, after the session ended |
+| rule | a sentence in `CLAUDE.md` | nothing, on its own | tokens, every turn |
+
+`rule` is on that list precisely because it is **not a rung**. A document cannot
+be fired at, so it can never be shown working — and a repository whose only
+defence against a mistake is a paragraph asking nicely has a layer that looks
+present and catches nothing.
+
 *Why it earns its place:* "add CI" and "your CI caught nothing" are different
 pieces of advice, and the ladder alone cannot tell you which one you need.
 
@@ -193,7 +249,7 @@ The denominator is narrow on purpose. A rename across forty files, a reformat an
 a dependency bump all touch source and none of them owe a test, so they are read
 off the commit type and excluded. **An untyped subject is counted, not guessed
 at** — inferring intent from free-form English would shrink the denominator on
-every repository at once, every score would improve and nothing would have
+every repository at once, every reading would improve and nothing would have
 changed -> [0039](../docs/decisions/0039-tidying-is-not-an-untested-change.md)
 
 Two things make the number traceable. The tests are located and **named directory
@@ -206,7 +262,17 @@ changed.
 
 ### 3.2 Verified
 
-Three states, not two:
+Does the repository **require** an agent to show that a change was checked,
+before that change counts as done?
+
+Verification is not only a test suite, and this is the row where that matters.
+Plenty of changes are best verified by running the thing and reading the log, by
+opening the page and looking at it, by replaying a request — the evidence 1.3
+collects. 1.3 asks whether an agent *could* do any of that. This asks whether
+anything *makes* it.
+
+The half a machine can settle is the merge gate, and it has three states rather
+than two:
 
 ```
 nothing runs on pull requests
@@ -217,13 +283,20 @@ something is required, and it cannot
 The first two separate offline from the workflow file alone; the third is a
 branch-protection setting, and a `403` reading it is **not** an answer while a
 `404` is -> [0034](../docs/decisions/0034-running-and-being-required-are-different-settings.md)
+Steps that could turn a red run green (`|| true`, `continue-on-error`) are
+listed but not counted as findings: legitimate uses exist, and the ones carrying
+a comment saying why are a signal an agent can use and a counter cannot.
+
+The other half is the agent's reading, from what 1.3 collected and what the
+repository asks for in writing: is there a definition of done, a pull-request
+template, a checklist that demands the change was actually exercised — and does
+anything enforce it, or is it a paragraph asking nicely?
 
 *Why it earns its place:* every surface a person normally sees — the green tick,
-the badge, the workflow file — shows only that CI *ran*. Whether it was *required*
-is invisible from all three, and it is the whole question. Steps that could turn
-a red run green (`|| true`, `continue-on-error`) are listed but not counted as
-findings: legitimate uses exist, and the ones that carry a comment saying why are
-a signal an agent can use and a counter cannot.
+the badge, the workflow file — shows only that something *ran*. Whether it was
+*required* is invisible from all three, and a repository where verification is
+merely possible is one where whether work is accepted depends on who happened to
+be looking.
 
 Whether the checks *work* is dimension 2's job. This row only asks whether they
 can be walked around.
@@ -240,10 +313,10 @@ diffs as the answer key — and then the same nine on a copy with `CLAUDE.md`,
 
 > The difference between the two runs is the memory.
 
-That is why nothing below counts files. A count grades a repository on whether it
-adopted somebody else's conventions, and it goes *up* when you install this
-plugin — the instrument rewarding its own presence. A difference cannot be raised
-by adding files
+That is why nothing below is read off a count of files. A count says a repository
+is better for having adopted somebody else's conventions, and it goes *up* when
+you install this plugin — the instrument rewarding its own presence. A difference
+cannot be raised by adding files
 -> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md).
 It costs two agent sessions, so it is opt-in, and without it this half abstains.
 
@@ -253,13 +326,15 @@ true and is it worth its place?
 ### 4.1 Dimensions
 
 What kinds of memory exist: root and nested `CLAUDE.md`, skills, hooks, rules,
-settings, documents. This is the denominator for everything under it and **never
-a score**.
+settings, documents. This is the denominator that every row under it is read
+against.
 
 One thing this row exists to say: a rule with a `paths:` glob is delivered only
 when the agent reads a matching file. A rule that needs a script behind it and
 does not have one is not a constraint, it is a hope — and it costs tokens either
-way.
+way. That distinction decides both what a rule costs (dimension 5) and whether
+it is delivered at all (dimension 1), so it is worth knowing per file rather
+than in aggregate.
 
 ### 4.2 Is each memory worth keeping?
 
@@ -364,7 +439,28 @@ four and the only one that is certain rather than suggestive, because the same
 paragraph in two loaded files is paid for twice every turn and one copy will
 drift.
 
-Offline, no network, no API.
+#### Use the first-party checkers first
+
+Where Claude Code already answers a question, it answers it — the same rule as
+2.1, and for the same reason. Reinventing somebody else's tool is the most
+expensive way to be less correct than they are.
+
+```bash
+claude plugin validate . --strict     # the manifest, by the first-party checker
+claude plugin details <plugin-name>   # component inventory and token cost
+claude doctor                         # installation health; /doctor in-session fixes
+```
+
+`claude plugin details` is the one worth running before reading anything below
+it: it prints **always-on** and **on-invoke** cost per skill and per agent,
+straight from the party that does the loading. On this repository it reports
+~568 always-on tokens across five components — a number nobody here had to
+estimate. `/skill-doctor` reports on skills from inside a session.
+
+What those do not cover, and what dimension 5 is therefore for, is the
+**repository's own** memory: `CLAUDE.md`, nested `CLAUDE.md`, `.claude/rules/`,
+and the documents. A plugin's cost is the plugin author's problem; the floor a
+teammate pays for cloning this repository is nobody else's.
 
 ---
 
