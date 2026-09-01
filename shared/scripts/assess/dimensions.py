@@ -210,8 +210,14 @@ def _hook_commands(root):
 
 # -- 1 -----------------------------------------------------------------------
 
-def controlled_execution(root, probe, blast):
-    """Can an agent working here in good faith destroy something?"""
+def controlled_execution(root, probe, blast, observe=None, judged=None):
+    """Can an agent working here in good faith destroy something?
+
+    Three questions, and the third is easy to mistake for a different
+    dimension's. Refusing the destructive action is 1.1; letting the
+    legitimate one through is 1.2, without which the first is free to any
+    repository that refuses everything. Watching what it just did is 1.3 --
+    the same triple an agent needs in order to act at all."""
     rows = []
     if blast is None:
         headline = "nothing is wired to refuse anything"
@@ -251,6 +257,21 @@ def controlled_execution(root, probe, blast):
                 "note": "a guard that crashes is worse than no guard — "
                         "everybody believes they are covered: "
                         + ", ".join(x["probe"] for x in broken)})
+
+    # 1.3, and it prints only once somebody has judged it. Six counts are
+    # evidence, not a verdict, and a row with an empty verdict reads as a
+    # failing grade for the repository when it is really a limit of the
+    # instrument. The evidence and the brief sit in the JSON either way, so
+    # nothing is lost by waiting for an answer.
+    if observe and judged:
+        counts = " · ".join("%s %d" % (a, len(observe.get(a) or []))
+                            for a in ("run", "isolation", "logs", "surface",
+                                      "drive", "teardown"))
+        rows.append({
+            "label": "can an agent watch its own change run",
+            "value": judged["verdict"],
+            "flag": {"yes": "ok", "partly": "warn", "no": "bad"}[judged["verdict"]],
+            "note": judged["prose"] + "  [" + counts + "]"})
 
     if blast and blast.get("local_only"):
         rows.append({
@@ -1475,7 +1496,8 @@ def context_economy(root, probe, blast=None, value=None):
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
-           judged=None, cover=None, cover_why=""):
+           judged=None, cover=None, cover_why="", observe=None,
+           observe_judged=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1483,7 +1505,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
     which is None unless somebody passed `--mutate` and paid for it."""
     check_dirs = tuple((probe.get("discipline") or {}).get("check_dirs") or ())
     return [
-        controlled_execution(root, probe, blast),
+        controlled_execution(root, probe, blast, observe, observe_judged),
         change_validation(defects, catch, catch_why, ladder, mutants,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs),

@@ -49,6 +49,7 @@ import mutate as mutate_mod        # noqa: E402
 import run_mutants as run_mod      # noqa: E402
 import factsheet as fact_mod       # noqa: E402
 import cover as cover_mod          # noqa: E402
+import observe as observe_mod      # noqa: E402
 
 
 def git(args, cwd):
@@ -2662,7 +2663,225 @@ def case_a_record_nobody_reads_is_not_scored_as_learning(t):
     return None
 
 
+
+def _observable_repo(t, **files):
+    """A tree with whatever pieces the case is about, and nothing else."""
+    for rel, body in files.items():
+        full = os.path.join(t, rel.replace("|", os.sep))
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(body)
+    return t
+
+
+def case_the_instrument_does_not_find_its_own_vocabulary(t):
+    """Every collector is a list of the names it looks for.
+
+    So an instrument that reads its own source finds `grafana`, `jaeger` and
+    `playwright` in a repository that has none of them, and reports a tree's
+    observability as excellent on the strength of its own keyword table. This
+    was live when the module was written: assessing this repository reported
+    twenty logging findings, all of them the detector's own list.
+
+    This one is measured the way it happens: the subject *contains* the
+    instrument, which is the ordinary case when the assessment is run against
+    the repository it ships from. The module's own directory is what gets
+    excluded, so the case points that directory at a copy inside the fixture
+    and insists every angle comes back empty."""
+    inside = os.path.join(t, "shared", "scripts", "assess")
+    shutil.copytree(HERE, inside)
+    _observable_repo(t, **{"README.md": "a repository with no application in it"})
+    was = observe_mod.HERE
+    observe_mod.HERE = inside
+    try:
+        ev, why = observe_mod.assess(t)
+    finally:
+        observe_mod.HERE = was
+    if ev is None:
+        return f"nothing was collected at all: {why}"
+    found = {a: len(ev[a]) for a in observe_mod.ANGLES if ev[a]}
+    if found:
+        return ("the instrument found itself: " + repr(found) +
+                " -- its own keyword lists are not evidence about the subject")
+    return None
+
+
+def case_prose_about_a_logging_stack_is_not_a_logging_stack(t):
+    """A design document naming Loki is not a repository that emits to Loki.
+
+    The distinction is the whole difference between what a team wrote down and
+    what the application does, and counting the first as the second puts a
+    repository's ambitions on the page as its capabilities. Markdown is
+    deliberately not scanned for this reason."""
+    _observable_repo(t, **{
+        "docs|observability.md": (
+            "# Plan\n\nWe will ship logs to Loki via Vector, add "
+            "opentelemetry tracing, and read them in Grafana. structlog is the "
+            "library we picked.\n"),
+    })
+    ev, _ = observe_mod.assess(t)
+    if ev is None:
+        return "nothing was collected"
+    if ev["logs"]:
+        return ("a document describing a logging stack was counted as one: " +
+                repr([i["detail"] for i in ev["logs"]]))
+    return None
+
+
+def case_a_test_target_is_not_a_way_to_run_the_thing(t):
+    """This dimension is about the rung the test suite is not on.
+
+    `make test` is dimension 2's business and is measured there. Counting it
+    here would report every repository with a test target as one an agent can
+    watch run, which is the opposite of what the row is for."""
+    _observable_repo(t, **{"Makefile": "test:\n\tpytest\n\ncheck:\n\truff\n"})
+    ev, _ = observe_mod.assess(t)
+    if ev is None:
+        return "nothing was collected"
+    if ev["run"]:
+        return ("a test target was counted as a way to run the application: " +
+                repr([i["detail"] for i in ev["run"]]))
+    return None
+
+
+def case_a_literal_port_and_a_port_from_the_environment_differ(t):
+    """The two shapes that decide whether a second agent can work at all.
+
+    A hard-coded host port means the second concurrent instance collides, and
+    the second agent gets a crash that looks like a bug in its own change --
+    worse than no observability, because it is observability that lies. Both
+    shapes must be reported, and reported as different things."""
+    _observable_repo(t, **{
+        "docker-compose.yml": ('services:\n  web:\n    container_name: fixed_web\n'
+                               '    ports:\n      - "8080:8080"\n'),
+        "app.py": 'import os\nPORT = os.environ.get("PORT", 8080)\n',
+    })
+    ev, _ = observe_mod.assess(t)
+    if ev is None:
+        return "nothing was collected"
+    kinds = {i["kind"] for i in ev["isolation"]}
+    for want in ("fixed-port", "fixed-name", "port-from-env"):
+        if want not in kinds:
+            return f"{want} was not reported; found {sorted(kinds)}"
+    return None
+
+
+def case_collecting_the_evidence_starts_nothing(t):
+    """The promise the module's docstring makes, held by a case.
+
+    Starting a stranger's application is a far larger promise than this
+    assessment makes anywhere else, and 0026's pre-flight contract exists so
+    that nothing executes without having been named first. The way this breaks
+    is not malice -- it is somebody adding `run the dev target and read its
+    output` because it would be better evidence."""
+    proof = os.path.join(t, "it-ran")
+    _observable_repo(t, **{
+        "Makefile": "dev:\n\ttouch %s\n" % proof,
+        "run.sh": "#!/bin/sh\ntouch %s\n" % proof,
+    })
+    observe_mod.assess(t)
+    if os.path.exists(proof):
+        return "collecting the evidence executed the repository's run target"
+    return None
+
+
+def case_an_unjudged_scan_carries_no_verdict(t):
+    """A verdict nobody gave must not appear, in either direction.
+
+    The page prints this row's prose verbatim, so a default here would put
+    words on the page that no judge said. Absent, malformed and unsupported
+    answers must all fail to produce one."""
+    _observable_repo(t, **{"Makefile": "dev:\n\tpython3 app.py\n"})
+    ev, _ = observe_mod.assess(t)
+    if "not yet judged" not in observe_mod.render(ev):
+        return "an unjudged scan rendered something other than 'not yet judged'"
+    for bad in ({}, {"verdict": "excellent", "prose": "x"},
+                {"verdict": "yes"}, {"verdict": "yes", "prose": "   "}, "yes"):
+        judged, why = observe_mod.grade(bad)
+        if judged is not None:
+            return f"grade() accepted {bad!r} and returned {judged!r}"
+    judged, why = observe_mod.grade(
+        {"verdict": "partly", "prose": "the logs are unreachable"})
+    if judged is None:
+        return f"a well-formed answer was rejected: {why}"
+    if "the logs are unreachable" not in observe_mod.render(ev, judged):
+        return "the judge's prose did not reach the rendered row"
+    return None
+
+
+def case_the_brief_asks_about_every_angle(t):
+    """A brief that has quietly lost an angle still reads as a full question.
+
+    The agent answers what it was asked, so an angle missing from the brief is
+    an angle nobody judges, and the row still prints a verdict as though the
+    whole question had been put."""
+    _observable_repo(t, **{"Makefile": "dev:\n\tpython3 app.py\n"})
+    ev, _ = observe_mod.assess(t)
+    text = observe_mod.brief(ev)
+    # Not `a in text`: the brief's opening prose names all six angles, so a
+    # membership test passes while the evidence section is missing one. What
+    # the judge actually reads is the per-angle heading.
+    missing = [a for a in observe_mod.ANGLES if ("### " + a) not in text]
+    if missing:
+        return "the brief carries no evidence section for: " + ", ".join(missing)
+    if "nothing was started" not in text:
+        return ("the brief does not tell the judge that nothing was run -- so "
+                "an absent `logs` reads as an application that emits none, "
+                "rather than as one nobody started")
+    return None
+
+
+
+def case_a_repository_of_scripts_is_runnable(t):
+    """The collector's first version only knew application shapes.
+
+    A Makefile, a compose file, a top-level app.py -- so it read `run: 0` on
+    this repository, whose every file is executable from a shell, and the row
+    would have said an agent could not watch its change run when running it is
+    a single command. A tool, a library with a CLI and a directory of scripts
+    are the common case, not the exception.
+
+    Both directions: a module that says it can be run counts, and a library
+    module that says nothing of the kind does not."""
+    _observable_repo(t, **{
+        "tool|cli.py": ('import sys\n\n\ndef main():\n    return 0\n\n\n'
+                        'if __name__ == "__main__":\n    sys.exit(main())\n'),
+        "tool|helpers.py": "def add(a, b):\n    return a + b\n",
+        "pyproject.toml": ('[project]\nname = "tool"\n\n'
+                           '[project.scripts]\nmytool = "tool.cli:main"\n'),
+    })
+    ev, _ = observe_mod.assess(t)
+    if ev is None:
+        return "nothing was collected"
+    details = {i["detail"] for i in ev["run"]}
+    if "python3 tool/cli.py" not in details:
+        return ("a module with a __main__ guard was not counted as a way to "
+                "run the thing: " + repr(sorted(details)))
+    if "mytool" not in details:
+        return "a console script in pyproject.toml was not counted"
+    if any("helpers" in d for d in details):
+        return "a library module with no entry point was counted as runnable"
+    return None
+
+
 CASES = [
+    ("a repository of scripts is runnable",
+     case_a_repository_of_scripts_is_runnable),
+    ("the instrument does not find its own vocabulary",
+     case_the_instrument_does_not_find_its_own_vocabulary),
+    ("prose about a logging stack is not a logging stack",
+     case_prose_about_a_logging_stack_is_not_a_logging_stack),
+    ("a test target is not a way to run the thing",
+     case_a_test_target_is_not_a_way_to_run_the_thing),
+    ("a literal port and a port from the environment differ",
+     case_a_literal_port_and_a_port_from_the_environment_differ),
+    ("collecting the evidence starts nothing",
+     case_collecting_the_evidence_starts_nothing),
+    ("an unjudged scan carries no verdict",
+     case_an_unjudged_scan_carries_no_verdict),
+    ("the brief asks about every angle",
+     case_the_brief_asks_about_every_angle),
+
     ("checks are found where the repository put them, not where we would",
      case_checks_are_found_outside_scripts),
     ("a dispatcher and a selftest are not themselves checks",

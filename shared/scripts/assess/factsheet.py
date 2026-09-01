@@ -51,7 +51,8 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
-import cover as cover_mod  # noqa: E402
+import cover as cover_mod
+import observe as observe_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402
 import run_mutants as mutants_mod  # noqa: E402
@@ -122,7 +123,15 @@ def gather(root, full, instances, work, command=None, mutate=0):
     r = {"probe": probe, "blast": None, "catch": None, "catch_why": "",
          "drift": drift_pairs(root), "defects": None,
          "mutants": None, "mutants_why": "", "mutant_brief": None,
-         "cover": None, "cover_why": ""}
+         "cover": None, "cover_why": "",
+         "observe": None, "observe_brief": None, "observe_judged": None}
+
+    # Reading the tree for what an agent could watch its own change do. It
+    # starts nothing and costs one walk, so it runs every time -- but the row
+    # only prints once an agent has judged the evidence, per its own module.
+    r["observe"], r["observe_why"] = observe_mod.assess(root)
+    if r["observe"]:
+        r["observe_brief"] = observe_mod.brief(r["observe"])
 
     if os.path.isdir(os.path.join(root, ".claude")):
         r["blast"] = blast_mod.assess(root, a_source_file(root),
@@ -206,7 +215,7 @@ def head_of(r):
             "tier": p["tier"]}
 
 
-def dimensions_of(r, memory=None, judged=None):
+def dimensions_of(r, memory=None, judged=None, observed=None):
     """`memory` is `memory.compare()`'s output, when somebody spent the two
     agents dimension 4's navigation half needs. Without it that half abstains;
     the truth half in `r["truth"]` costs nothing and is always there."""
@@ -215,7 +224,8 @@ def dimensions_of(r, memory=None, judged=None):
                           catch_mod.LADDER, memory, r.get("truth"),
                           r.get("value"), r.get("mutants"),
                           r.get("mutants_why", ""), judged,
-                          r.get("cover"), r.get("cover_why", ""))
+                          r.get("cover"), r.get("cover_why", ""),
+                          r.get("observe"), observed)
 
 
 def render_flat(r):
@@ -335,6 +345,11 @@ def main():
                     help="change N covered lines and see whether the tests "
                          "notice (default 30 when given without a number). "
                          "Runs the suite once per mutant — minutes to hours.")
+    ap.add_argument("--observe-answers", default="",
+                    help="JSON from the agent that read `observe_brief` — the "
+                         "verdict on whether an agent can watch its own change "
+                         "run here. Without it dimension 1 prints two rows "
+                         "instead of three, rather than guessing the third.")
     ap.add_argument("--mutant-answers", default="",
                     help="JSON from the agent that read `mutant_brief` and "
                          "said which uncaught changes were worth catching. "
@@ -421,7 +436,14 @@ def _run(a, root, work):
             with open(a.mutant_answers, encoding="utf-8") as fh:
                 judged = judge_mod.grade(r["mutants"], json.load(fh))
             r["mutants_judged"] = judged
-        head, dims = head_of(r), dimensions_of(r, memory, judged)
+        observed = None
+        if a.observe_answers and r.get("observe"):
+            with open(a.observe_answers, encoding="utf-8") as fh:
+                observed, why = observe_mod.grade(json.load(fh))
+            if observed is None:
+                print(f"  --observe-answers ignored: {why}\n")
+            r["observe_judged"] = observed
+        head, dims = head_of(r), dimensions_of(r, memory, judged, observed)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)
