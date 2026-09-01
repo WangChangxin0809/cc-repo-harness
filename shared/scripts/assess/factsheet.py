@@ -51,7 +51,7 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
-import cover as cover_mod
+import coverage_tools as cover_mod
 import observe as observe_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402

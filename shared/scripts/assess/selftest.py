@@ -48,7 +48,7 @@ import judge as judge_mod          # noqa: E402
 import mutate as mutate_mod        # noqa: E402
 import run_mutants as run_mod      # noqa: E402
 import factsheet as fact_mod       # noqa: E402
-import cover as cover_mod          # noqa: E402
+import coverage_tools as cover_mod  # noqa: E402
 import observe as observe_mod      # noqa: E402
 
 
@@ -1498,31 +1498,6 @@ def case_a_rule_is_a_layer_with_no_rung(t):
     return None
 
 
-def _covered_repo(t, calls):
-    """One decision with two conditions, one function nothing calls, and a
-    suite that makes exactly `calls`."""
-    repo(t)
-    put(t, "app.py",
-        "def gate(a, b):\n"
-        "    if a and b:\n"
-        "        return 'both'\n"
-        "    return 'no'\n"
-        "\n"
-        "\n"
-        "def nobody_calls_this(x):\n"
-        "    if x > 0:\n"
-        "        return 1\n"
-        "    return 2\n")
-    put(t, "suite.py",
-        "import sys, os\n"
-        "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
-        "from app import gate\n"
-        + "".join(f"gate({a}, {b})\n" for a, b in calls)
-        + "sys.exit(0)\n")
-    commit(t, "feat: a gate")
-    return [sys.executable, "suite.py"]
-
-
 def case_a_hook_that_could_not_run_is_not_a_layer_that_failed(t):
     """A `matcher: "Bash"` guard is never asked about an edit.
 
@@ -1611,128 +1586,6 @@ def case_the_default_branch_is_not_the_one_that_happens_to_be_out(t):
         return ("with a real remote, origin/HEAD was overruled — a repository "
                 "whose default is not conventionally named would be measured "
                 "on the wrong branch")
-    return None
-
-
-def case_a_short_circuited_condition_is_absent_not_false(t):
-    """The one detail the whole MC/DC measurement rests on.
-
-    `a and b` does not evaluate `b` when `a` is false. If the recorder writes
-    False for the condition that never ran, the two observations then differ in
-    *two* places instead of one, no independence pair is found, and `a` is
-    reported as untested when it was tested perfectly well. The failure is
-    silent and it makes the measurement pessimistic in exactly the cases that
-    short-circuit most.
-
-    So: call with a=False (b never evaluated) and a=True,b=True. `a` must come
-    out independent -- and it only can if the skipped `b` was recorded as
-    absent rather than as false."""
-    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
-    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
-    r, why = cover_mod.assess(t, cmd, work)
-    if r is None:
-        return f"coverage could not be measured at all: {why}"
-    gate = [x for x in r["not_independent"] if x["line"] == 2]
-    if not gate:
-        return "the two-condition decision was not reported at all"
-    if gate[0]["independent"] != 1:
-        return (f"`a` was not shown independent ({gate[0]['independent']} of "
-                f"{gate[0]['conditions']}) — a condition that short-circuited "
-                f"away is being recorded as false rather than as absent")
-    return None
-
-
-def case_mcdc_finds_a_condition_branch_coverage_calls_covered(t):
-    """Why the third criterion is worth its instrumentation.
-
-    With calls (False,True) and (True,True) the decision `a and b` goes both
-    ways, so branch coverage is satisfied and says the line is fine. But `b` is
-    true every single time it is reached: you could delete it and no test would
-    notice, which is precisely a mutant we would generate. MC/DC is the
-    criterion that can say so, and it says it without running the suite once
-    per mutant."""
-    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
-    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
-    r, why = cover_mod.assess(t, cmd, work)
-    if r is None:
-        return f"coverage could not be measured at all: {why}"
-    gate = [x for x in r["not_independent"] if x["line"] == 2]
-    if not gate:
-        return "MC/DC did not flag the decision at all"
-    if not gate[0]["both_ways"]:
-        return ("the fixture was supposed to satisfy branch coverage on this "
-                "decision and did not, so the case proves nothing")
-    if gate[0]["missing"] != 1:
-        return (f"branch coverage is satisfied and MC/DC reports "
-                f"{gate[0]['missing']} untested condition(s), expected 1")
-    return None
-
-
-def case_a_decision_no_test_reaches_is_not_the_same_as_one_way(t):
-    """Two findings with two different fixes, and one number would hide both.
-
-    A decision nothing reaches needs a test that gets there at all. A decision
-    reached that only ever went one way needs a test that gets there with the
-    other answer. Reporting them as a single branch percentage leaves the
-    reader with neither."""
-    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
-    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
-    r, why = cover_mod.assess(t, cmd, work)
-    if r is None:
-        return f"coverage could not be measured at all: {why}"
-    cold = [x for x in r["unreached"] if x["line"] == 8]
-    if not cold:
-        return ("the decision inside the function nothing calls was not "
-                "reported as unreached")
-    if [x for x in r["one_way"] if x["line"] == 8]:
-        return "a decision nothing reaches was also counted as one-way"
-    st = r.get("statements")
-    if not st or not st["files_with_none_total"] == 0:
-        pass          # app.py IS partly executed; only the function is dark
-    return None
-
-
-def case_an_assertion_is_not_a_decision(t):
-    """A green suite makes every assertion in the repository one-way.
-
-    An assertion that has gone both ways is a test run that failed. Counting
-    assertions as decisions would therefore report every correct assertion as
-    an uncovered branch -- a denominator made entirely of noise, and one that
-    gets worse the more carefully a repository asserts."""
-    src = ("def f(x):\n"
-           "    assert x is not None\n"
-           "    if x > 0:\n"
-           "        return 1\n"
-           "    return 0\n")
-    got = cover_mod.decisions(ast.parse(src))
-    if len(got) != 1:
-        return (f"{len(got)} decision(s) found in a function with one `if` "
-                f"and one `assert` — the assertion is being counted")
-    return None
-
-
-def case_the_instrument_leaves_the_tree_as_it_found_it(t):
-    """It rewrites every source file and drops a recorder module in the root.
-
-    Both have to be gone afterwards, on the failure path as well as the happy
-    one. An instrument that leaves its own scaffolding behind has changed the
-    repository it was pointed at, and the next thing to read that tree -- the
-    mutation pass, the replay, a person -- sees the instrument instead of the
-    subject."""
-    cmd = _covered_repo(t, [("True", "True")])
-    before = git(["status", "--porcelain"], t).stdout
-    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
-    r, _why = cover_mod.assess(t, cmd, work)
-    if r is None:
-        return "coverage could not be measured, so nothing was proven"
-    after = git(["status", "--porcelain"], t).stdout
-    if after != before:
-        return f"the tree was left modified: {after.strip()[:200]!r}"
-    if os.path.exists(os.path.join(t, cover_mod.RECORDER + ".py")):
-        return "the recorder module was left in the repository root"
-    with open(os.path.join(t, "app.py"), encoding="utf-8") as fh:
-        if "_ASSESS_C" in fh.read():
-            return "an instrumented source file was left in place"
     return None
 
 
@@ -2864,7 +2717,181 @@ def case_a_repository_of_scripts_is_runnable(t):
     return None
 
 
+
+def _report(t, rel, body):
+    full = os.path.join(t, rel.replace("/", os.sep))
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return t
+
+
+GOCOVER = ("mode: set\n"
+           "ex/a.go:3.10,5.2 2 1\n"
+           "ex/a.go:7.10,9.2 1 0\n")
+
+LCOV = ("SF:src/a.js\nFN:3,alpha\nFNDA:1,alpha\nFNF:2\nFNH:1\n"
+        "DA:3,1\nDA:4,0\nLF:2\nLH:1\n"
+        "BRDA:3,0,0,1\nBRDA:3,0,1,0\nBRF:2\nBRH:1\nend_of_record\n")
+
+GCOV = json.dumps({"gcc_version": "14.2.0", "files": [{"lines": [
+    {"count": 1, "branches": [{"count": 1}, {"count": 0}],
+     "conditions": [{"count": 2, "not_covered_true": [0],
+                     "not_covered_false": []}]}]}]})
+
+
+def case_a_criterion_the_tool_does_not_produce_is_absent_not_zero(t):
+    """Go's tooling computes no branch coverage. None. It is not a setting.
+
+    A Go repository reading `0 of 0 branches never taken both ways` would be a
+    statement about the language dressed up as a finding about the code, and
+    the reader has no way to tell which it is. So a criterion the tool does not
+    produce carries no row, and the criteria that are missing get named
+    together in one row that says why."""
+    _report(t, "coverage.out", GOCOVER)
+    r, why = cover_mod.assess(t, None, os.path.join(t, "w"))
+    if not r:
+        return f"a valid coverprofile was not read: {why}"
+    if r["criteria"].get("statement", {}).get("total") != 3:
+        return f"statements came out as {r['criteria'].get('statement')}"
+    for absent in ("branch", "function", "mcdc"):
+        if absent in r["criteria"]:
+            return f"{absent} was reported for a Go coverprofile, which has none"
+    rows = dim_mod.coverage_rows(r)
+    named = [x for x in rows if x["label"] == "criteria this tool does not produce"]
+    if not named:
+        return "the absent criteria were not named, so they read as zero"
+    if "branch" not in named[0]["value"]:
+        return "branch was not listed among the criteria this tool cannot give"
+    return None
+
+
+def case_lcov_carries_function_coverage(t):
+    """The one common format with a first-class function counter.
+
+    2.1 asks for line *and* function coverage. coverage.py has no function
+    counter, so Python cannot answer that half; lcov's FNF/FNH means Node,
+    Rust and C can. That asymmetry is real and it has to survive into the
+    result rather than being smoothed over."""
+    _report(t, "lcov.info", LCOV)
+    r, why = cover_mod.assess(t, None, os.path.join(t, "w"))
+    if not r:
+        return f"a valid lcov report was not read: {why}"
+    fn = r["criteria"].get("function")
+    if not fn:
+        return "lcov's FNF/FNH did not become function coverage"
+    if (fn["total"], fn["covered"]) != (2, 1):
+        return f"function coverage came out as {fn}"
+    if r["criteria"].get("branch", {}).get("total") != 2:
+        return "lcov's BRF/BRH did not become branch coverage"
+    return None
+
+
+def case_gcov_is_where_mcdc_comes_from(t):
+    """The only on-disk format that carries the fourth criterion.
+
+    Nothing outside the compilers computes MC/DC -- not coverage.py, not
+    JaCoCo, not istanbul. GCC 14 added `-fcondition-coverage` and Clang 18
+    `-fcoverage-mcdc`, both masking MC/DC, chosen independently. If this
+    reader stops working, the criterion silently leaves the assessment for
+    every language at once."""
+    _report(t, "gcov.json", GCOV)
+    r, why = cover_mod.assess(t, None, os.path.join(t, "w"))
+    if not r:
+        return f"a valid gcov report was not read: {why}"
+    mc = r["criteria"].get("mcdc")
+    if not mc:
+        return "gcov's condition counts did not become MC/DC"
+    if (mc["total"], mc["covered"]) != (2, 1):
+        return f"MC/DC came out as {mc}"
+    return None
+
+
+def case_a_malformed_report_is_an_abstention_not_a_zero(t):
+    """The failure that would be silent and would look like a finding.
+
+    A truncated or half-written report parsed leniently yields small numbers,
+    and small numbers here read as `almost nothing is tested` -- the worst
+    possible reading to produce by accident."""
+    for rel in ("coverage.json", "lcov.info", "coverage.xml", "coverage.out",
+                "gcov.json"):
+        _report(t, rel, "not a coverage report at all\n{oops")
+    r, why = cover_mod.assess(t, None, os.path.join(t, "w"))
+    if r:
+        return f"garbage was read as a coverage result: {r.get('criteria')}"
+    if "cannot judge" not in why:
+        return f"the abstention did not say it could not judge: {why!r}"
+    return None
+
+
+def case_a_report_inside_a_dependency_is_not_this_repositorys(t):
+    """A walk would find it. This does not walk, and that is the reason.
+
+    A vendored package ships its own lcov.info more often than not, and a
+    walk that finds it reports the dependency's coverage as the subject's --
+    usually a high number, since libraries that ship coverage reports have
+    good ones."""
+    _report(t, "node_modules/left-pad/lcov.info", LCOV)
+    _report(t, "vendor/thing/coverage.out", GOCOVER)
+    r, why = cover_mod.assess(t, None, os.path.join(t, "w"))
+    if r:
+        return ("a dependency's coverage report was read as this "
+                "repository's: " + str(r.get("report")))
+    return None
+
+
+def case_the_shape_of_the_suite_command_decides_if_it_can_be_wrapped(t):
+    """Guessing at somebody's build is worse than saying you cannot.
+
+    Three shapes are recognisable without reading the repository. A shell
+    pipeline or a `make` target is not one of them, and wrapping it anyway
+    produces a coverage number for a program that never ran."""
+    py = cover_mod.Python()
+    for command in ("pytest -q", "python3 -m pytest tests", "run_tests.py"):
+        if not py.wrap(command):
+            return f"a wrappable command was refused: {command!r}"
+    for command in ("make test", "./ci.sh", "npm test && pytest", ""):
+        if py.wrap(command):
+            return (f"{command!r} was wrapped anyway -- the coverage number "
+                    f"would be about a program that never ran")
+    return None
+
+
+def case_an_uninstalled_tool_names_itself_and_how_to_get_it(t):
+    """`could not judge` is only useful when it says what would fix it.
+
+    And the row it produces is a finding about the repository, not about this
+    file: a Python repository with no coverage tool installed has no coverage
+    tool. Nothing here installs one, because installing one changes what the
+    subject contains."""
+    for i in range(3):
+        _report(t, "pkg/mod%d.py" % i, "def f():\n    return 1\n")
+    r, why = cover_mod.assess(t, "pytest -q", os.path.join(t, "w"))
+    if r:
+        return "coverage was somehow produced with no tool and no report"
+    if "coverage" not in why or "pip install" not in why:
+        return f"the abstention names neither the tool nor how to get it: {why!r}"
+    rows = dim_mod.coverage_rows(None, why)
+    if not rows or rows[0]["flag"] != "info":
+        return "an abstention rendered as something other than an info row"
+    return None
+
+
 CASES = [
+    ("a criterion the tool does not produce is absent, not zero",
+     case_a_criterion_the_tool_does_not_produce_is_absent_not_zero),
+    ("lcov carries function coverage",
+     case_lcov_carries_function_coverage),
+    ("gcov is where MC/DC comes from",
+     case_gcov_is_where_mcdc_comes_from),
+    ("a malformed report is an abstention, not a zero",
+     case_a_malformed_report_is_an_abstention_not_a_zero),
+    ("a report inside a dependency is not this repository's",
+     case_a_report_inside_a_dependency_is_not_this_repositorys),
+    ("the shape of the suite command decides if it can be wrapped",
+     case_the_shape_of_the_suite_command_decides_if_it_can_be_wrapped),
+    ("an uninstalled tool names itself and how to get it",
+     case_an_uninstalled_tool_names_itself_and_how_to_get_it),
     ("a repository of scripts is runnable",
      case_a_repository_of_scripts_is_runnable),
     ("the instrument does not find its own vocabulary",
@@ -2990,16 +3017,6 @@ CASES = [
      case_a_hook_that_could_not_run_is_not_a_layer_that_failed),
     ("the default branch is not whichever one happens to be checked out",
      case_the_default_branch_is_not_the_one_that_happens_to_be_out),
-    ("a short-circuited condition is absent, not false",
-     case_a_short_circuited_condition_is_absent_not_false),
-    ("MC/DC finds a condition branch coverage calls covered",
-     case_mcdc_finds_a_condition_branch_coverage_calls_covered),
-    ("a decision nothing reaches is not the same as a one-way decision",
-     case_a_decision_no_test_reaches_is_not_the_same_as_one_way),
-    ("an assertion is not a decision",
-     case_an_assertion_is_not_a_decision),
-    ("the instrument leaves the tree as it found it",
-     case_the_instrument_leaves_the_tree_as_it_found_it),
     ("mutation reaches the page only when it is asked for",
      case_mutation_reaches_the_page_only_when_asked),
     ("a mutant walks the same ladder as a real defect",

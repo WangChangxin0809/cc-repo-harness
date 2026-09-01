@@ -604,7 +604,12 @@ def coverage_rows(c, why=""):
     So these rows are the **denominator of the two injections below them**. The
     replay only reaches lines this repository's history put a bug in; mutation
     only touches lines the suite already executes. Coverage is the part both of
-    them are silent about, and silence that is not stated reads as a pass."""
+    them are silent about, and silence that is not stated reads as a pass.
+
+    The numbers come from the ecosystem's own tool. A criterion that tool does
+    not produce gets no row, and gets named in a row of its own instead: Go has
+    no branch coverage at all, and a Go repository reading `0 of 0 branches`
+    would be a lie about the language rather than a fact about the code."""
     if not c:
         if not why:
             return []
@@ -614,68 +619,36 @@ def coverage_rows(c, why=""):
                          + " — so the rows below are silent about an unknown "
                            "share of this repository, rather than about a "
                            "known one"}]
-    rows = []
-    if not c.get("instrumented_green", True):
-        rows.append({
-            "label": "!! instrumenting changed the suite's result",
-            "value": "green before, not green after",
-            "flag": "warn",
-            "note": "the branch and condition figures below are about a "
-                    "program that is not quite this one. The statement figure "
-                    "is measured on the untouched tree and is unaffected"})
 
-    st = c.get("statements")
-    if st:
-        dark = st["files_with_none_total"]
+    LABEL = {"statement": "statements no test executes",
+             "function": "functions no test enters",
+             "branch": "branches never taken both ways",
+             "mcdc": "conditions that never decided anything"}
+    rows, criteria = [], c.get("criteria") or {}
+    for key in ("statement", "function", "branch", "mcdc"):
+        got = criteria.get(key)
+        if not got:
+            continue
+        share = (1.0 - got["covered"] / got["total"]) if got["total"] else 0.0
         rows.append({
-            "label": "statements no test executes",
-            "value": f"{st['executable'] - st['executed']} of "
-                     f"{st['executable']}  ({100 * (1 - st['rate']):.0f}%)",
-            "flag": "bad" if st["rate"] < 0.5 else "info",
-            "note": f"under `{c['command']}`. A repository with several suites "
-                    f"needs a command that runs all of them, or this is one "
-                    f"suite's coverage measured against the whole tree"
-                    + (f". {dark} file(s) have no executed line at all: "
-                       + ", ".join(d["path"] for d in st["files_with_none"][:3])
-                       if dark else "")})
-    else:
+            "label": LABEL[key],
+            "value": "%d of %d  (%.0f%%)" % (got["missing"], got["total"],
+                                             100 * share),
+            "flag": "bad" if share > 0.5 else "info",
+            "note": "%s, %s" % (c.get("tool", "the ecosystem's tool"),
+                                c.get("how", "measured"))})
+
+    absent = [k for k in ("statement", "function", "branch", "mcdc")
+              if k not in criteria]
+    if absent and rows:
         rows.append({
-            "label": "statements no test executes",
-            "value": "could not judge",
+            "label": "criteria this tool does not produce",
+            "value": ", ".join(absent),
             "flag": "info",
-            "note": "no coverage tool in the subject and the stdlib tracer "
-                    "could not run this command"})
-
-    if c.get("branch") is not None:
-        cold = c["decisions"] - c["decisions_reached"]
-        oneway = c["decisions_reached"] - c["branch_covered"]
-        rows.append({
-            "label": "decisions never taken both ways",
-            "value": f"{cold + oneway} of {c['decisions']}",
-            "flag": "bad" if c["branch"] < 0.5 else "info",
-            "note": f"{cold} never reached at all, {oneway} reached and only "
-                    f"ever went one way. The second is the classic shape: "
-                    f"every error path in the file, entered by nothing"
-                    + ("; first: " + "; ".join(
-                        f"{d['id'].rsplit(':', 1)[0]}:{d['line']}"
-                        for d in (c["one_way"] or c["unreached"])[:3])
-                       if (c["one_way"] or c["unreached"]) else "")})
-
-    if c.get("mcdc") is not None:
-        rows.append({
-            "label": "conditions that never decided anything",
-            "value": f"{c['conditions'] - c['conditions_independent']} of "
-                     f"{c['conditions']}",
-            "flag": "bad" if c["mcdc"] < 0.5 else "info",
-            "note": f"MC/DC: no pair of runs shows this condition changing the "
-                    f"outcome on its own. In `if a and b`, a `b` that is true "
-                    f"every time it is reached is not being tested — you could "
-                    f"delete it and nothing would notice, which is exactly a "
-                    f"mutant. {c['compound_decisions']} decision(s) have more "
-                    f"than one condition; where that count is small this is "
-                    f"nearly the row above. Masking MC/DC, not unique-cause — "
-                    f"unique-cause is unreachable in a language that "
-                    f"short-circuits"})
+            "note": "absent, not zero. No mainstream tool outside the "
+                    "compilers computes MC/DC at all, and Go's tooling has no "
+                    "branch coverage — so a missing row here is a fact about "
+                    "the ecosystem, not about this repository"})
     return rows
 
 
