@@ -49,6 +49,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -93,6 +94,31 @@ def wired(root, event):
                                 "matcher": group.get("matcher", ""),
                                 "local": name.endswith("local.json")})
     return out
+
+
+def matches(matcher, tool_name):
+    """Would Claude Code run this hook for this tool?
+
+    An empty matcher or `*` means every tool. Otherwise it is a regular
+    expression, and in practice almost always an alternation of tool names.
+
+    This is not a detail. Firing an `Edit` payload at a hook wired
+    `matcher: "Bash"` asks a guard a question it will never be asked in
+    reality: it counts a layer as wired that cannot see this kind of defect at
+    all, and if such a hook ever *did* block, the ladder would record a catch
+    that could not happen. Measured on this repository, whose destructive-
+    command guards are Bash-only: the inventory reported `before-write: 2
+    hook(s), 0 of 16 caught` when only one of the two could ever have run."""
+    if not matcher or matcher in ("*", ".*"):
+        return True
+    try:
+        return re.fullmatch(matcher, tool_name) is not None
+    except re.error:
+        return tool_name in [p.strip() for p in matcher.split("|")]
+
+
+def applicable(hooks, tool_name):
+    return [h for h in hooks if matches(h.get("matcher", ""), tool_name)]
 
 
 def fire_ex(root, hooks, payload):
@@ -379,7 +405,11 @@ def assess(root, instances, work, command=None):
                         "suite the table does not recognise")
     for step in eco.install(repo):
         sh(step, repo, 900)
-    pre, post = wired(root, "PreToolUse"), wired(root, "PostToolUse")
+    # Only the hooks that would actually run for the payload the ladder
+    # sends. The ladder edits files, so a Bash-only guard is not a layer that
+    # failed to catch this -- it is a layer that was never asked.
+    pre = applicable(wired(root, "PreToolUse"), "Edit")
+    post = applicable(wired(root, "PostToolUse"), "Edit")
     ci = ci_command(repo)
     # Asked of the subject, not the clone: the clone has no remote history.
     ci_secs = ci_seconds(root)

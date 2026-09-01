@@ -73,8 +73,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import mutate as mutate_mod  # noqa: E402
-from catch import (LADDER, bench, ci_command, ci_seconds,  # noqa: E402
-                   edit_payload, fire, park, wired)
+from catch import (LADDER, applicable, bench,  # noqa: E402
+                   ci_command, ci_seconds, edit_payload, fire,
+                   park, wired)
 from ecosystems import find, sh  # noqa: E402
 
 TEST_TIMEOUT = 300
@@ -399,7 +400,8 @@ def assess(root, limit=30, files=None, work=None, command=None):
     # The hooks are the SUBJECT's, read from its settings; they are fired
     # inside the clone. Reading them from the clone would work too and would
     # quietly stop working the day a repository wires a hook by absolute path.
-    pre, post = wired(root, "PreToolUse"), wired(root, "PostToolUse")
+    pre = applicable(wired(root, "PreToolUse"), "Edit")
+    post = applicable(wired(root, "PostToolUse"), "Edit")
     ci = ci_command(repo)
     ci_secs = ci_seconds(root)
     eco, cmd = find(repo)

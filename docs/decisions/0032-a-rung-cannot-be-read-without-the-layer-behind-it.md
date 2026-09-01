@@ -96,3 +96,31 @@ result about the repository.
 | A rule is counted and given no rung | **checked** — planted the rung |
 | Prohibitions a guard enforces are not a second layer | **checked** — planted the subtraction away |
 | The inventory changes what anybody does about a zero | **argued** — the distinction is new and nobody has yet acted on one |
+
+## Amendment, same day: a hook that could not have run is not a layer
+
+The row's first run against this repository read:
+
+    before-write: 2 hook(s), 0 of 16 caught
+
+flagged `bad`. It was wrong, and wrong in the way that gets a page dismissed:
+of the two PreToolUse hooks here, one is wired `matcher: "Bash"` — the
+destructive-command guards. The ladder introduces defects by editing files, so
+it fires `Edit` payloads, and Claude Code would never send one to a Bash-only
+hook. The row was accusing a guard of failing at a job it was never given.
+
+Two things were broken by the same omission. `wired()` recorded each hook's
+matcher and `fire_ex()` ignored it, so every hook was fired at every payload.
+Besides inflating the inventory, a Bash-only hook that *did* block on an Edit
+payload would have been recorded as a `before-write` catch that cannot happen
+in reality — a false catch at the best rung on the ladder.
+
+So the hooks are filtered by matcher against the payload's tool before
+anything is fired, in `catch` and in `run_mutants` alike. An empty matcher or
+`*` still means every tool; anything else is matched as the regular expression
+it is, falling back to splitting an alternation when it does not compile.
+
+| Claim | Grade |
+|---|---|
+| A Bash-only hook is not asked about an edit | **checked** — planted the filter out and watched the case go red |
+| A catch-all matcher still means every tool | **checked** — planted `*` out of the catch-all set |

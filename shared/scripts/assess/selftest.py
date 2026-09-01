@@ -1522,6 +1522,45 @@ def _covered_repo(t, calls):
     return [sys.executable, "suite.py"]
 
 
+def case_a_hook_that_could_not_run_is_not_a_layer_that_failed(t):
+    """A `matcher: "Bash"` guard is never asked about an edit.
+
+    The ladder introduces defects by editing files, so it fires Edit payloads.
+    Claude Code would never send one to a hook wired for Bash. Firing it anyway
+    does two wrong things at once: it counts a layer as wired that cannot see
+    this class of defect at all, and if such a hook ever did block, the ladder
+    would record a `before-write` catch that could not happen in reality.
+
+    Measured on this repository, whose destructive-command guards are Bash-only
+    by design: the inventory row read `before-write: 2 hook(s), 0 of 16 caught`
+    when only one of the two could ever have run. That is an accusation against
+    a guard for not doing a job it was never given."""
+    if catch_mod.matches("Bash", "Edit"):
+        return "a Bash-only hook is treated as applying to an edit"
+    if not catch_mod.matches("Bash|Write|Edit|MultiEdit", "Edit"):
+        return "an alternation naming Edit is not treated as applying to it"
+    for wide in ("", "*", ".*"):
+        if not catch_mod.matches(wide, "Edit"):
+            return f"the catch-all matcher {wide!r} excluded a tool"
+
+    repo(t)
+    put(t, "app.py", "def add(a, b):\n    return a + b\n")
+    put(t, ".claude/block.py", BLOCKER)
+    put(t, ".claude/settings.json", json.dumps({"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [
+            {"type": "command",
+             "command": f'python3 "{os.path.join(t, ".claude/block.py")}"'}]}]}}))
+    commit(t, "chore: a Bash-only guard")
+    pre = catch_mod.applicable(catch_mod.wired(t, "PreToolUse"), "Edit")
+    if pre:
+        return (f"{len(pre)} Bash-only hook(s) were selected for an Edit "
+                f"payload — the ladder would ask them a question Claude Code "
+                f"never asks")
+    if not catch_mod.applicable(catch_mod.wired(t, "PreToolUse"), "Bash"):
+        return "the Bash-only hook was excluded from Bash payloads too"
+    return None
+
+
 def case_a_short_circuited_condition_is_absent_not_false(t):
     """The one detail the whole MC/DC measurement rests on.
 
@@ -2676,6 +2715,8 @@ CASES = [
      case_a_wired_layer_that_caught_nothing_is_not_an_absent_one),
     ("a rule is a layer with no rung",
      case_a_rule_is_a_layer_with_no_rung),
+    ("a hook that could not have run is not a layer that failed",
+     case_a_hook_that_could_not_run_is_not_a_layer_that_failed),
     ("a short-circuited condition is absent, not false",
      case_a_short_circuited_condition_is_absent_not_false),
     ("MC/DC finds a condition branch coverage calls covered",
