@@ -1073,7 +1073,8 @@ def _is_source(path, check_dirs=()):
 
 # -- 4 -----------------------------------------------------------------------
 
-def repository_memory(root, log, check_dirs=(), probe=None, truth=None):
+def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
+                      conflict=None, conflict_judged=None):
     """Can an agent that has never seen this repository find its way, and is
     that because of something the repository keeps?
 
@@ -1157,6 +1158,47 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None):
                      "value": "none found", "flag": "warn",
                      "note": "no postmortem, decision record, known-issues or "
                              "changelog anywhere in the tree"})
+
+    # Does the repository contradict itself? Stage one is lexical and narrows
+    # hard -- 1711 possible pairs to one candidate here -- because a filter
+    # that hands an agent hundreds of pairs has moved the reading problem
+    # rather than solved it.
+    if conflict:
+        total = conflict["candidates_total"]
+        if not total:
+            rows.append({
+                "label": "documents that contradict each other",
+                "value": "no candidate among %d pair(s)"
+                         % conflict["possible_pairs"],
+                "flag": "ok",
+                "note": "no two documents name the same flag, path or "
+                        "identifier and attach different values to it. This "
+                        "is a lexical filter: a contradiction phrased without "
+                        "a shared token is invisible to it"})
+        elif conflict_judged:
+            real = conflict_judged["real"]
+            rows.append({
+                "label": "documents that contradict each other",
+                "value": "%d real of %d candidate(s)" % (len(real), total),
+                "flag": "bad" if real else "ok",
+                "note": ("; ".join("`%s`: %s vs %s"
+                                   % (p.get("subject", "?"), p.get("a", "?"),
+                                      p.get("b", "?")) for p in real[:3])
+                         or "every candidate was dismissed on reading")})
+        else:
+            rows.append({
+                "label": "documents that contradict each other",
+                "value": "%d candidate(s) of %d pair(s), not yet judged"
+                         % (total, conflict["possible_pairs"]),
+                "flag": "info",
+                "note": "a candidate is not a conflict — two documents naming "
+                        "the same thing with different values are as often an "
+                        "example beside a default. Judge them with "
+                        "`assess/conflict.py --brief`"
+                        + (". %d pair(s) excluded as supersession, which is "
+                           "contradiction on purpose"
+                           % conflict["excluded_by_supersession"]
+                           if conflict["excluded_by_supersession"] else "")})
 
     if not probe:
         rows.append({
@@ -1442,7 +1484,8 @@ def context_economy(root, probe, blast=None, value=None):
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
            judged=None, cover=None, cover_why="", observe=None,
-           observe_judged=None, gate=None):
+           observe_judged=None, gate=None, conflict=None,
+           conflict_judged=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1454,7 +1497,8 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
         change_validation(defects, catch, catch_why, ladder, mutants,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
-        repository_memory(root, log, check_dirs, memory, truth),
+        repository_memory(root, log, check_dirs, memory, truth,
+                          conflict, conflict_judged),
         context_economy(root, probe, blast, value),
     ]
 

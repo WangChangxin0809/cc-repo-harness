@@ -51,6 +51,7 @@ import factsheet as fact_mod       # noqa: E402
 import coverage_tools as cover_mod  # noqa: E402
 import observe as observe_mod      # noqa: E402
 import merge as merge_mod          # noqa: E402
+import conflict as conflict_mod    # noqa: E402
 
 
 def git(args, cwd):
@@ -2901,7 +2902,149 @@ def case_a_comment_about_swallowing_is_not_swallowing(t):
     return None
 
 
+
+def _doc(t, rel, body):
+    full = os.path.join(t, rel.replace("/", os.sep))
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return full
+
+
+def _subjects_of(r):
+    return sorted(p["subject"] for p in (r or {}).get("candidates", []))
+
+
+def case_supersession_is_not_conflict(t):
+    """The finding that would bury every other one.
+
+    A decision record that replaces an earlier one contradicts it on purpose,
+    and a repository that keeps its history has many. Run against this
+    repository before the rule existed, the loudest candidates were 0031
+    against 0033 — which is the system working, reported as the system
+    broken."""
+    _doc(t, "docs/0031-old.md", "# 0031\nStatus: accepted\n"
+                                "Run with `--budget 2000` always.\n")
+    _doc(t, "docs/0033-new.md", "# 0033\nStatus: accepted\nSupersedes 0031.\n"
+                                "Run with `--budget 9000` instead.\n")
+    r, why = conflict_mod.narrow(t)
+    if r is None:
+        return f"nothing was compared: {why}"
+    if "--budget" in _subjects_of(r):
+        return ("a document and the one that declares it superseded were "
+                "reported as disagreeing")
+    if not r["excluded_by_supersession"]:
+        return "the supersession was not recognised at all"
+    return None
+
+
+def case_a_value_must_be_attached_not_merely_nearby(t):
+    """The single number the precision of the whole module rests on.
+
+    Sentence scope, then a sixty-character window, both produced more than a
+    thousand candidates from under two thousand document pairs — more than
+    half of every pair, which is a filter that has stopped filtering. A
+    `--json` flag with the words "Stage 5" eleven characters away is not a
+    flag with the value 5."""
+    # `--budget` carries its value; `--json` has a step number nearby and
+    # carries nothing. Both flags appear in two documents, so the only thing
+    # separating them is attachment.
+    _doc(t, "a.md", "Run `query.py --budget 3000` for a wide map.\n")
+    _doc(t, "c.md", "The default is `--budget 2000` and always has been.\n")
+    _doc(t, "b.md", "Use `--json` at step 5 of the guide.\n")
+    _doc(t, "d.md", "Use `--json` at step 9 of the guide.\n")
+    r, _why = conflict_mod.narrow(t)
+    got = _subjects_of(r)
+    if got != ["--budget"]:
+        return (f"expected only the attached pair, got {got} — a number "
+                f"merely near a flag was read as its value")
+    return None
+
+
+def case_overlapping_values_are_agreement_not_conflict(t):
+    """`{600}` against `{077, 600}` is one document giving more context.
+
+    Requiring the value sets to be *unequal* rather than *disjoint* reported
+    every such pair as a contradiction, which is how a filter fills a page
+    with documents that agree."""
+    _doc(t, "a.md", "The file is written with `chmod_mode` 600.\n")
+    _doc(t, "b.md", "Written `chmod_mode` 600 by default. "
+                    "In strict mode, `chmod_mode` 077.\n")
+    r, _why = conflict_mod.narrow(t)
+    if _subjects_of(r):
+        return ("documents whose values overlap were reported as "
+                "contradicting: " + repr(_subjects_of(r)))
+    return None
+
+
+def case_a_token_every_document_names_is_not_evidence(t):
+    """The oldest rule in retrieval, and it applies unchanged.
+
+    `CLAUDE.md` is named in almost every document here and produced 27 of the
+    first 40 candidates on its own. A term with no discriminating power is not
+    evidence, however code-shaped it looks."""
+    for i in range(6):
+        _doc(t, "d%d.md" % i,
+             "Everything is described in `CLAUDE.md` %d.\n" % (100 + i))
+    _doc(t, "rare_a.md", "The knob `retry_limit` 7 is what we use.\n")
+    _doc(t, "rare_b.md", "The knob `retry_limit` 9 is what we use.\n")
+    r, _why = conflict_mod.narrow(t)
+    got = _subjects_of(r)
+    if "CLAUDE.md" in got:
+        return "a token named by most documents was still used to pair them"
+    if got != ["retry_limit"]:
+        return f"the discriminating subject was lost too: {got}"
+    return None
+
+
+def case_only_what_the_repository_keeps_is_its_memory(t):
+    """An untracked draft is not what the repository says.
+
+    `tmp/` here holds throwaway assessment pages nobody committed on purpose,
+    and comparing them against the documents is comparing a draft against the
+    thing it was drafting."""
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    _doc(t, "kept.md", "The knob `retry_limit` 7 is what we use.\n")
+    _doc(t, "scratch.md", "The knob `retry_limit` 9, scribbled.\n")
+    subprocess.run(["git", "add", "kept.md"], cwd=t, check=True)
+    r, _why = conflict_mod.narrow(t)
+    if _subjects_of(r):
+        return ("an untracked file was compared as though the repository "
+                "kept it: " + repr(_subjects_of(r)))
+    return None
+
+
+def case_somebody_elses_cloned_repository_is_not_ours(t):
+    """355 documents from other people's repositories, reported as ours.
+
+    This repository keeps a corpus of cloned repositories under `eval/.work/`.
+    The first run of this module compared their documents against each other
+    and presented the result as a finding about this tree."""
+    _doc(t, "eval/.work/someone__else/A.md",
+         "The knob `retry_limit` 7 is what we use.\n")
+    _doc(t, "eval/.work/someone__else/B.md",
+         "The knob `retry_limit` 9 is what we use.\n")
+    _doc(t, "ours.md", "Nothing controversial here.\n")
+    r, why = conflict_mod.narrow(t)
+    if r and _subjects_of(r):
+        return ("a cloned repository's documents were compared as ours: "
+                + repr(_subjects_of(r)))
+    return None
+
+
 CASES = [
+    ("supersession is not conflict",
+     case_supersession_is_not_conflict),
+    ("a value must be attached, not merely nearby",
+     case_a_value_must_be_attached_not_merely_nearby),
+    ("overlapping values are agreement, not conflict",
+     case_overlapping_values_are_agreement_not_conflict),
+    ("a token every document names is not evidence",
+     case_a_token_every_document_names_is_not_evidence),
+    ("only what the repository keeps is its memory",
+     case_only_what_the_repository_keeps_is_its_memory),
+    ("somebody else's cloned repository is not ours",
+     case_somebody_elses_cloned_repository_is_not_ours),
     ("a 404 is an answer and a 403 is not",
      case_a_404_is_an_answer_and_a_403_is_not),
     ("unreadable protection does not become `not required`",
