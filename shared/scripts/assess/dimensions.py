@@ -1074,7 +1074,8 @@ def _is_source(path, check_dirs=()):
 # -- 4 -----------------------------------------------------------------------
 
 def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
-                      conflict=None, conflict_judged=None):
+                      conflict=None, conflict_judged=None,
+                      promises=None):
     """Can an agent that has never seen this repository find its way, and is
     that because of something the repository keeps?
 
@@ -1199,6 +1200,32 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
                            "contradiction on purpose"
                            % conflict["excluded_by_supersession"]
                            if conflict["excluded_by_supersession"] else "")})
+
+    # Does the code do what the documents promise? Only printed once it has
+    # actually been run: "21 testable claims, not checked" is a fact about
+    # this session, not about the repository, and a row with an empty verdict
+    # reads as a failing grade.
+    if promises and any(c.get("verdict", "not run") != "not run"
+                        for c in promises):
+        counts = {}
+        for c in promises:
+            key = c.get("verdict", "not run")
+            counts[key] = counts.get(key, 0) + 1
+        bad = counts.get("inconsistent", 0)
+        rows.append({
+            "label": "promises the code does not keep",
+            "value": "%d of %d testable claim(s)" % (bad, len(promises)),
+            "flag": "bad" if bad else "ok",
+            "note": ("; ".join(c["doc"] + ": " + c["says"][:70]
+                               for c in promises
+                               if c.get("verdict") == "inconsistent")
+                     if bad else
+                     "each one had a test written from the document alone, and "
+                     "the code passed it")
+                    + ". Recall is low by construction — CASCADE reports 0.21 "
+                      "on method-level documentation, and this reads prose "
+                      "across a whole repository, so nothing found here is a "
+                      "long way from nothing there"})
 
     if not probe:
         rows.append({
@@ -1485,7 +1512,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
-           conflict_judged=None):
+           conflict_judged=None, promises=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1498,7 +1525,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, memory, truth,
-                          conflict, conflict_judged),
+                          conflict, conflict_judged, promises),
         context_economy(root, probe, blast, value),
     ]
 

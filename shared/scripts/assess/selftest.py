@@ -52,6 +52,7 @@ import coverage_tools as cover_mod  # noqa: E402
 import observe as observe_mod      # noqa: E402
 import merge as merge_mod          # noqa: E402
 import conflict as conflict_mod    # noqa: E402
+import promises as promises_mod    # noqa: E402
 
 
 def git(args, cwd):
@@ -3032,7 +3033,109 @@ def case_somebody_elses_cloned_repository_is_not_ours(t):
     return None
 
 
+
+def case_a_pass_to_fail_discards_the_whole_claim(t):
+    """The guard, and the part of CASCADE easiest to drop.
+
+    A test the real code passed and the document-derived code fails means that
+    implementation is incomplete, so its passing of the fail-to-pass tests is
+    evidence about nothing. Dropping this condition turns the method back into
+    "a model said the code was wrong", which the paper measures at 0.53
+    precision -- about 27 false positives per 71 real ones."""
+    real = {"one": 1, "two": 0}
+    got, counts = promises_mod.verdict(real, {"one": 0, "two": 1})
+    if got == "inconsistent":
+        return ("a claim with a pass-to-fail test was still reported: "
+                + repr(counts))
+    if counts.get("p2f") != 1 or counts.get("f2p") != 1:
+        return f"the crossing itself is wrong: {counts}"
+    got, _ = promises_mod.verdict(real, {"one": 0, "two": 0})
+    if got != "inconsistent":
+        return f"with no pass-to-fail it should be a finding, got {got!r}"
+    return None
+
+
+def case_a_test_the_documents_own_code_also_fails_is_not_a_finding(t):
+    """f2f is the row that would otherwise be the false positive.
+
+    There are more wrong tests than there are inconsistencies, which is the
+    whole reason the second round exists."""
+    got, _ = promises_mod.verdict({"a": 1, "b": 0}, {"a": 1, "b": 0})
+    if got != "the test was wrong":
+        return f"a test both versions fail was reported as {got!r}"
+    if promises_mod.verdict({"a": 0, "b": 0}, None)[0] != "consistent":
+        return "all-passing was not read as consistent"
+    if promises_mod.verdict({"a": 1}, None)[0] != "pending":
+        return "a failure with no second round was not left pending"
+    return None
+
+
+def case_a_test_that_vanished_between_runs_counts_in_neither(t):
+    """Pairing the runs by position would let one crash shift every verdict.
+
+    A test that failed to run at all in the second round is absent, not
+    failing, and counting it as failing would manufacture a pass-to-fail and
+    silently discard a real finding."""
+    counts = promises_mod.cross({"a": 1, "b": 0, "c": 0}, {"a": 0, "b": 0})
+    if counts != {"p2p": 1, "f2f": 0, "f2p": 1, "p2f": 0}:
+        return f"a missing test was counted somewhere: {counts}"
+    return None
+
+
+def case_a_fenced_example_is_not_a_promise(t):
+    """A fence is an example, and it is where a document is most often right.
+
+    Testing fences would spend the budget on the claims least likely to be
+    wrong, and the sentence that matters is usually the prose beside it."""
+    _doc(t, "d.md", "# Guide\n\n"
+                    "The runner exits 2 when `dispatch.py` cannot see its "
+                    "subject and must never return 0 in that case.\n\n"
+                    "```\n"
+                    "`build.py` always writes 0 and never exits 9 here\n"
+                    "```\n")
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    got = promises_mod.claims(t)
+    if not got:
+        return "the prose claim outside the fence was lost too"
+    if any("build.py" in c["says"] for c in got):
+        return "a sentence inside a fenced block was taken as a promise"
+    return None
+
+
+def case_a_claim_has_to_name_something_executable(t):
+    """Otherwise every emphatic sentence in the repository is a claim.
+
+    "This must never happen" is a promise about nothing a test can reach, and
+    an agent asked to write a test for it will write one for whatever it
+    imagines the subject to be."""
+    _doc(t, "d.md", "# Guide\n\n"
+                    "This must never happen and the team always agrees on "
+                    "that, which is why it matters so much to everyone.\n\n"
+                    "The tool exits 2 when `dispatch.py` cannot see its "
+                    "subject and must never return 0 in that case.\n")
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    got = promises_mod.claims(t)
+    if len(got) != 1:
+        return ("expected only the sentence naming something executable, got "
+                + repr([c["says"][:50] for c in got]))
+    if got[0]["kind"] != "exit code":
+        return f"an exit-code promise was ranked as {got[0]['kind']!r}"
+    return None
+
+
 CASES = [
+    ("a pass-to-fail discards the whole claim",
+     case_a_pass_to_fail_discards_the_whole_claim),
+    ("a test the document's own code also fails is not a finding",
+     case_a_test_the_documents_own_code_also_fails_is_not_a_finding),
+    ("a test that vanished between runs counts in neither",
+     case_a_test_that_vanished_between_runs_counts_in_neither),
+    ("a fenced example is not a promise",
+     case_a_fenced_example_is_not_a_promise),
+    ("a claim has to name something executable",
+     case_a_claim_has_to_name_something_executable),
     ("supersession is not conflict",
      case_supersession_is_not_conflict),
     ("a value must be attached, not merely nearby",
