@@ -1411,6 +1411,92 @@ def _mutable_repo(t):
 # coverage: what the ladder cannot speak about
 # --------------------------------------------------------------------------
 
+def _layer_row(hooks, counts, value=None, ci=""):
+    probe = {"moments": {"5_before_action": {"PreToolUse": hooks.get(
+        "PreToolUse", 0), "permissions_deny": 0}},
+        "discipline": {"check_dirs": ["tests"], "ci_entry": ["github-actions"]}}
+    catch = {"hooks": hooks, "command": "pytest", "ci": ci}
+    return dim_mod.interception_layers(probe, catch, None, value,
+                                       catch_mod.LADDER, counts)
+
+
+def case_a_wired_layer_that_caught_nothing_is_not_an_absent_one(t):
+    """`before-write: 0` meant two different things and printed one character.
+
+    Either nothing is wired at that moment, or several hooks are wired and not
+    one of them caught anything. The second is much the worse finding and it
+    was indistinguishable from the first, because a rung cannot be read without
+    knowing what stands behind it. Measured on this repository the day the row
+    was added: two PreToolUse hooks wired, zero of 26 injected defects caught
+    by either."""
+    silent = _layer_row({"PreToolUse": 2, "PostToolUse": 0},
+                        {"local-suite": 14})
+    if "2 hook(s), 0 of 14 caught" not in silent["value"]:
+        return (f"a wired hook that caught nothing is not reported as wired: "
+                f"{silent['value']!r}")
+    if "same-turn: none wired" not in silent["value"]:
+        return "a moment with no hooks is not reported as unwired"
+    if silent["flag"] != "bad":
+        return ("a layer that is wired and silent is not flagged — that is "
+                "the worse of the two readings and it has to outrank the "
+                "layer that simply does not exist")
+
+    absent = _layer_row({"PreToolUse": 0, "PostToolUse": 0},
+                        {"local-suite": 14})
+    if "before-write: none wired" not in absent["value"]:
+        return f"an absent layer is reported as present: {absent['value']!r}"
+    if absent["flag"] == "bad":
+        return ("a repository with nothing wired is flagged as harshly as one "
+                "whose wiring does not work")
+
+    # And a third state the first version of this row got wrong. The walk
+    # stops at the first red, so when the top rungs catch everything the ones
+    # below them show 0 because nothing ever reached them. Flagging that would
+    # report a repository that catches defects early as one whose suite is
+    # broken -- the exact opposite of the truth.
+    early = _layer_row({"PreToolUse": 2, "PostToolUse": 1},
+                       {"before-write": 3, "same-turn": 1}, ci="ci.sh")
+    if "local-suite" not in early["value"] or "nothing reached it" not in \
+            early["value"]:
+        return (f"a rung nothing reached is reported as a rung that failed: "
+                f"{early['value']!r}")
+    if early["flag"] == "bad":
+        return ("a repository that caught every defect before it was written "
+                "is flagged for the rungs those defects never reached")
+    return None
+
+
+def case_a_rule_is_a_layer_with_no_rung(t):
+    """A sentence saying *never do X* is trying to stop the same defect.
+
+    It cannot be measured by injection -- firing a payload at a document does
+    nothing -- so it is counted and marked, and given no rung. Testing it
+    honestly would mean handing an agent the rule and the task and seeing
+    whether it writes the defect anyway: stochastic, expensive, unrepeatable.
+    Counting it as a rung would credit the repository for a layer nobody can
+    show working."""
+    value = {"prohibitions": 5, "already_enforced": [{"text": "x"}]}
+    row = _layer_row({"PreToolUse": 1, "PostToolUse": 0},
+                     {"before-write": 1}, value)
+    if "rule: 4 unenforced" not in row["value"]:
+        return (f"the 4 prohibitions no guard backs were not counted: "
+                f"{row['value']!r}")
+    if "no rung" not in row["value"]:
+        return "a rule was listed without saying it has no rung"
+    for k in catch_mod.LADDER:
+        if f"rule: 4 unenforced, {k}" in row["value"]:
+            return "a rule was given a rung on the ladder"
+
+    covered = {"prohibitions": 2,
+               "already_enforced": [{"text": "x"}, {"text": "y"}]}
+    row2 = _layer_row({"PreToolUse": 1, "PostToolUse": 0},
+                      {"before-write": 1}, covered)
+    if "rule:" in row2["value"]:
+        return ("prohibitions a guard already enforces were counted as an "
+                "unenforced layer as well — they are the guard, twice")
+    return None
+
+
 def _covered_repo(t, calls):
     """One decision with two conditions, one function nothing calls, and a
     suite that makes exactly `calls`."""
@@ -2586,6 +2672,10 @@ CASES = [
      case_a_redundant_short_circuit_guard_is_suppressed),
     ("productivity is reported with its judge named",
      case_productivity_is_reported_with_its_judge_named),
+    ("a wired layer that caught nothing is not an absent one",
+     case_a_wired_layer_that_caught_nothing_is_not_an_absent_one),
+    ("a rule is a layer with no rung",
+     case_a_rule_is_a_layer_with_no_rung),
     ("a short-circuited condition is absent, not false",
      case_a_short_circuited_condition_is_absent_not_false),
     ("MC/DC finds a condition branch coverage calls covered",

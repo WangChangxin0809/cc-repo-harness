@@ -49,10 +49,10 @@ first.
 condition, so it cannot answer this. What can is the thing this directory
 already does for mutation: rewrite the AST.
 
-Every decision (`if`, `while`, a ternary, a comprehension's `if` -- not
-`assert`, see `decisions`) is
-found, its boolean tree is walked to its atomic leaves, and each leaf is
-wrapped in a recorder that returns the value unchanged. Short-circuiting is
+Every decision -- `if`, `while`, a ternary, a comprehension's `if`, and
+deliberately not `assert` (see `decisions` for why) -- is found, its boolean
+tree is walked to its atomic leaves, and each leaf is wrapped in a recorder
+that returns the value unchanged. Short-circuiting is
 preserved exactly, because a wrapped operand is still only evaluated when
 Python reaches it -- and a condition that was **not** evaluated is recorded as
 absent, never as False. Getting that wrong is the classic way to report MC/DC

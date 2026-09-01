@@ -302,7 +302,7 @@ def secs(v):
 
 def change_validation(defects, catch, catch_why, ladder, mutants=None,
                       mutants_why="", judged=None, cover=None,
-                      cover_why=""):
+                      cover_why="", probe=None, value=None):
     """When a defect is introduced, how late is it caught?"""
     rows = []
     if defects is None:
@@ -397,6 +397,8 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
             late = counts.get("ci", 0) + counts.get("never", 0)
             headline = (f"{late} of {placed} defects survive past the end of "
                         f"a session")
+            rows.append(interception_layers(probe, catch, mutants, value,
+                                            ladder, counts))
             rows.append({"label": "where each was first caught",
                          "value": "  ".join(f"{k}:{counts[k]}" for k in ladder),
                          "flag": "bad" if late else "ok",
@@ -463,6 +465,8 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
             state = "measured"
             headline = (f"{late} of {placed} mutated defects survive past the "
                         f"end of a session")
+            rows.append(interception_layers(probe, catch, mutants, value,
+                                            ladder, mut_counts))
             rows.append({
                 "label": "where each was first caught",
                 "value": "  ".join(f"{k}:{mut_counts.get(k, 0)}"
@@ -478,6 +482,93 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
     return {"n": 2, "name": "Change Validation",
             "question": "When a defect is introduced, how late is it caught?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def interception_layers(probe, catch, mutants, value, ladder, counts):
+    """What there is to catch anything with, so a zero on the ladder is
+    readable.
+
+    `before-write: 0` had two completely different meanings and the page
+    printed the same character for both:
+
+    * nothing is wired at that moment -- the layer does not exist
+    * three hooks are wired and not one of them caught anything
+
+    The second is far worse and it looked identical to the first. A rung
+    cannot be read without knowing what stands behind it, so the inventory is
+    printed immediately above the ladder and the ladder is read against it.
+
+    `rule` is in the list and has no rung, deliberately. A sentence in
+    CLAUDE.md saying *never do X* is an interception layer -- it is trying to
+    stop the same defect -- but it cannot be measured by injection, because
+    firing a payload at a document does nothing. Testing it means giving an
+    agent the rule and the task and seeing whether it writes the defect
+    anyway: stochastic, expensive, and not repeatable. So it is counted and
+    marked unenforced, which is the honest reading: a layer nobody can show
+    working."""
+    hooks = (catch or {}).get("hooks") or (mutants or {}).get("hooks") or {}
+    moments = (probe or {}).get("moments") or {}
+    disc = (probe or {}).get("discipline") or {}
+    deny = (moments.get("5_before_action") or {}).get("permissions_deny", 0)
+    pre = hooks.get("PreToolUse", (moments.get("5_before_action") or {})
+                    .get("PreToolUse", 0)) + deny
+    post = hooks.get("PostToolUse", 0)
+    suite = bool((catch or {}).get("command") or (mutants or {}).get("command"))
+    ci = bool((catch or {}).get("ci") or (mutants or {}).get("ci"))
+
+    # How many defects actually got as far as each rung. The walk stops at the
+    # first red, so a lower rung showing 0 is *expected* when the rungs above
+    # it caught everything -- nothing ever reached it. Calling that silent
+    # would report a repository that catches defects early as one whose suite
+    # does not work.
+    total = sum(counts.get(k, 0) for k in ladder)
+    reached, seen = {}, 0
+    for k in ladder:
+        reached[k] = total - seen
+        seen += counts.get(k, 0)
+
+    def state(exists, rung, what):
+        if not exists:
+            return f"{rung}: none wired"
+        got = counts.get(rung, 0)
+        if got:
+            return f"{rung}: {what}, {got} caught"
+        if not reached.get(rung, 0):
+            return f"{rung}: {what}, nothing reached it"
+        return f"{rung}: {what}, 0 of {reached[rung]} caught"
+
+    bits = [
+        state(pre, "before-write",
+              f"{pre} hook(s)" + (f" incl. {deny} deny rule(s)"
+                                  if deny else "")),
+        state(post, "same-turn", f"{post} hook(s)"),
+        state(suite, "local-suite",
+              f"{len(disc.get('check_dirs') or [])} check dir(s)"),
+        state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point"),
+    ]
+    unenforced = 0
+    if value:
+        unenforced = max(0, value.get("prohibitions", 0)
+                         - len(value.get("already_enforced") or []))
+    if unenforced:
+        bits.append(f"rule: {unenforced} unenforced, no rung")
+
+    empty = [b.split(":")[0] for b in bits if "none wired" in b]
+    silent = [b.split(":")[0] for b in bits if " of " in b
+              and b.endswith(" caught") and ", 0 of " in b]
+    return {
+        "label": "what could have caught it",
+        "value": " · ".join(bits),
+        "flag": "bad" if silent else ("warn" if empty else "ok"),
+        "note": ("a layer that is wired and caught nothing is a different "
+                 "finding from a layer that does not exist, and the ladder "
+                 "below prints the same 0 for both. A rung nothing reached "
+                 "is neither: the walk stops at the first red"
+                 + (f". Wired and silent: {', '.join(silent)}" if silent else "")
+                 + (f". Not wired at all: {', '.join(empty)}" if empty else "")
+                 + (". `rule` has no rung because a document cannot be fired "
+                    "at — it is a layer nobody can show working"
+                    if unenforced else ""))}
 
 
 def coverage_rows(c, why=""):
@@ -1394,7 +1485,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
     return [
         controlled_execution(root, probe, blast),
         change_validation(defects, catch, catch_why, ladder, mutants,
-                          mutants_why, judged, cover, cover_why),
+                          mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs),
         repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe, blast, value),
