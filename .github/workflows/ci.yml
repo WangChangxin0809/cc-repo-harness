@@ -243,13 +243,18 @@ jobs:
       # is a promise from whoever can move it, which is the rule zizmor
       # enforces two steps up.
       #
-      # `fail-below: 0` for exactly one run. A step that can never fail is the
-      # thing dimension 3.2 exists to find, so the threshold lands underneath
-      # the first real score and this comment goes with it.
+      # The first run scored 68. The threshold sits just under it, which is
+      # what makes this a check rather than a printout: a change that costs
+      # three points on somebody else's scale turns the job red and somebody
+      # has to say why. `fail-below: 0` would be the step that can never fail,
+      # which is the thing dimension 3.2 exists to find.
+      #
+      # Raise this when the score rises. Lowering it needs a sentence here
+      # saying what was traded for the points.
       - name: a second opinion on the harness
         uses: 0xmariowu/AgentLint@6cf433c4092ee10a3162c2f4ddd68ff13b5d4aff  # v1.1.13
         with:
-          fail-below: '0'
+          fail-below: '65'
 
   release-hygiene:
     # Only on a pull request: there is nothing to diff a push to main against,
