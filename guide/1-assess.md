@@ -426,6 +426,47 @@ every candidate is weighted to zero rather than repeated at the reader. It
 a diagnostic that picks winners has stopped being a diagnostic
 -> [0021](../docs/decisions/0021-the-repository-keeps-the-harness-the-plugin-keeps-the-instrument.md)
 
+### 4.5 Is it written in a shape a model can follow? (Reframing)
+
+Every row above asks whether the writing is *true*. This one asks whether it is
+*followable*, which is a separate question with a separate answer: an
+instruction can be accurate, worth every token it costs, and still be a
+paragraph carrying four requirements that compete with each other for
+attention.
+
+Method after [Reframing Instructional Prompts to GPTk's
+Language](https://arxiv.org/abs/2109.07830) (Mishra, Khashabi, Baral, Choi and
+Hajishirzi, Findings of ACL 2022). They rewrote task instructions without
+changing what those instructions asked for, and task performance moved by a
+wide margin — including on models large enough that people had assumed the
+wording no longer mattered. Three of their operations survive the trip from a
+benchmark prompt to a repository's standing instructions:
+
+- **Positive assertion.** The paper's hardest case. A constraint given only as
+  a negation leaves the target unstated, so the reader has to infer it. *Never
+  return a file dump* says nothing about what to return; *return the paths and
+  what is at them* does, and rules out the dump on the way past.
+- **Itemizing.** A paragraph carrying several requirements becomes a list, one
+  per item. In prose they compete; in a list each one is addressed.
+- **Low-level patterns.** An abstract requirement — *follow the house style*,
+  *use it appropriately* — becomes the concrete shape of the output.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/reframe.py --root . --json
+```
+
+*Agent judges,* and this one abstains harder than most: every row is `info`,
+never `bad`. A `CLAUDE.md` may be one long paragraph on purpose, and a bare
+prohibition may be the whole of what there is to say. What the machine can do
+is find the openings and stop.
+
+The distinction that makes it usable is **deontic against alethic**: *you must
+not swallow the status* is an instruction, *the two cannot drift* is a fact
+about how something works. Only the first is a thing reframing can change, and
+the first version of this counted both — 116 findings across 19 files, most of
+them the repository describing itself to itself. What it does not do is score
+prose quality, count adverbs, or grade readability. Those measure writing.
+
 ---
 
 ## 5 — Context economy: what does the harness cost every turn?

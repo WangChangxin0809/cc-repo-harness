@@ -250,7 +250,7 @@ def dimensions_of(r, memory=None, judged=None, observed=None):
                           r.get("observe"), observed, r.get("gate"),
                           r.get("conflict"), r.get("conflict_judged"),
                           r.get("promises"), r.get("units"),
-                          r.get("permitted"))
+                          r.get("permitted"), r.get("truth_judged"))
 
 
 def render_flat(r):
@@ -375,6 +375,12 @@ def main():
                          "verdict on whether an agent can watch its own change "
                          "run here. Without it dimension 1 prints two rows "
                          "instead of three, rather than guessing the third.")
+    ap.add_argument("--truth-answers", default="",
+                    help="JSON from the agent that read `truth.py --brief` — "
+                         "which candidates for a second reading are real. "
+                         "Without it the same list comes back on every run "
+                         "for as long as the repository exists, and every "
+                         "reader pays again to dismiss it.")
     ap.add_argument("--conflict-answers", default="",
                     help="JSON from the agent that read `conflict.py --brief` "
                          "— which candidate pairs are real contradictions. "
@@ -525,6 +531,13 @@ def _run(a, root, work):
                 print(f"  --legitimate-actions ignored: {why}\n")
             else:
                 r["permitted"] = fired
+        if a.truth_answers and r.get("truth"):
+            with open(a.truth_answers, encoding="utf-8") as fh:
+                tj, why = truth_mod.grade(r["truth"], json.load(fh))
+            if tj is None:
+                print(f"  --truth-answers ignored: {why}\n")
+            else:
+                r["truth_judged"] = tj
         if a.conflict_answers and r.get("conflict"):
             with open(a.conflict_answers, encoding="utf-8") as fh:
                 cj, why = conflict_mod.grade(r["conflict"], json.load(fh))

@@ -654,6 +654,88 @@ def assess(root, now=None):
             "checked": len(documents), "why": ""}
 
 
+BRIEF = """\
+# Which of these are real?
+
+Each line below is a place a machine can point at and cannot judge. A count
+that disagrees with the tree is usually the tree having moved and sometimes the
+document being wrong about what it describes. A path that resolves nowhere is
+usually a document about a repository this one scaffolds, where the path is
+correct and simply not here.
+
+So the tiers are where to look, and nothing else. Read the document, read what
+it describes, and say which it is.
+
+    T1  a count the document gives that the tree disagrees with
+    T2  a path the document names that resolves nowhere
+    T3  a document whose subject changed after the document last did
+    T4  two documents giving one number two values
+
+**A dismissal is an answer**, and the reason it is worth writing down is that
+it does not survive otherwise: the same candidate comes back on every run of
+every assessment forever, and each reader pays to rediscover that the path
+belongs to somebody else's tree.
+
+## Answer
+
+    {"candidates": [
+      {"id": 0, "real": false,
+       "why": "scripts/guards/ is what a scaffolded repository gets. It is
+               correct that it is absent here -- ours live under shared/."},
+      {"id": 3, "real": true,
+       "why": "README says the report is committed. build.py writes it into
+               docs/generated/, which is not tracked."}
+    ]}
+
+Answer only the ids listed. One you leave out stays a candidate, which is
+honest -- an unread candidate and a dismissed one are different things.
+
+---
+
+"""
+
+
+def brief(r):
+    """The questions, with an id per candidate. Empty where there are none."""
+    if not r or not r.get("candidates"):
+        return ""
+    out = [BRIEF]
+    for i, row in enumerate(r["candidates"]):
+        out.append("## %d — T%d  %s\n" % (i, row["tier"], row["file"]))
+        out.append("%s\n" % row["claim"])
+        if row.get("why"):
+            out.append("_why it was flagged_: %s\n" % row["why"])
+    return "\n".join(out)
+
+
+def grade(r, answers):
+    """What a reader said. Never a verdict nobody gave.
+
+    The shape mirrors `conflict.grade` on purpose: both sub-items hand an
+    agent a list a machine narrowed and neither may turn silence into a
+    verdict. An id nobody answered stays pending, and pending is printed."""
+    if not isinstance(answers, dict) or not isinstance(
+            answers.get("candidates"), list):
+        return None, "the answers are not {\"candidates\": [...]}"
+    total = len(r.get("candidates") or [])
+    real, dismissed, seen = [], [], set()
+    for item in answers["candidates"]:
+        if not isinstance(item, dict):
+            continue
+        i = item.get("id")
+        if not isinstance(i, int) or not 0 <= i < total or i in seen:
+            # An id for a candidate that was never handed over is an invented
+            # answer, and the whole point of the id is that it cannot be.
+            continue
+        seen.add(i)
+        (real if item.get("real") else dismissed).append(
+            {**item, "candidate": r["candidates"][i]})
+    if not seen:
+        return None, "no candidate was judged either way"
+    return {"real": real, "dismissed": dismissed, "judged": len(seen),
+            "pending": max(0, total - len(seen))}, ""
+
+
 def render(r):
     lines = ["", f"  {r['checked']} non-historical document(s) read"]
     t = r["thickness"]
@@ -679,7 +761,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--json", default="")
+    ap.add_argument("--brief", default="",
+                    help="a run's JSON, or this module's — print the questions")
     a = ap.parse_args()
+
+    if a.brief:
+        with open(a.brief, encoding="utf-8") as fh:
+            run = json.load(fh)
+        text = brief(run.get("truth") if "truth" in run else run)
+        if not text:
+            print("cannot judge: no candidates in that run", file=sys.stderr)
+            return 2
+        sys.stdout.write(text)
+        return 0
+
     root = os.path.abspath(a.root)
     r = assess(root)
     if r is None:

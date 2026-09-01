@@ -3658,6 +3658,57 @@ def case_an_abstention_does_not_become_a_number(t):
     return None
 
 
+def case_a_reading_of_the_candidates_can_be_recorded(t):
+    """A list nobody can answer is a list everybody re-reads.
+
+    4.4 got an answers file and 4.2 did not, so the same 24 candidates came
+    back on every run of every assessment forever -- and each reader paid
+    again to rediscover that most of them name a path a scaffolded repository
+    has and this one deliberately does not. The reading was happening; only
+    the record of it was missing.
+
+    Three things the channel has to hold, and each is a way it could quietly
+    lie. An id nobody handed over is an invented answer. Answering none of
+    them is not the same as dismissing all of them. And an unanswered id is
+    pending rather than dismissed, because an unread candidate and a
+    considered one are different states."""
+    r = {"candidates": [
+        {"tier": 1, "file": "a.md", "claim": "two hooks", "why": "4 in hooks/"},
+        {"tier": 2, "file": "b.md", "claim": "scripts/guards/", "why": "gone"},
+        {"tier": 3, "file": "c.md", "claim": "moved", "why": "stale"}]}
+
+    got, why = truth_mod.grade(r, {"candidates": [
+        {"id": 0, "real": False, "why": "hooks.json is not a hook"},
+        {"id": 2, "real": True, "why": "the guide never got the new section"},
+        {"id": 99, "real": True, "why": "a candidate nobody was handed"}]})
+    if got is None:
+        return "a well-formed reading was refused: " + why
+    if len(got["real"]) != 1 or len(got["dismissed"]) != 1:
+        return ("the verdicts did not survive: %d real, %d dismissed"
+                % (len(got["real"]), len(got["dismissed"])))
+    if got["pending"] != 1:
+        return "an unanswered candidate was not left pending: %d" % got["pending"]
+    if got["judged"] != 2:
+        return "an invented id was counted as judged: %d" % got["judged"]
+    if got["real"][0]["candidate"]["file"] != "c.md":
+        return "a verdict was attached to the wrong candidate"
+
+    for bad, what in (({"candidates": []}, "an empty reading"),
+                      ({"pairs": []}, "the wrong shape"),
+                      ([], "a list")):
+        if truth_mod.grade(r, bad)[0] is not None:
+            return what + " was accepted as a judgement"
+
+    # ...and the questions have to carry the ids the answers use.
+    text = truth_mod.brief(r)
+    for n in ("## 0", "## 1", "## 2"):
+        if n not in text:
+            return "the brief did not offer id " + n
+    if truth_mod.brief({"candidates": []}):
+        return "a brief was produced with nothing to ask about"
+    return None
+
+
 def case_every_printed_row_is_claimed_by_a_sub_item(t):
     """A measurement no sub-item claims is a measurement nobody scores.
 
@@ -4496,6 +4547,8 @@ CASES = [
      case_a_sentence_about_a_prohibition_is_not_one),
     ("every printed row is claimed by a sub-item",
      case_every_printed_row_is_claimed_by_a_sub_item),
+    ("a reading of the candidates can be recorded",
+     case_a_reading_of_the_candidates_can_be_recorded),
     ("coverage is given the command the replay found",
      case_coverage_is_given_the_command_the_replay_found),
     ("a description is not an unenforced rule",

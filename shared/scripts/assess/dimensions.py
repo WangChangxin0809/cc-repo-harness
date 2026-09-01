@@ -1156,7 +1156,7 @@ def _is_source(path, check_dirs=()):
 
 def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
                       conflict=None, conflict_judged=None,
-                      promises=None):
+                      promises=None, truth_judged=None):
     """Can an agent that has never seen this repository find its way, and is
     that because of something the repository keeps?
 
@@ -1214,16 +1214,40 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
             by = {}
             for c in cands:
                 by[c["tier"]] = by.get(c["tier"], 0) + 1
-            rows.append({
-                "label": "candidates for a second reading",
-                "value": "  ".join(f"T{k}:{v}" for k, v in sorted(by.items())),
-                "flag": "info",
-                "note": "NOT findings. A machine can say where to look and "
-                        "cannot say what is wrong: T1 a count the tree "
-                        "disagrees with, T2 a path resolving nowhere, T3 a "
-                        "document the code moved out from under, T4 two "
-                        "documents giving one number two values. An agent "
-                        "reads these and keeps what is real"})
+            judged = truth_judged
+            spread = "  ".join(f"T{k}:{v}" for k, v in sorted(by.items()))
+            if judged:
+                # A reading that happened and was written down. Without this
+                # the same 24 candidates came back on every run forever, and
+                # each reader paid again to rediscover that most of them
+                # describe a repository this one scaffolds rather than this
+                # one -> conflict.py, which had the same hole.
+                rows.append({
+                    "label": "candidates for a second reading",
+                    "value": "%d real of %d candidate(s)%s" % (
+                        len(judged["real"]), judged["judged"],
+                        ", %d unread" % judged["pending"]
+                        if judged["pending"] else ""),
+                    "flag": "bad" if judged["real"] else "ok",
+                    "note": ("read, not counted: " + spread + ". "
+                             + (judged["real"][0].get("why", "")[:160]
+                                if judged["real"]
+                                else "every candidate was dismissed on "
+                                     "reading, and the reasons are in the "
+                                     "answers file"))})
+            else:
+                rows.append({
+                    "label": "candidates for a second reading",
+                    "value": spread,
+                    "flag": "info",
+                    "note": "NOT findings. A machine can say where to look and "
+                            "cannot say what is wrong: T1 a count the tree "
+                            "disagrees with, T2 a path resolving nowhere, T3 a "
+                            "document the code moved out from under, T4 two "
+                            "documents giving one number two values. An agent "
+                            "reads these and keeps what is real — "
+                            "`truth.py --brief <run.json>`, then "
+                            "`--truth-answers`"})
 
     records = _mistake_records(root)
     if records:
@@ -1648,7 +1672,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
            conflict_judged=None, promises=None, units=None,
-           permitted=None):
+           permitted=None, truth_judged=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1662,7 +1686,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, memory, truth,
-                          conflict, conflict_judged, promises),
+                          conflict, conflict_judged, promises, truth_judged),
         context_economy(root, probe, blast, value, units),
     ]
 
