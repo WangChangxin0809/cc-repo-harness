@@ -39,8 +39,7 @@ arrives. The other five are payload, copied into the repository that chose them
 2. **A check nobody has watched fail is a file, not a check.** A new gate or
    guard is not done until you have planted its defect, watched it go red, and
    left a selftest case behind that does the same. See `writing-checks`.
-3. **Exit 2 means COULD NOT JUDGE and is never a pass.** No check may swallow a
-   status with `|| true`.
+3. **Exit 2 means COULD NOT JUDGE and is never a pass.**
 4. **Repository behaviour never lives in the plugin.** If installing or
    uninstalling this plugin changes what a repository *does*, that is a bug: it
    makes the repository behave differently for teammates who have not installed

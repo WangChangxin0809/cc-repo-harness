@@ -19,9 +19,9 @@ and is what the scripts here do.
 ## The invariant
 
 **Write the synthesis to a new file and leave the input untouched.** Adoption is
-then a decision you make after reading a diff of the two. In-place editing destroys
-the evidence needed to tell a good merge from a lossy one, and lossy merges are
-the normal failure — they read beautifully.
+then a decision you make after reading a diff of the two. In-place editing
+destroys the evidence needed to tell a good merge from a lossy one, and lossy
+merges are the normal failure — they read beautifully.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
