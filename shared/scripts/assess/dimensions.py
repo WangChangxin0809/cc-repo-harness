@@ -1383,7 +1383,7 @@ def _readers_of(root, records):
 
 # -- 5 -----------------------------------------------------------------------
 
-def context_economy(root, probe, blast=None, value=None):
+def context_economy(root, probe, blast=None, value=None, units=None):
     """What does the harness cost per turn, what at worst -- and on what?
 
     A token count is a bill with no itemisation. Two repositories with the same
@@ -1498,6 +1498,34 @@ def context_economy(root, probe, blast=None, value=None):
                               f"on this machine, which this repository cannot "
                               f"fix" if from_plugins else ""))
 
+    # The same measurement per file instead of as a sum. A repository paying
+    # 1200 tokens a turn across twenty lean files is in a different position
+    # from one paying 1200 across nineteen lean files and one bloated one,
+    # and the total is identical. Nobody can act on a total.
+    if units and units.get("outliers"):
+        first = units["outliers"][0]
+        rows.append({
+            "label": "files unlike their neighbours",
+            "value": "%d of %d unit(s)" % (len(units["outliers"]),
+                                           len(units["units"])),
+            "flag": "warn",
+            "note": "%s (~%d tokens): %s"
+                    % (first["path"], first["tokens"], "; ".join(first["why"]))
+                    + (". %d sentence(s) appear in more than one loaded file, "
+                       "paid for twice on every turn and free to drift apart"
+                       % units["duplicated_sentences"]
+                       if units["duplicated_sentences"] else "")
+                    + ". Each is compared to the median of its own kind, not "
+                      "to a threshold chosen for a repository nobody has seen"})
+    elif units:
+        rows.append({
+            "label": "files unlike their neighbours",
+            "value": "none of %d unit(s)" % len(units["units"]),
+            "flag": "ok",
+            "note": "no rule, document, skill or CLAUDE.md is far from the "
+                    "median of its own kind, prohibition-heavy, mostly fenced, "
+                    "or repeating another file's paragraphs"})
+
     return {"n": 5, "name": "Context Economy",
             "question": "What does the harness cost per turn, and at worst?",
             "state": "measured",
@@ -1512,7 +1540,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
-           conflict_judged=None, promises=None):
+           conflict_judged=None, promises=None, units=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1526,7 +1554,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
         reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, memory, truth,
                           conflict, conflict_judged, promises),
-        context_economy(root, probe, blast, value),
+        context_economy(root, probe, blast, value, units),
     ]
 
 

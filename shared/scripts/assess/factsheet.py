@@ -55,7 +55,8 @@ import coverage_tools as cover_mod
 import observe as observe_mod
 import merge as merge_mod
 import conflict as conflict_mod
-import promises as promises_mod  # noqa: E402
+import promises as promises_mod
+import units as units_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402
 import run_mutants as mutants_mod  # noqa: E402
@@ -135,6 +136,7 @@ def gather(root, full, instances, work, command=None, mutate=0):
     r["observe"], r["observe_why"] = observe_mod.assess(root)
     r["gate"], r["gate_why"] = merge_mod.assess(root)
     r["conflict"], r["conflict_why"] = conflict_mod.narrow(root)
+    r["units"], r["units_why"] = units_mod.measure(root)
     r["promises"] = promises_mod.claims(root)
     r["promises_brief"] = promises_mod.brief(r["promises"])
     if r["observe"]:
@@ -234,7 +236,7 @@ def dimensions_of(r, memory=None, judged=None, observed=None):
                           r.get("cover"), r.get("cover_why", ""),
                           r.get("observe"), observed, r.get("gate"),
                           r.get("conflict"), r.get("conflict_judged"),
-                          r.get("promises"))
+                          r.get("promises"), r.get("units"))
 
 
 def render_flat(r):

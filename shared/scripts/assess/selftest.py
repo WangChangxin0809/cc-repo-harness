@@ -53,6 +53,7 @@ import observe as observe_mod      # noqa: E402
 import merge as merge_mod          # noqa: E402
 import conflict as conflict_mod    # noqa: E402
 import promises as promises_mod    # noqa: E402
+import units as units_mod          # noqa: E402
 
 
 def git(args, cwd):
@@ -3125,7 +3126,125 @@ def case_a_claim_has_to_name_something_executable(t):
     return None
 
 
+
+LONG_A = ("The runner refuses to continue when the tree is dirty, because a "
+          "half-applied change is indistinguishable from a finished one. ")
+LONG_B = ("Every check writes its reason to standard error, since that is the "
+          "one place a negative is guaranteed to be read by somebody stuck. ")
+TABLE = ("| name | what it means | when it fires | who reads it |\n"
+         "|---|---|---|---|\n"
+         "| refuse | the write never reached the disk | before the edit | "
+         "the agent that tried it |\n"
+         "| record | it happened and was noted | after the edit | "
+         "whoever reads the log later |\n")
+
+
+def _unit(t, rel, body):
+    full = os.path.join(t, rel.replace("/", os.sep))
+    os.makedirs(os.path.dirname(full) or t, exist_ok=True)
+    with open(full, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return full
+
+
+def case_a_repeated_table_is_not_a_repeated_paragraph(t):
+    """Two files sharing a reference table are usually sharing it on purpose.
+
+    And a markdown table flattens into one enormous pseudo-sentence, so the
+    first version of this reported a garbled table row as the duplicated
+    prose. Duplication here is about paragraphs: the same paragraph in two
+    loaded files is the thing that drifts."""
+    _unit(t, "docs/a.md", "# A\n\n" + TABLE + "\n" + LONG_A)
+    _unit(t, "docs/b.md", "# B\n\n" + TABLE + "\n" + LONG_B)
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    r, why = units_mod.measure(t)
+    if not r:
+        return f"nothing was read: {why}"
+    if r["duplicated_sentences"]:
+        return ("a shared table was counted as a repeated paragraph: %d"
+                % r["duplicated_sentences"])
+
+    _unit(t, "docs/b.md", "# B\n\n" + TABLE + "\n" + LONG_A)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    r, _why = units_mod.measure(t)
+    if r["duplicated_sentences"] != 1:
+        return ("a paragraph in two files was not counted: %d"
+                % r["duplicated_sentences"])
+    return None
+
+
+def case_a_file_is_compared_to_its_own_kind(t):
+    """A skill is not large because decision records are small.
+
+    Comparing across genres would report every skill as an outlier in a
+    repository whose documents are short, which is a fact about the two
+    genres and not about the repository."""
+    for i in range(4):
+        _unit(t, "docs/d%d.md" % i, "# D\n\n" + LONG_A * 3)
+    for i in range(3):
+        _unit(t, "skills/s%d/SKILL.md" % i, "# S\n\n" + LONG_B * 40)
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    r, _why = units_mod.measure(t)
+    flagged = {o["path"] for o in r["outliers"]
+               if any("median" in w for w in o["why"])}
+    if flagged:
+        return ("files were called outliers against another genre's median: "
+                + repr(sorted(flagged)))
+    _unit(t, "skills/big/SKILL.md", "# S\n\n" + LONG_B * 400)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    r, _why = units_mod.measure(t)
+    flagged = {o["path"] for o in r["outliers"]
+               if any("median" in w for w in o["why"])}
+    if flagged != {"skills/big/SKILL.md"}:
+        return f"the skill unlike other skills was not found: {sorted(flagged)}"
+    return None
+
+
+def case_a_small_file_is_never_an_outlier_for_being_large(t):
+    """Three times nothing is still nothing.
+
+    Without a floor, a repository of one-paragraph rules reports the
+    two-paragraph one as four times the median — true, and not worth anybody
+    reading a row about."""
+    for i in range(4):
+        _unit(t, ".claude/rules/r%d.md" % i, "Keep it short.\n")
+    _unit(t, ".claude/rules/big.md", LONG_A * 4)
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=t, check=True)
+    r, _why = units_mod.measure(t)
+    if any("median" in w for o in r["outliers"] for w in o["why"]):
+        return ("a file under the size floor was reported for being unlike "
+                "its neighbours: " + repr(r["outliers"]))
+    return None
+
+
+def case_an_untracked_file_is_not_loadable_context(t):
+    """The same rule 4.4 needs, for the same reason.
+
+    A draft nobody committed is not what the repository loads, and counting
+    it moves every median."""
+    _unit(t, "docs/kept.md", LONG_A * 2)
+    _unit(t, "docs/scratch.md", LONG_A * 2)
+    subprocess.run(["git", "init", "-q"], cwd=t, check=True)
+    subprocess.run(["git", "add", "docs/kept.md"], cwd=t, check=True)
+    r, _why = units_mod.measure(t)
+    if [u["path"] for u in r["units"]] != ["docs/kept.md"]:
+        return ("an untracked draft was counted as loadable context: "
+                + repr([u["path"] for u in r["units"]]))
+    return None
+
+
 CASES = [
+    ("a repeated table is not a repeated paragraph",
+     case_a_repeated_table_is_not_a_repeated_paragraph),
+    ("a file is compared to its own kind",
+     case_a_file_is_compared_to_its_own_kind),
+    ("a small file is never an outlier for being large",
+     case_a_small_file_is_never_an_outlier_for_being_large),
+    ("an untracked file is not loadable context",
+     case_an_untracked_file_is_not_loadable_context),
     ("a pass-to-fail discards the whole claim",
      case_a_pass_to_fail_discards_the_whole_claim),
     ("a test the document's own code also fails is not a finding",
