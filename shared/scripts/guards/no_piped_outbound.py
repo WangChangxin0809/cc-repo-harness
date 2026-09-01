@@ -21,7 +21,13 @@ is accepted.
 
 from __future__ import annotations
 
+import os
 import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from _shell import without_heredocs  # noqa: E402
 
 _OUTBOUND = [
     (re.compile(r"\bgit\s+(?:-\S+\s+)*push\b"), "git push"),
@@ -63,7 +69,7 @@ def _segments(command: str):
 def check(tool_name: str, tool_input: dict) -> str | None:
     if tool_name != "Bash":
         return None
-    command = tool_input.get("command", "")
+    command = without_heredocs(tool_input.get("command", ""))
     if "|" not in command or _PIPEFAIL.search(command):
         return None
     parts = _segments(command)
@@ -91,4 +97,16 @@ CASES = [
     # The outbound command is LAST, so the pipeline's status is its own.
     ("Bash", {"command": "cat patch.txt | git apply"}, False),
     ("Read", {"file_path": "x"}, False),
+    # Heredoc bodies are content. Both of these were refused for real while
+    # writing this repository's own decision records, which is the whole
+    # reason the body is stripped.
+    ("Bash", {"command": "cat > docs/branching.md <<'EOF'\n"
+                         "| action | allowed |\n|---|---|\n"
+                         "| git push to a feature branch | yes |\nEOF"}, False),
+    ("Bash", {"command": "cat > note.md <<EOF\n"
+                         "run `git push` on its own | never in a pipe\nEOF"},
+     False),
+    # ...and a real pipe on the same line as a heredoc still counts.
+    ("Bash", {"command": "cat > f.txt <<'EOF'\nharmless\nEOF\n"
+                         "git push origin main | tail -1"}, True),
 ]
