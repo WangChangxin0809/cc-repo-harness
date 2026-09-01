@@ -59,8 +59,8 @@ repo/
 | **B** | + `ARCHITECTURE.md` · `SECURITY.md` · `ci.sh` · `0001` · the rest of `docs/` · `gates/` · `context/before_write.py` |
 | **C** | + `scripts/index/` · consolidation · a gold set for the harness itself |
 
-Installing above tier leaves machinery nobody needs. It rots, and its rot
-teaches everyone that the machinery is decorative.
+The consequence of installing above tier is in `SKILL.md`, beside the tier
+table there.
 
 ## The files people get wrong
 
@@ -89,21 +89,14 @@ with a `.gitkeep` so the trigger survives a clone.
 
 ## Acceptance
 
-The plugin is a bootstrapper, not a dependency — install it, delete it, and the
-repository must still teach a fresh agent how to work in it. Test it that way:
-install, remove, hand an agent a real task, watch whether it follows the
-conventions.
+The acceptance list is in `SKILL.md`, under **Acceptance**, and it is not
+repeated here. Two copies of it existed until they were compared: one asked for
+`ci.sh` and the other for `./ci.sh --fast`, each carried an item the other did
+not, and nothing would have caught either drifting further -- which is what a
+skill in this same repository is about.
 
-1. Every hook in `settings.json` is one line invoking a script, and nothing
-   under `.claude/` explains why anything is true.
-2. At least one rule has moved out of `CLAUDE.md` into a subtree file or a
-   check. If nothing moved, the classification was never done.
-3. `scripts/guards/selftest.py` and `scripts/gates/selftest.py` both pass,
-   **and** you have watched one block a command you typed on purpose — and
-   watched a near miss go through.
-4. A fresh session's first screen states something no file could have contained.
-5. `./ci.sh --fast` is silent and green from a clean worktree.
-6. The index rebuilds from source in seconds, and its negative control records
-   which edges it cannot see.
-7. Disconnect a hook deliberately and the harness's own suite turns red. A suite
-   that survives that is measuring nothing.
+What belongs here, because it is about the shape of the tree rather than about
+finishing a plan:
+
+- The index rebuilds from source in seconds, and its negative control records
+  which edges it cannot see. (Tier C only; there is no index below it.)
