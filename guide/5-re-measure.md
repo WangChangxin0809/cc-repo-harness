@@ -21,8 +21,9 @@ instrument.
 
 Two things follow, and both are easy to get wrong:
 
-- **`--full` before must mean `--full` after.** Dimension 2 abstains without it,
-  and an abstention compared against a measurement is not a comparison.
+- **`--no-full` before must mean `--no-full` after.** The replay is on by
+  default; dimension 2 abstains when it is skipped, and an abstention
+  compared against a measurement is not a comparison.
 - **`--memory` before must mean `--memory` after.** Dimension 4 costs two agents
   and is the only non-deterministic dimension; comparing a probed run to an
   unprobed one reads as a collapse that never happened.

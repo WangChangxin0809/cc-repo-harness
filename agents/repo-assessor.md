@@ -18,9 +18,80 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --root . --html assessment.html --json assessment.json
 ```
 
-Add `--full` when the repository's test toolchain is present; it replays real
-defects from the repository's own history and is the only thing that fills in
-dimension 2. It takes minutes and may abstain — that is fine.
+The defect replay is on by default and needs the repository's test toolchain;
+pass `--no-full` when it is absent. It replays real defects from the
+repository's own history and is the only thing that fills in dimension 2. It
+takes minutes, prints what it is about to run before running it, and may
+abstain — that is fine.
+
+**If it says no test command was found, that is your job, not a verdict.** The
+ecosystem table knows a handful of conventions and misses most repositories.
+Open the CI workflow, the `Makefile`, the `contributing` guide — find how this
+project actually runs its tests, and pass it back:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<what you found>" \
+        --html assessment.html --json assessment.json
+```
+
+Two outcomes are different and must not be reported the same way. *This
+repository has no tests* is a real finding, and one of the more important ones
+this page can produce. *A table did not recognise this repository's convention*
+is a fact about the table. Only report the first after you have looked.
+
+And do not write tests to make the number better. If a suite exists, run it. If
+none exists, the honest page says so.
+
+## Reading the coverage rows before the ladder
+
+Dimension 2 now opens with what it *cannot* see: statements no test executes,
+decisions never taken both ways, conditions that never decided anything. They
+are printed before the ladder because they are its denominator — a line no test
+executes cannot be caught at the `local-suite` rung, for any defect, ever.
+
+Two traps when you read them:
+
+- **A low number may be about your command, not the repository.** The figures
+  are measured against every source file, under the one command you supplied.
+  If the repository has several suites and you gave one, you have measured that
+  suite against the whole tree. The row names the command; check it before you
+  report a percentage as a finding.
+- **Do not read them upward.** High coverage is close to meaningless — its
+  correlation with actually finding bugs is weak for a single suite. Absence is
+  the finding. Quote the files with no executed line and the decisions only ever
+  taken one way; do not congratulate a repository for a percentage.
+
+## The second pass, when mutation was asked for
+
+`--mutate N` adds a second way of introducing a defect: one line the tests
+already execute, changed. Each one walks the same ladder as a defect from the
+repository's own history — a hook can refuse it before it is written, the
+suite can go red, CI can. It is off unless somebody asks for it.
+
+The ones **nothing caught** are not yet defects, and the page says so: they sit
+at `pending`, not at `never`. Roughly three in ten will be lines nothing should
+assert about — a capacity, a log line, a default nobody promised — and no
+machine can tell which three. That is your judgement, and it is the only part
+of this dimension a page cannot produce.
+
+```bash
+# the brief is in the JSON, under `mutant_brief`
+python3 -c "import json;print(json.load(open('assessment.json'))['mutant_brief']['prompt'])" > brief.md
+# read it, answer it, write {"verdicts":[{"id":0,"verdict":"productive","why":"..."}]}
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" --mutate N \
+        --mutant-answers verdicts.json --html assessment.html
+```
+
+The question is not *is this a bug*. It is: **would a test written to catch
+this change be a test worth having?** Say `unproductive` when the answer is no
+and the change leaves the count entirely — that is the right outcome, not a
+concession. Say `productive` when the line encodes behaviour somebody depends
+on; it then lands at `never`, which is the most expensive row on the page.
+
+Judge the change in front of you. Do not go looking for other problems, and do
+not soften a verdict because the surrounding code is good.
 
 Read what it printed before you read anything else. **Do not recompute what it
 gave you.** You cannot count tokens, you will not give the same figure twice,
@@ -75,6 +146,54 @@ is, not what the repository keeps. And do not answer the questions yourself:
 you have already read this repository, so you are the one agent in the building
 who cannot be the probe.
 
+## Do the documents keep their promises, when it is asked for
+
+Off by default, and the dearest thing on the page: two agent rounds and up to
+two runs per claim. It is the only dimension-4 row that decides a
+document/code disagreement by **experiment** rather than by comparison, and
+the naive comparison it replaces measures at 0.53 precision
+-> [0036](../docs/decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md)
+
+```bash
+# what is testable at all, and the brief for round one
+python3 -c "import json;print(json.load(open('assessment.json'))['promises_brief'])" > round1.md
+```
+
+Spawn **one** `repo-promise-tester` agent, hand it `round1.md`, and tell it
+where to write `tests.json`. Then:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" --promise-tests tests.json \
+        --json assessment.json --html assessment.html
+```
+
+Claims whose tests all passed are done — that is a real result and costs
+nothing further. Anything left `pending` gets round two, and only then:
+
+```bash
+python3 -c "import json;print(json.load(open('assessment.json'))['promises_brief2'])" > round2.md
+# a NEW repo-promise-tester agent, the same blind, writing impls.json
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" \
+        --promise-tests tests.json --promise-impls impls.json \
+        --json assessment.json --html assessment.html
+```
+
+Three rules, and the first is the one that is easy to break by being helpful:
+
+- **Spawn the agent, do not answer for it.** You have read this repository, so
+  you are the one agent in the building who cannot write these tests — the
+  same reason you cannot be the `repo-probe`. `repo-promise-tester` has
+  `Write` and nothing else, which is what makes the blind a fact rather than a
+  request.
+- **An empty result is not a clean bill.** CASCADE reports recall 0.21: it
+  finds about a fifth of what is there. "No inconsistency found" here means
+  "none of the sentences that could be tested failed the experiment", and the
+  row says so. Do not upgrade it to "the docs are accurate".
+- **Do not fix what it finds.** A sentence the code contradicts is a proposal
+  in your reply, not an edit.
+
 ## Then read what the numbers cannot say
 
 The page ends by naming the questions it could not answer. They are the reason
@@ -124,5 +243,5 @@ is a page nobody acts on.
 - Report a missing toolchain as a failing test suite. It is an abstention, and
   scoring it as a zero throws away exactly the repositories whose suites are
   fine.
-- Turn `--full` on a repository whose tests you have not looked at without
-  saying that it will run them.
+- Leave the replay on for a repository whose tests you have not looked at
+  without repeating what its pre-flight line said it would run.

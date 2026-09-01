@@ -88,6 +88,45 @@ FIX_SUBJECT_CJK = re.compile(r"修(?!改)|订正|解决|改回")
 SMALL = 3
 
 
+# --- which changes owe a test -------------------------------------------
+#
+# Not every commit that touches source owes one. Renaming a symbol across
+# forty files, reformatting, bumping a dependency and moving a directory are
+# all changes to source that no new test would make safer, and counting them
+# puts a repository's tidiest weeks against it.
+#
+# What owes a test is a change that adds behaviour or repairs it -- `feat` and
+# `fix`, plus `perf`, which is a behaviour claim about speed and is exactly the
+# kind that rots silently.
+OWES_TEST = ("feat", "fix", "bugfix", "hotfix", "perf")
+OWES_NOTHING = ("docs", "chore", "style", "refactor", "test", "tests",
+                "build", "ci", "revert", "deps", "release")
+
+_CONVENTIONAL = re.compile(r"^\s*([a-z]+)\s*(?:\([^)]*\))?\s*!?:", re.I)
+
+
+def owes_a_test(subject):
+    """True, False, or None when the subject does not say.
+
+    None is the load-bearing value and the reason this returns three things
+    rather than two. A repository that does not type its commit subjects
+    cannot be narrowed, and guessing from free-form English would shrink the
+    denominator silently -- every repository would score better and none of
+    them would have changed. So an untyped subject counts, and the row says
+    the denominator was the wide one. Adopting conventional commits sharpens
+    your own measurement; not adopting them costs you the benefit of the
+    doubt, never a hidden pass."""
+    m = _CONVENTIONAL.match(subject or "")
+    if not m:
+        return None
+    kind = m.group(1).lower()
+    if kind in OWES_TEST:
+        return True
+    if kind in OWES_NOTHING:
+        return False
+    return None
+
+
 def sh(args, cwd, timeout=120):
     try:
         out = subprocess.run(args, cwd=cwd, capture_output=True, text=True,

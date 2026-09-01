@@ -19,6 +19,23 @@
 | Know why nothing counts how often a rule is hit | [0023](decisions/0023-nothing-counts-how-often-a-rule-is-hit.md) |
 | Know why only one skill is installed and the rest are copied | [0024](decisions/0024-skills-are-payload-except-the-one-that-finds-them.md) |
 | Know why dimension 4 watches an agent instead of counting what is kept | [0025](decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md) |
+| Know why the defect replay runs by default and the ladder is in seconds | [0026](decisions/0026-the-ladder-is-measured-in-seconds-and-runs-by-default.md) |
+| Know why dimension 4 checks whether what is written down is still true | [0027](decisions/0027-thickness-is-the-denominator-and-falsity-is-the-score.md) |
+| Know which of the mutation paper's numbers we reproduced, and which we did not | [0028](decisions/0028-mutation-testing-copied-from-a-paper-and-checked-against-its-numbers.md) |
+| Know why dimension 5 itemises the floor, and why the replay can be told how to run | [0029](decisions/0029-the-floor-is-itemised-and-the-replay-can-be-told-how-to-run.md) |
+| Know why mutation is opt-in, and why a surviving mutant is never a finding | [0030](decisions/0030-mutation-is-the-second-injection-and-a-survivor-is-never-a-finding.md) |
+| Know why coverage is reported as a denominator and never as a score | [0031](decisions/0031-coverage-is-the-denominator-and-its-inference-runs-one-way.md) |
+| Know why the ladder is read against an inventory of what could have caught it | [0032](decisions/0032-a-rung-cannot-be-read-without-the-layer-behind-it.md) |
+| Know why coverage is read from the ecosystem's tool and never measured here | [0033](decisions/0033-the-tools-do-the-measuring.md) |
+| Know why a check that runs is not a check that is required | [0034](decisions/0034-running-and-being-required-are-different-settings.md) |
+| Know why the document-conflict filter has one rule and not three | [0035](decisions/0035-a-filter-that-emits-half-the-pairs-has-not-filtered.md) |
+| Know why a documented promise is tested twice before it is a finding | [0036](decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md) |
+| Know why the floor is measured per file and not only as a total | [0037](decisions/0037-a-total-hides-the-one-file-worth-finding.md) |
+| Know why the refusal count is read against the repository's own work | [0038](decisions/0038-a-guard-that-refuses-everything-scores-full-marks.md) |
+| Know which changes owe a test, and which are counted anyway | [0039](decisions/0039-tidying-is-not-an-untested-change.md) |
+| Know why the last pass is an agent's number and not a threshold | [0041](decisions/0041-two-states-cannot-say-which-one-to-fix-first.md) |
+| Know why the agent that tests a promise cannot read the repository | [0040](decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md) |
+| Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
 and checked by `check_docs_layout.py`. **Inside each one, organise however suits

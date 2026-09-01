@@ -46,12 +46,15 @@ seen.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -91,6 +94,31 @@ def wired(root, event):
                                 "matcher": group.get("matcher", ""),
                                 "local": name.endswith("local.json")})
     return out
+
+
+def matches(matcher, tool_name):
+    """Would Claude Code run this hook for this tool?
+
+    An empty matcher or `*` means every tool. Otherwise it is a regular
+    expression, and in practice almost always an alternation of tool names.
+
+    This is not a detail. Firing an `Edit` payload at a hook wired
+    `matcher: "Bash"` asks a guard a question it will never be asked in
+    reality: it counts a layer as wired that cannot see this kind of defect at
+    all, and if such a hook ever *did* block, the ladder would record a catch
+    that could not happen. Measured on this repository, whose destructive-
+    command guards are Bash-only: the inventory reported `before-write: 2
+    hook(s), 0 of 16 caught` when only one of the two could ever have run."""
+    if not matcher or matcher in ("*", ".*"):
+        return True
+    try:
+        return re.fullmatch(matcher, tool_name) is not None
+    except re.error:
+        return tool_name in [p.strip() for p in matcher.split("|")]
+
+
+def applicable(hooks, tool_name):
+    return [h for h in hooks if matches(h.get("matcher", ""), tool_name)]
 
 
 def fire_ex(root, hooks, payload):
@@ -213,44 +241,109 @@ def ci_command(repo):
     return None
 
 
+def ci_seconds(root):
+    """Median seconds this repository's own CI takes, from its own run history.
+
+    Deliberately *not* the wall clock of running its CI command on this machine.
+    The number the ladder is about is how long a person waits before they are
+    told, and that includes the queue and the runner -- neither of which exists
+    here. Our machine's timing would be a smaller number measuring a different
+    thing, which is worse than no number.
+
+    So when `gh` is absent, unauthenticated, or the repository has no runs, this
+    returns None and the row says the rung was reached without saying how long
+    it took. An abstention is a result."""
+    out = sh(["gh", "run", "list", "--limit", "20", "--json",
+              "status,conclusion,startedAt,updatedAt"], root, 60)
+    if out.returncode != 0:
+        return None
+    try:
+        runs = json.loads(out.stdout or "[]")
+    except ValueError:
+        return None
+    secs = []
+    for r in runs:
+        if r.get("status") != "completed" or r.get("conclusion") not in (
+                "success", "failure"):
+            continue
+        try:
+            a = datetime.datetime.fromisoformat(
+                (r.get("startedAt") or "").replace("Z", "+00:00"))
+            b = datetime.datetime.fromisoformat(
+                (r.get("updatedAt") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        d = (b - a).total_seconds()
+        if d > 0:
+            secs.append(d)
+    if not secs:
+        return None
+    secs.sort()
+    return secs[len(secs) // 2]
+
+
 # --------------------------------------------------------------------------
 # one instance, down the ladder
 # --------------------------------------------------------------------------
 
-def rung(repo, row, pre, post, cmd, ci):
-    """The first rung that fires on the injected defect.
+def rung(repo, row, pre, post, cmd, ci, ci_secs=None):
+    """(rung, detail, hook, seconds) for the first rung that fires.
 
     Rungs are asked cheapest first and the walk stops at the first red, because
     the measurement is *when it is first caught* -- a defect that a PreToolUse
-    hook refuses is not also a CI failure, it is a mistake that never happened."""
+    hook refuses is not also a CI failure, it is a mistake that never happened.
+
+    The fourth value is how long that moment costs, and it is measured
+    differently at each rung because the thing being waited on is different:
+
+    * L0/L1 -- the wall clock of the hooks that ran, which is what an agent
+      actually waits mid-turn.
+    * L2 -- the wall clock of the scoped suite on this machine, which is where
+      it would also run for the person who wrote the defect.
+    * L3 -- **not** the wall clock of running CI here. See `ci_seconds`: the
+      number is taken from the repository's own run history, and is None when
+      that history cannot be read. A local timing would be a smaller number
+      measuring a different thing.
+    * L4 -- there is no number, because nothing ever happens.
+
+    The seconds are what make the cliff between L2 and L3 legible. A rung name
+    says the order; only the seconds say that the order spans four orders of
+    magnitude."""
+    t0 = time.monotonic()
     for p in row["source"]:
         before, after = blob(repo, row["sha"] + "^", p), blob(repo, row["sha"], p)
         blocked, h, said = fire(repo, pre,
                                 edit_payload(repo, "PreToolUse", p, after, before))
         if blocked:
-            return "before-write", f"{h['command'][:60]} — {said}", h
+            return ("before-write", f"{h['command'][:60]} — {said}", h,
+                    time.monotonic() - t0)
 
     inject(repo, row)
 
+    t1 = time.monotonic()
     for p in row["source"]:
         blocked, h, said = fire(repo, post, edit_payload(
             repo, "PostToolUse", p, "", blob(repo, row["sha"] + "^", p)))
         if blocked:
-            return "same-turn", f"{h['command'][:60]} — {said}", h
+            return ("same-turn", f"{h['command'][:60]} — {said}", h,
+                    time.monotonic() - t1)
 
+    t2 = time.monotonic()
     verdict, detail = run(repo, cmd)
+    suite = time.monotonic() - t2
     if verdict == "red":
-        return "local-suite", detail, None
+        return "local-suite", detail, None, suite
     if verdict == "could-not-run":
-        return None, f"the tests could not run: {detail}", None
+        return None, f"the tests could not run: {detail}", None, None
 
     if ci:
         out = sh(ci, repo, CI_TIMEOUT)
         if out.returncode not in (0,):
             tail = (out.stdout or out.stderr).strip().splitlines()
-            return "ci", (tail[-1][:140] if tail else f"exit {out.returncode}"), None
+            return ("ci", (tail[-1][:140] if tail else f"exit {out.returncode}"),
+                    None, ci_secs)
 
-    return "never", "nothing went red", None
+    return "never", "nothing went red", None, None
 
 
 def false_block(repo, row, pre, post):
@@ -272,7 +365,21 @@ def false_block(repo, row, pre, post):
     return ""
 
 
-def assess(root, instances, work):
+def assess(root, instances, work, command=None):
+    """`command` is how this repository's tests run, when somebody has read it.
+
+    The ecosystem table is a fast path that knows a handful of conventions --
+    a `tests/` directory plus a packaging marker, a `package.json`, a
+    `Cargo.toml`. A repository it has never seen will often match none of
+    them, and the honest measurement of how often is: of five real Python
+    repositories cloned to test the mutation work, the table produced a green
+    suite for **one**. This repository is another miss; its suites are
+    `selftest.py` scripts, so dimension 2 abstained on its own author.
+
+    Unit tests may also simply not exist, and that is a finding rather than a
+    failure. What must not happen is abstaining because a table did not
+    recognise a convention, while the repository has a perfectly good suite an
+    agent could have found by reading its CI file in one call."""
     found = mine(root)
     if found is None or found["shallow"]:
         return None, ("cannot judge: no history to mine — a shallow clone has "
@@ -284,14 +391,28 @@ def assess(root, instances, work):
 
     repo = bench(root, work)
     eco, cmd = find(repo)
+    if command:
+        cmd = command if isinstance(command, list) else command.split()
+        eco = eco or type("Given", (), {
+            "name": "given", "tool": None,
+            "install": staticmethod(lambda p: []),
+            "scope": staticmethod(lambda c, t: None)})()
     if cmd is None:
         return None, ("cannot judge: no runnable test command"
-                      + (f" ({eco.name} needs {eco.tool}, which is not on PATH)"
-                         if eco else ""))
+                      + (f" ({eco.name} needs {eco.tool}, which is not on "
+                         f"PATH)" if eco and eco.tool else "")
+                      + " — pass --test-command if this repository has a "
+                        "suite the table does not recognise")
     for step in eco.install(repo):
         sh(step, repo, 900)
-    pre, post = wired(root, "PreToolUse"), wired(root, "PostToolUse")
+    # Only the hooks that would actually run for the payload the ladder
+    # sends. The ladder edits files, so a Bash-only guard is not a layer that
+    # failed to catch this -- it is a layer that was never asked.
+    pre = applicable(wired(root, "PreToolUse"), "Edit")
+    post = applicable(wired(root, "PostToolUse"), "Edit")
     ci = ci_command(repo)
+    # Asked of the subject, not the clone: the clone has no remote history.
+    ci_secs = ci_seconds(root)
 
     out = []
     for row in rows:
@@ -306,13 +427,16 @@ def assess(root, instances, work):
             continue
         wrong = false_block(repo, row, pre, post)
         park(repo, row["sha"])
-        got, detail, _h = rung(repo, row, pre, post, scoped, ci)
+        got, detail, _h, secs = rung(repo, row, pre, post, scoped, ci,
+                                     ci_secs)
         park(repo, row["sha"])
         out.append({"sha": row["sha"][:10], "subject": row["subject"],
                     "rung": got, "detail": detail, "false_block": wrong,
-                    "tests": tests, "source": row["source"]})
+                    "seconds": secs, "tests": tests,
+                    "source": row["source"]})
     return {"ecosystem": eco.name, "command": " ".join(cmd),
-            "ci": " ".join(ci) if ci else "", "hooks": {
+            "ci": " ".join(ci) if ci else "", "ci_seconds": ci_secs,
+            "hooks": {
                 "PreToolUse": len(pre), "PostToolUse": len(post)},
             "rows": out}, ""
 
@@ -359,12 +483,17 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--instances", type=int, default=3)
     ap.add_argument("--work", default="")
+    ap.add_argument("--test-command", default="",
+                    help="how to run this repository's tests, when the "
+                         "ecosystem table does not recognise it. The table is "
+                         "a fast path, not the only one.")
     ap.add_argument("--json", default="")
     a = ap.parse_args()
 
     work = a.work or tempfile.mkdtemp(prefix="assess-catch-")
     try:
-        r, why = assess(os.path.abspath(a.root), a.instances, work)
+        r, why = assess(os.path.abspath(a.root), a.instances, work,
+                        a.test_command or None)
         if r is None:
             print(why, file=sys.stderr)
             return 2

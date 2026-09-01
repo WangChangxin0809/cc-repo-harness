@@ -1,0 +1,112 @@
+{
+  "what": "Reproduction of the measurable claims of arXiv:2102.11378 (Practical Mutation Testing at Scale, Google). Numbers taken 2026-09-01.",
+  "rq1_suppression": {
+    "method": "three strategies over the changed Python lines of recent commits; the papers RQ1 5.2",
+    "note": "the paper samples 5,000 changelists at random over six years; these are the most recent commits of each repository, so the sample is recent rather than random",
+    "per_repo": {
+      "click": {
+        "none": 74.5,
+        "line": 19.0,
+        "arid": 16.0
+      },
+      "tenacity": {
+        "none": 32.0,
+        "line": 7.5,
+        "arid": 6.0
+      },
+      "tqdm": {
+        "none": 23.0,
+        "line": 4.0,
+        "arid": 3.5
+      },
+      "requests": {
+        "none": 4.0,
+        "line": 2.0,
+        "arid": 1.0
+      },
+      "records": {
+        "none": 6.0,
+        "line": 2.0,
+        "arid": 1.5
+      },
+      "ours": {
+        "none": 596.5,
+        "line": 121.0,
+        "arid": 91.0
+      }
+    },
+    "paper": {
+      "none": 820,
+      "line": 77,
+      "arid": 7
+    },
+    "reduction_ours": "4x to 7x",
+    "reduction_paper": "117x",
+    "verdict": "MISSED as a ratio, MET as an end state",
+    "why": "the absolute output matches (medians 1 to 16 against the papers 7) but the ratio cannot, because the no-suppression arm differs by an order of magnitude: a Google changelist is far larger than an open-source commit"
+  },
+  "arid_rate": {
+    "method": "fraction of mutable lines any rule marks arid, over 18,727 mutable lines of real Python",
+    "per_repo": {
+      "click": 12.4,
+      "tenacity": 13.6,
+      "tqdm": 16.0,
+      "requests": 8.4,
+      "records": 16.4,
+      "ours": 29.1
+    },
+    "all": 17.8,
+    "paper_implied": 90.9,
+    "verdict": "MISSED, and not closable by transcribing more rules",
+    "why": "LOG fires 530 times in our own repository and 11 times in records, and does not reach the top four rules in click, tenacity, tqdm or requests. Google measured C++ and Java service code where logging and monitoring are on nearly every line. The paper says so itself: the heuristics are specifically tailored for the environment of the developers who provided the feedback"
+  },
+  "survivability": {
+    "method": "mutants run against the repositorys own suite; killed vs survived, with broken and timeout excluded from both",
+    "tenacity": {
+      "mutants": 200,
+      "killed": 170,
+      "survived": 13,
+      "broken": 6,
+      "timeout": 11,
+      "rate": 7.1
+    },
+    "ours_guards": {
+      "mutants": 36,
+      "killed": 20,
+      "survived": 8,
+      "broken": 8,
+      "rate": 28.6
+    },
+    "paper_python": 13.2,
+    "paper_all": 12.5,
+    "verdict": "MET, in range"
+  },
+  "productivity": {
+    "method": "an agent judges each surviving mutant against the papers own question: would a test written to kill this be a test worth having",
+    "judge": "an agent that did not write the code. The papers 82% comes from 66,798 Please fix clicks by the developers who wrote the lines, over six years. This is a weaker judge and the figures are not equivalent.",
+    "ours_guards": {
+      "survivors": 8,
+      "productive": 7,
+      "rate": 87.5,
+      "note": "independent of the SHORTCIRCUIT rule"
+    },
+    "tenacity": {
+      "survivors": 9,
+      "productive": 6,
+      "rate": 66.7,
+      "note": "AFTER the SHORTCIRCUIT rule, which was derived from this repositorys own mutants; below the bar on its own"
+    },
+    "combined": {
+      "survivors": 17,
+      "productive": 13,
+      "rate": 76.5
+    },
+    "bar": 70.0,
+    "verdict": "MET combined, MISSED on tenacity alone",
+    "caveat": "the SHORTCIRCUIT rule was derived from four of tenacitys own unproductive mutants and then applied to them. That is fitting to the set it was measured on. The guards figure is independent of it; tenacitys is not."
+  },
+  "not_reproduced": {
+    "productivity_15_to_89": "the papers headline improvement over six years. Its denominator is 20,000 developers clicks and cannot be reconstructed.",
+    "targeted_selection": "their RQ4 MinHash nearest-neighbour selection needs the same feedback corpus."
+  }
+}

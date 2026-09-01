@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """One page about this repository, with nothing in it that needed an opinion.
 
-    python3 assess/factsheet.py [--root .] [--full] [--json OUT]
+    python3 assess/factsheet.py [--root .] [--no-full] [--json OUT]
 
     (default)  probe + blast + drift   -- seconds, no toolchain, no network
-    --full     also replays defects    -- minutes, needs the repo's test tools
+    --no-full  skip the defect replay -- the replay is on by default and
+               costs minutes and the repo's test toolchain; without it
+               dimension 2 abstains
+    --mutate N change N covered lines and see whether the tests notice --
+               OFF by default, because it runs the suite once per mutant
     --html P   a self-contained page for a person to read once and act on
 
 Exit codes:
@@ -47,8 +51,19 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
+import coverage_tools as cover_mod
+import observe as observe_mod
+import merge as merge_mod
+import conflict as conflict_mod
+import promises as promises_mod
+import units as units_mod
+import permitted as permitted_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
+import judge as judge_mod  # noqa: E402
+import run_mutants as mutants_mod  # noqa: E402
 import report as report_mod  # noqa: E402
+import truth as truth_mod  # noqa: E402
+import value as value_mod  # noqa: E402
 from history import commits, mine  # noqa: E402
 
 
@@ -104,20 +119,41 @@ def a_check_file(probe, root):
     return ""
 
 
-def gather(root, full, instances, work):
+def gather(root, full, instances, work, command=None, mutate=0):
     probe_mod = load("probe_repo", os.path.join(PARENT, "probe_repo.py"))
     probe = probe_mod.probe(root) if probe_mod else None
     if probe is None:
         return None
 
     r = {"probe": probe, "blast": None, "catch": None, "catch_why": "",
-         "drift": drift_pairs(root), "defects": None}
+         "drift": drift_pairs(root), "defects": None,
+         "mutants": None, "mutants_why": "", "mutant_brief": None,
+         "cover": None, "cover_why": "",
+         "observe": None, "observe_brief": None, "observe_judged": None}
+
+    # Reading the tree for what an agent could watch its own change do. It
+    # starts nothing and costs one walk, so it runs every time -- but the row
+    # only prints once an agent has judged the evidence, per its own module.
+    r["observe"], r["observe_why"] = observe_mod.assess(root)
+    r["gate"], r["gate_why"] = merge_mod.assess(root)
+    r["conflict"], r["conflict_why"] = conflict_mod.narrow(root)
+    r["units"], r["units_why"] = units_mod.measure(root)
+    r["permitted"], r["permitted_why"] = permitted_mod.evidence(root)
+    if r["permitted"]:
+        r["permitted_brief"] = permitted_mod.brief(r["permitted"])
+    r["promises"] = promises_mod.claims(root)
+    r["promises_brief"] = promises_mod.brief(r["promises"])
+    if r["observe"]:
+        r["observe_brief"] = observe_mod.brief(r["observe"])
 
     if os.path.isdir(os.path.join(root, ".claude")):
         r["blast"] = blast_mod.assess(root, a_source_file(root),
                                       a_check_file(probe, root))
 
     r["log"] = commits(root)
+    r["truth"] = truth_mod.assess(root)
+    r["value"] = value_mod.assess(
+        root, value_mod.guards_from_blast(r.get("blast")))
     found = mine(root)
     if found is not None:
         r["defects"] = {"replayable": len(
@@ -127,7 +163,30 @@ def gather(root, full, instances, work):
             "shallow": found["shallow"]}
 
     if full:
-        r["catch"], r["catch_why"] = catch_mod.assess(root, instances, work)
+        r["catch"], r["catch_why"] = catch_mod.assess(
+            root, instances, work, command)
+
+        # What the ladder below cannot speak about. A line no test executes
+        # cannot be caught at the suite rung, ever, for any defect -- that is
+        # a guarantee rather than a correlation, and it is the only direction
+        # in which coverage means anything at all.
+        cwork = os.path.join(work, "cover")
+        cbench = catch_mod.bench(root, cwork)
+        catch_mod.park(cbench, "HEAD")
+        r["cover"], r["cover_why"] = cover_mod.assess(cbench, command, cwork)
+
+    # Second injection, and the only one that is opt-in. The replay asks how
+    # late a defect that actually happened here is caught; mutation asks
+    # whether a change to a line the tests *already execute* is noticed at
+    # all. They can disagree, and when they do the disagreement is the
+    # finding: a repository can catch its own history early and still have a
+    # suite that runs code without asserting anything about it.
+    if mutate:
+        r["mutants"], r["mutants_why"] = mutants_mod.assess(
+            root, mutate, work=os.path.join(work, "mutate"), command=command)
+        if r["mutants"]:
+            got, _why = judge_mod.brief(r["mutants"], root)
+            r["mutant_brief"] = got
     return r
 
 
@@ -161,27 +220,28 @@ def repo_name(root):
     return os.path.basename(root.rstrip("/")) or root
 
 
-def head_of(r, full):
+def head_of(r):
     p = r["probe"]
     return {"name": repo_name(p["root"]),
             "root": p["root"],
             "tracked": p["tracked_files"], "source": p["source_files"],
-            "tier": p["tier"],
-            "ran": ("Measured, not judged. Nothing in the repository was "
-                    "executed except " + ("its own tests, to replay defects."
-                                          if full else
-                                          "its hooks, which were offered "
-                                          "destructive payloads that never "
-                                          "ran. Add --full to also replay "
-                                          "defects."))}
+            "tier": p["tier"]}
 
 
-def dimensions_of(r, memory=None):
+def dimensions_of(r, memory=None, judged=None, observed=None):
     """`memory` is `memory.compare()`'s output, when somebody spent the two
-    agents dimension 4 needs. Without it that dimension abstains."""
+    agents dimension 4's navigation half needs. Without it that half abstains;
+    the truth half in `r["truth"]` costs nothing and is always there."""
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
-                          catch_mod.LADDER, memory)
+                          catch_mod.LADDER, memory, r.get("truth"),
+                          r.get("value"), r.get("mutants"),
+                          r.get("mutants_why", ""), judged,
+                          r.get("cover"), r.get("cover_why", ""),
+                          r.get("observe"), observed, r.get("gate"),
+                          r.get("conflict"), r.get("conflict_judged"),
+                          r.get("promises"), r.get("units"),
+                          r.get("permitted"))
 
 
 def render_flat(r):
@@ -278,9 +338,58 @@ def filled_moment(p, key):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
-    ap.add_argument("--full", action="store_true",
-                    help="also replay defects (minutes, needs the test toolchain)")
+    # Default on. The assessment's most-used row -- when a defect is first
+    # caught -- is the one this pays for, and a flag nobody remembers to pass
+    # meant the page's headline dimension abstained almost every time it was
+    # run. The cost is announced before it is spent instead.
+    ap.add_argument("--no-full", dest="full", action="store_false",
+                    default=True,
+                    help="skip the defect replay (dimension 2 then abstains)")
     ap.add_argument("--instances", type=int, default=3)
+    ap.add_argument("--test-command", default="",
+                    help="how this repository's tests run. The built-in table "
+                         "recognises a handful of conventions and misses most "
+                         "repositories that do not follow one — including this "
+                         "one. An agent that has read the repo can say.")
+    # Off by default, and the asymmetry with --full is deliberate. The replay
+    # runs the suite once per defect over three defects; mutation runs it once
+    # per mutant, and the number of mutants is chosen by the caller. It is the
+    # one thing on this page whose cost the page cannot bound on its own, so it
+    # is the one thing the caller has to ask for.
+    ap.add_argument("--mutate", nargs="?", type=int, const=30, default=0,
+                    metavar="N",
+                    help="change N covered lines and see whether the tests "
+                         "notice (default 30 when given without a number). "
+                         "Runs the suite once per mutant — minutes to hours.")
+    ap.add_argument("--observe-answers", default="",
+                    help="JSON from the agent that read `observe_brief` — the "
+                         "verdict on whether an agent can watch its own change "
+                         "run here. Without it dimension 1 prints two rows "
+                         "instead of three, rather than guessing the third.")
+    ap.add_argument("--legitimate-actions", default="",
+                    help="JSON from the agent that read `permitted_brief` — "
+                         "this repository's own legitimate work, fired at its "
+                         "hooks the way dimension 1 fires the destructive six. "
+                         "Without it the refusal count above has no "
+                         "denominator.")
+    ap.add_argument("--mutant-answers", default="",
+                    help="JSON from the agent that read `mutant_brief` and "
+                         "said which uncaught changes were worth catching. "
+                         "Without it those mutants are reported pending, not "
+                         "parked at `never`")
+    # The two rounds of 4.3. They are separate flags rather than one because
+    # the second brief cannot be written until the first has run: which claims
+    # need an implementation is decided by which tests the real code failed.
+    ap.add_argument("--promise-tests", default="",
+                    help="JSON from the agent that read `promises_brief` and "
+                         "wrote tests from the documents alone. They are run "
+                         "against the real code, in a clone. Without this, "
+                         "dimension 4.3 does not print at all.")
+    ap.add_argument("--promise-impls", default="",
+                    help="JSON from the same agent given `promises_brief2`: "
+                         "one implementation per claim whose test the real "
+                         "code failed. Without it those claims stay pending, "
+                         "which is a finding in neither direction.")
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
@@ -306,13 +415,74 @@ def main():
             shutil.rmtree(work, ignore_errors=True)
 
 
+def preflight(root, a, work):
+    """What is about to be run, printed before it runs.
+
+    The replay executes a stranger's test suite and their CI entry point on this
+    machine. That is a reasonable thing to do to a repository you asked to be
+    assessed, and an unreasonable thing to do without saying so first -- so it
+    is said first, with the command named, rather than explained afterwards in
+    a footnote nobody reads."""
+    eco, cmd = catch_mod.find(root)
+    if a.test_command:
+        cmd = a.test_command.split()
+    ci = catch_mod.ci_command(root)
+    lines = [f"  assessing {root}",
+             f"  replaying up to {a.instances} of this repository's own "
+             f"defects, in a clone under {work}"]
+    lines.append("  and once more, instrumented, to record which lines, "
+                 "branches and conditions it exercises at all")
+    lines.append("  it will run: " + (" ".join(cmd) if cmd else
+                                      "nothing — no runnable test command "
+                                      "found. Pass --test-command, or "
+                                      "dimension 2 will abstain"))
+    if ci:
+        lines.append("  and its CI entry point: " + " ".join(ci))
+    if a.mutate:
+        lines.append(f"  then changing up to {a.mutate} line(s) the tests "
+                     f"already execute, one at a time, and running that "
+                     f"command again for each — so up to {a.mutate + 3} more "
+                     f"runs of it")
+    if a.promise_tests:
+        lines.append("  and running an agent's own tests, written from this "
+                     "repository's documents, in a clone -- never in the "
+                     "repository itself")
+    lines.append("  --no-full skips all of it"
+                 + ("" if a.mutate else "; --mutate adds the second injection"))
+    print("\n".join(lines) + "\n", file=sys.stderr)
+
+
 def _run(a, root, work):
-    r = gather(root, a.full, a.instances, work)
+    if a.full or a.mutate or a.promise_tests:
+        preflight(root, a, work)
+    r = gather(root, a.full, a.instances, work,
+               a.test_command or None, a.mutate)
     if r is None:
         print("cannot judge: not a git repository, or git is unavailable",
               file=sys.stderr)
         return 2
     r["root"] = root
+
+    # Round one, then -- only if its answers arrived -- round two. Both run
+    # the agent's own code, which is why both happen in a throwaway clone
+    # under `work` and never in the subject. A claim the real code passes
+    # ends here and never costs a second round.
+    if a.promise_tests and r.get("promises"):
+        with open(a.promise_tests, encoding="utf-8") as fh:
+            r["promises"] = promises_mod.check(
+                root, r["promises"], json.load(fh),
+                os.path.join(work, "promises"))
+        pending = [c for c in r["promises"] if c.get("verdict") == "pending"]
+        r["promises_brief2"] = promises_mod.brief(pending,
+                                                  promises_mod.BRIEF_TWO)
+        if a.promise_impls and pending:
+            with open(a.promise_impls, encoding="utf-8") as fh:
+                r["promises"] = promises_mod.grade(
+                    root, r["promises"], json.load(fh),
+                    os.path.join(work, "promises"))
+    elif a.promise_impls:
+        print("  --promise-impls ignored: it grades round one, which was "
+              "not run. Pass --promise-tests as well.\n")
 
     if a.flat:
         print(render_flat(r))
@@ -321,7 +491,26 @@ def _run(a, root, work):
         if a.memory:
             with open(a.memory, encoding="utf-8") as fh:
                 memory = json.load(fh)
-        head, dims = head_of(r, a.full), dimensions_of(r, memory)
+        judged = None
+        if a.mutant_answers and r.get("mutants"):
+            with open(a.mutant_answers, encoding="utf-8") as fh:
+                judged = judge_mod.grade(r["mutants"], json.load(fh))
+            r["mutants_judged"] = judged
+        if a.legitimate_actions and r.get("permitted"):
+            with open(a.legitimate_actions, encoding="utf-8") as fh:
+                fired, why = permitted_mod.fire(root, json.load(fh))
+            if fired is None:
+                print(f"  --legitimate-actions ignored: {why}\n")
+            else:
+                r["permitted"] = fired
+        observed = None
+        if a.observe_answers and r.get("observe"):
+            with open(a.observe_answers, encoding="utf-8") as fh:
+                observed, why = observe_mod.grade(json.load(fh))
+            if observed is None:
+                print(f"  --observe-answers ignored: {why}\n")
+            r["observe_judged"] = observed
+        head, dims = head_of(r), dimensions_of(r, memory, judged, observed)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)

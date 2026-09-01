@@ -105,13 +105,16 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 .wrap{max-width:820px;margin:0 auto;padding:56px 24px 80px}
-header{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:6px}
+header{border-bottom:2px solid var(--ink);padding-bottom:18px}
+.gap{height:30px}
 h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em;
    text-wrap:balance}
 .sub{color:var(--dim);font-size:13px;
      font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:0 14px}
 .sub b{font-weight:600;color:var(--ink)}
-.ran{margin:14px 0 34px;font-size:12.5px;color:var(--faint)}
+.eyebrow{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+         letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+         margin:0 0 9px}
 section{
   background:var(--card);border:1px solid var(--rule);border-radius:3px;
   padding:20px 22px;margin-bottom:14px;
@@ -165,13 +168,13 @@ def html_page(head, dims, cannot_say):
     """The whole document, self-contained: no network, no fonts, no scripts."""
     e = html.escape
     parts = ['<div class="wrap">', "<header>",
+             '<div class="eyebrow">assessment</div>',
              f"<h1>{e(head['name'])}</h1>", '<div class="sub">',
              f"<span><b>{head['tracked']}</b> tracked files</span>",
              f"<span><b>{head['source']}</b> source</span>",
              f"<span>tier <b>{e(head['tier'])}</b></span>",
              f"<span>{datetime.date.today().isoformat()}</span>",
-             "</div></header>",
-             f'<div class="ran">{e(head["ran"])}</div>']
+             "</div></header>", '<div class="gap"></div>']
 
     for d in dims:
         parts.append("<section>")
@@ -207,7 +210,7 @@ def html_page(head, dims, cannot_say):
         "<footer>Every line above is measured, not judged. Token figures are "
         "characters over four — the same approximation Claude Code uses, and "
         "reproducible offline. A dimension that could not be judged says so "
-        "and is never scored as a zero.</footer>")
+        "and is never printed as a zero.</footer>")
     parts.append("</div>")
     return (
         '<!doctype html>\n<html lang="en">\n<head>\n'
