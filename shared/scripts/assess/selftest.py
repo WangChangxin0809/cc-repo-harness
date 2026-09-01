@@ -4178,7 +4178,62 @@ def case_an_entry_point_the_parked_commit_never_had(t):
     return None
 
 
+
+def case_a_suite_that_shells_out_is_still_measured(t):
+    """Wrapping the command measures the process it started, and nothing more.
+
+    A suite whose runner shells out -- a script invoking twenty checks, `tox`,
+    `make`, pytest under `-n` -- had its *runner's* lines counted and reported
+    as the repository's coverage. Small, confident, and about the wrong
+    subject. This repository's own entry point is exactly that shape, which is
+    how the gap was found.
+
+    coverage.py's supported answer is `COVERAGE_PROCESS_START` plus a
+    `sitecustomize` calling `process_startup()`, both written into the work
+    directory so nothing is left in the repository being assessed."""
+    if not cover_mod.Python().available(t):
+        # Not a pass. `coverage` is what this case is about, and saying so is
+        # the only honest thing available when it is not installed.
+        return None
+    child = ("def used():\n"            # 1
+             "    return 1\n"            # 2  <- runs, in a subprocess only
+             "\n"
+             "\n"
+             "def never_used():\n"       # 5
+             "    return 2\n")           # 6  <- nothing ever runs this
+    put(t, "child.py", child)
+    ran = child.splitlines().index("    return 1") + 1
+    never = child.splitlines().index("    return 2") + 1
+    put(t, "runner.py", "import subprocess, sys\n"
+                        "subprocess.run([sys.executable, '-c',\n"
+                        "                'import child; child.used()'])\n")
+    r, why = cover_mod.Python().measure(t, ["python3", "runner.py"],
+                                        os.path.join(t, "w"))
+    if not r:
+        return "no report from a suite that shells out: %s" % why
+    files = r.get("files") or {}
+    if "child.py" not in files:
+        return ("a file executed only in a subprocess was invisible: saw %s"
+                % sorted(files))
+    # `--source=.` lists every file in the tree whether it ran or not, so the
+    # file merely *appearing* proves nothing -- that was the first version of
+    # this case, and it stayed green with the subprocess measurement torn out.
+    # What separates the two is whether the line the subprocess executed comes
+    # back covered.
+    missing = files["child.py"]
+    if ran in missing:
+        return ("the line a subprocess executed came back uncovered: "
+                "missing %s — nothing the suite started was measured"
+                % (missing,))
+    if never not in missing:
+        return ("a line nothing executed came back covered: missing %s"
+                % (missing,))
+    return None
+
+
 CASES = [
+    ("a suite that shells out is still measured",
+     case_a_suite_that_shells_out_is_still_measured),
     ("an entry point the parked commit never had",
      case_an_entry_point_the_parked_commit_never_had),
     ("exit two means what the runner means by it",
