@@ -32,6 +32,7 @@
 | Know why a documented promise is tested twice before it is a finding | [0036](decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md) |
 | Know why the floor is measured per file and not only as a total | [0037](decisions/0037-a-total-hides-the-one-file-worth-finding.md) |
 | Know why the refusal count is read against the repository's own work | [0038](decisions/0038-a-guard-that-refuses-everything-scores-full-marks.md) |
+| Know which changes owe a test, and which are counted anyway | [0039](decisions/0039-tidying-is-not-an-untested-change.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed

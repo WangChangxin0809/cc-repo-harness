@@ -2919,6 +2919,65 @@ def case_coverage_run_is_not_handed_the_interpreter_twice(t):
     return None
 
 
+
+def _typed_history(t, subjects):
+    """A repository whose commits carry the subjects given, each touching one
+    source file and nothing that verifies it."""
+    repo(t)
+    put(t, "checks/suite.py", "def test_one():\n    assert True\n")
+    commit(t, "test: a suite exists")
+    for i, subject in enumerate(subjects):
+        put(t, "src/mod%d.py" % i, "def f%d():\n    return %d\n" % (i, i))
+        commit(t, subject)
+    return t
+
+
+def _bare_row(t):
+    d3 = dim_mod.reliable_delivery(t, history_mod.commits(t),
+                                   check_dirs=("checks",))
+    return [r for r in d3["rows"] if "verified nothing" in r["label"]][0]
+
+
+def case_a_rename_does_not_owe_a_test(t):
+    """Tidying is not an untested change.
+
+    Renaming a symbol across forty files, reformatting, and bumping a
+    dependency all touch source, and no new test would make any of them safer.
+    Counting them puts a repository's tidiest weeks against it and rewards
+    leaving the mess alone -- which is the opposite of what this row is for.
+
+    Six changes here, three of which add or repair behaviour. The denominator
+    must be three."""
+    _typed_history(t, ["feat: a new thing", "refactor: move it elsewhere",
+                       "fix: a real defect", "chore(deps): bump a version",
+                       "perf: make it faster", "style: reformat"])
+    row = _bare_row(t)
+    if not row["value"].endswith("/3  (100%)"):
+        return ("the denominator counted tidying as a change owing a test: "
+                + row["value"])
+    return None
+
+
+def case_an_untyped_subject_is_counted_rather_than_guessed(t):
+    """The asymmetry the three-valued classifier exists for.
+
+    A repository that does not type its subjects cannot be narrowed. Guessing
+    from free-form English would shrink the denominator on every repository at
+    once -- every score would improve and no repository would have changed,
+    which is the most dangerous shape a measurement can take. So an untyped
+    subject counts, and the row says which denominator it used."""
+    _typed_history(t, ["added a new thing", "moved some files around",
+                       "made it faster"])
+    row = _bare_row(t)
+    if not row["value"].endswith("/3  (100%)"):
+        return ("untyped subjects were narrowed away on a guess: "
+                + row["value"])
+    if "not typed" not in row["note"]:
+        return ("the row did not say it fell back to the wide denominator: "
+                + row["note"])
+    return None
+
+
 def _workflow(t, name, body):
     where = os.path.join(t, ".github", "workflows")
     os.makedirs(where, exist_ok=True)
@@ -3510,6 +3569,10 @@ CASES = [
      case_lcov_carries_function_coverage),
     ("gcov is where MC/DC comes from",
      case_gcov_is_where_mcdc_comes_from),
+    ("a rename does not owe a test",
+     case_a_rename_does_not_owe_a_test),
+    ("an untyped subject is counted rather than guessed",
+     case_an_untyped_subject_is_counted_rather_than_guessed),
     ("a coverage report of nothing is not a measurement",
      case_a_coverage_report_of_nothing_is_not_a_measurement),
     ("coverage run is not handed the interpreter twice",

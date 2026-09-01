@@ -31,6 +31,9 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+
+import history as history_mod  # noqa: E402
 
 # A rule with no `paths:` loads at launch; one with `paths:` loads only when
 # Claude reads a matching file. The distinction decides both what a rule costs
@@ -889,28 +892,56 @@ def reliable_delivery(root, log, check_dirs=(), gate=None):
                      "flag": "info", "note": "the history cannot be read"})
         state, headline = "abstained", "the history cannot be read"
     else:
-        recent = [c for c in log[:60] if any(
+        touched = [c for c in log[:60] if any(
             _is_source(p, check_dirs) for p in c[2])]
+        # Renames, reformatting and dependency bumps all touch source and
+        # none of them owe a test, so the denominator is narrowed to the
+        # changes that add behaviour or repair it. A subject that is not
+        # typed cannot be narrowed and is counted: the alternative is a
+        # denominator that quietly shrinks and a number that quietly improves
+        # -> 0039
+        typed = [c for c in touched
+                 if history_mod.owes_a_test(c[1]) is not None]
+        recent = [c for c in touched if history_mod.owes_a_test(c[1]) is not
+                  False]
         bare = [c for c in recent
                 if not any(_verifies(p, check_dirs) for p in c[2])]
         pct = round(100 * len(bare) / len(recent)) if recent else 0
         state = "measured"
-        headline = (f"{len(bare)} of the last {len(recent)} code changes "
-                    f"touched nothing that verifies them")
+        headline = (f"{len(bare)} of the last {len(recent)} changes that owe "
+                    f"a test touched nothing that verifies them")
+        if len(typed) >= max(4, len(touched) // 2):
+            how = (f"{len(touched) - len(recent)} of {len(touched)} change(s) "
+                   f"to source are excluded as owing no test — renames, "
+                   f"formatting, dependency bumps, docs and chores, read off "
+                   f"the commit type")
+        else:
+            how = ("the denominator is every change to source, because these "
+                   "subjects are not typed — nothing here can tell a rename "
+                   "from a new function, and guessing would shrink the "
+                   "denominator without changing the repository")
         rows.append({
             "label": "changes that verified nothing",
             "value": f"{len(bare)}/{len(recent)}  ({pct}%)",
             "flag": "bad" if pct >= 80 else ("warn" if pct >= 40 else "ok"),
             "note": "the green light can be real and still have nothing to "
-                    "do with what was changed"})
+                    "do with what was changed. " + how})
 
         # Most unverified changes are not worth anyone's attention -- in a
         # repository that writes tests, the ones without are usually small.
         # Changes to the machinery that does the verifying are the exception:
         # rare, and when one of them breaks, the thing that would have caught
         # it is the thing that changed.
-        critical = [c for c in bare if any(CRITICAL_PATH.search(p)
-                                           for p in c[2])]
+        # Deliberately drawn from every change to source, not from the
+        # narrowed set above. `ci:` and `build:` owe no unit test and are
+        # excluded from the percentage for that reason -- but a change to the
+        # machinery that does the verifying owes evidence whatever its commit
+        # type, and narrowing here would hide exactly the commits this row
+        # exists to find.
+        unverified = [c for c in touched
+                      if not any(_verifies(p, check_dirs) for p in c[2])]
+        critical = [c for c in unverified if any(CRITICAL_PATH.search(p)
+                                                 for p in c[2])]
         if critical:
             rows.append({
                 "label": "unverified changes to the machinery itself",
