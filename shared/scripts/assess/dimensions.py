@@ -301,7 +301,7 @@ def secs(v):
 
 
 def change_validation(defects, catch, catch_why, ladder, mutants=None,
-                      mutants_why=""):
+                      mutants_why="", judged=None):
     """When a defect is introduced, how late is it caught?"""
     rows = []
     if defects is None:
@@ -325,16 +325,20 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
     if mutants:
         rows.append({
             "label": "how the defect got in",
-            "value": "2 ways: a fix reverted, and a covered line mutated",
+            "value": "2 ways: a fix reverted (%d), a covered line "
+                     "mutated (%d)" % (len(catch["rows"]) if catch else 0,
+                                       mutants["generated"]),
             "flag": "info",
             "note": "the first is this repository's own history — the files a "
                     "fix touched are taken back to their state at its parent, "
                     "so the defect actually happened here and the fix is the "
-                    "answer key. The second is synthetic and asks a different "
-                    "question: not how late a defect is caught, but whether a "
-                    "change to a line the tests already execute is noticed at "
-                    "all. They can disagree, and the disagreement is the "
-                    "finding."})
+                    "answer key. The second is synthetic: one line the "
+                    "tests already execute, changed. Both walk the same "
+                    "ladder and are counted in the same row — a mutated "
+                    "defect a hook refuses is caught before it is "
+                    "written, exactly like a real one. The difference "
+                    "is that a mutant nothing catches must be judged a "
+                    "defect before it counts as one."})
     else:
         rows.append({
             "label": "how the defect got in",
@@ -348,6 +352,13 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                        if mutants_why else ", and --mutate was not passed")
                     + ". A repository can be caught early by this and still "
                       "have failure modes nothing on this page looks for."})
+
+    # Both injections feed ONE ladder. A mutant is a change to a file, so
+    # every moment that can see a change can see it, and the question is the
+    # same for both: where is this first caught? Only the mutants need a
+    # second opinion about whether they are defects at all.
+    mut_counts, pending, real, dropped = (
+        mutant_ladder(mutants, judged) if mutants else ({}, 0, [], []))
 
     if catch:
         counts = {k: 0 for k in ladder}
@@ -377,6 +388,10 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                                  f"bad tests."})
         else:
             state = "measured"
+            for k, v in mut_counts.items():
+                counts[k] = counts.get(k, 0) + v
+            placed = sum(counts.values())
+            late = counts.get("ci", 0) + counts.get("never", 0)
             headline = (f"{late} of {placed} defects survive past the end of "
                         f"a session")
             rows.append({"label": "where each was first caught",
@@ -384,7 +399,11 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                          "flag": "bad" if late else "ok",
                          "note": "the cliff sits between local-suite and ci: "
                                  "the session ends, the context is gone, and "
-                                 "everything after it is paid for twice"})
+                                 "everything after it is paid for twice"
+                                 + (f". {sum(mut_counts.values())} of these "
+                                    f"came from mutation, the rest from this "
+                                    f"repository's own history"
+                                    if mut_counts else "")})
 
             # The rung name says the order. Only the seconds say the order
             # spans four orders of magnitude, which is the whole reason the
@@ -430,23 +449,71 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                              "to put each defect back and record where it "
                              "is first caught"})
 
+    if mut_counts and state != "measured":
+        # The history half produced nothing -- no test command, a shallow
+        # clone, --no-full. Mutation still walked the same ladder, so the
+        # dimension has a reading and reporting it as unmeasured would throw
+        # away something somebody paid for.
+        placed = sum(mut_counts.values())
+        late = mut_counts.get("ci", 0) + mut_counts.get("never", 0)
+        if placed:
+            state = "measured"
+            headline = (f"{late} of {placed} mutated defects survive past the "
+                        f"end of a session")
+            rows.append({
+                "label": "where each was first caught",
+                "value": "  ".join(f"{k}:{mut_counts.get(k, 0)}"
+                                   for k in ladder),
+                "flag": "bad" if late else "ok",
+                "note": "all of these came from mutation; the repository's own "
+                        "history did not supply any. The cliff sits between "
+                        "local-suite and ci"})
+
     if mutants:
-        extra, mut_headline = mutation_rows(mutants)
-        rows += extra
-        # Either injection producing a reading means the dimension was
-        # measured. The replay stays the headline when it ran, because "how
-        # late" is this dimension's question and mutation answers a narrower
-        # one; mutation only speaks for the dimension when the replay did not.
-        if mut_headline and state != "measured":
-            state, headline = "measured", mut_headline
+        rows += mutation_rows(mutants, ladder, judged)
 
     return {"n": 2, "name": "Change Validation",
             "question": "When a defect is introduced, how late is it caught?",
             "state": state, "headline": headline, "rows": rows}
 
 
-def mutation_rows(m):
-    """The second injection, as rows -- and as caveats that outrank them.
+def mutant_ladder(m, judged=None):
+    """Where each mutant was first caught -- and which ones are defects.
+
+    Three groups, and the difference between them is the whole design:
+
+    * **Caught somewhere.** A hook refused it, or the suite went red, or CI
+      did. Something asserted about that line, so the change is a real defect
+      by construction and no second opinion is needed.
+    * **Caught nowhere, and judged a defect.** An agent read the enclosing
+      code and said a test catching this would be a test worth having. It
+      belongs at `never`, and it is the most expensive row on the page.
+    * **Caught nowhere, and judged not a defect.** It leaves the count
+      entirely. `never` is only a failure if the thing that was never caught
+      was worth catching, and the paper's own figure says three survivors in
+      ten are not: an initial capacity, a log line, a default nobody promised.
+
+    Unjudged survivors are in none of the three. They are `pending`, and they
+    are reported as pending rather than parked at `never`, because counting
+    them there would let a repository look worse for having bought a
+    measurement nobody has finished reading."""
+    counts = {k: 0 for k in m.get("ladder", {})} or {}
+    for k in m.get("ladder", {}):
+        counts[k] = m["ladder"][k]
+    pending = counts.get("never", 0)
+    counts["never"] = 0
+    real, dropped = [], []
+    for row in (judged or {}).get("rows", []):
+        if row.get("judged") == "productive":
+            real.append(row)
+        elif row.get("judged") == "unproductive":
+            dropped.append(row)
+    counts["never"] = len(real)
+    return counts, max(0, pending - len(real) - len(dropped)), real, dropped
+
+
+def mutation_rows(m, ladder_names, judged=None):
+    """The rows dimension 2 gains from the second injection.
 
     A surviving mutant is a **candidate**, never a finding. The paper this is
     copied from reports 70.6% of the survivors it showed Python developers
@@ -455,73 +522,64 @@ def mutation_rows(m):
     the page has no way to tell which three -- only an agent that reads the
     enclosing code does, which is why the brief exists."""
     counted = m["killed"] + m["survived"]
-    rows, headline = [], ""
+    rows = []
     if not counted:
-        rows.append({"label": "changed lines the tests noticed",
-                     "value": "could not judge", "flag": "info",
+        rows.append({"label": "mutated lines", "value": "could not judge",
+                     "flag": "info",
                      "note": "every mutant was unplaceable, or broke the "
                              "suite's own loading — neither is a verdict "
-                             "about the tests"})
-        return rows, ""
+                             "about the repository"})
+        return rows
 
-    # The caveats come first on purpose. A survivability figure taken over a
-    # flaky suite, or over lines no test executes, is not the figure the paper
-    # reports, and printing it above its own caveat invites the comparison it
-    # cannot support.
+    # The caveats come first on purpose. A figure taken over a flaky suite, or
+    # over lines no test executes, is not the figure the paper reports, and
+    # printing it above its own caveat invites the comparison it cannot
+    # support.
     if m.get("flaky"):
         rows.append({
             "label": "!! the suite is flaky",
             "value": "not green on all 3 baseline runs",
             "flag": "warn",
-            "note": "a mutant is scored noticed whenever the suite goes red — "
+            "note": "a mutant is scored caught whenever the suite goes red — "
                     "including when it would have gone red anyway. Every "
-                    "figure below is an upper bound on what the tests really "
-                    "catch"})
+                    "mutation figure here is an upper bound on what this "
+                    "repository really catches"})
     if not m.get("coverage", "").startswith("measured"):
         rows.append({
             "label": "!! coverage was not available",
             "value": "the covered-line restriction was dropped",
             "flag": "warn",
-            "note": "so the changed lines below include lines no test "
-                    "executes, which are guaranteed survivors and say nothing "
-                    "about the tests. Not comparable to the paper's figure"})
+            "note": "so the mutated lines include lines no test executes, "
+                    "which reach `never` by construction and say nothing "
+                    "about this repository. Not comparable to the paper's "
+                    "figure"})
 
-    rows.append({
-        "label": "changed lines the tests noticed",
-        "value": f"{m['killed']} of {counted}",
-        "flag": "ok" if m["killed"] == counted else "info",
-        "note": f"one line changed at a time, on lines the suite already "
-                f"executes, under `{m['command']}`. {m['generated']} mutant(s) "
-                f"run in {m['seconds']}s"})
-
-    if m["survivability"] is not None:
+    _c, pending, real, dropped = mutant_ladder(m, judged)
+    if pending:
         rows.append({
-            "label": "changes nothing noticed",
-            "value": f"{m['survived']}  ({100 * m['survivability']:.1f}%)",
-            "flag": "bad" if m["survived"] else "ok",
-            "note": "the paper reports 13.2% for Python, 12.5% overall, over "
-                    "16.9M mutants. Higher is not automatically worse: a "
-                    "survivor is a line the tests run without asserting "
-                    "anything about, and some of those are lines nothing "
-                    "should assert about"})
-
-    if m["survived"]:
-        headline = (f"{m['survived']} of {counted} changed lines ran through "
-                    f"the tests unnoticed")
-        seen = []
-        for row in m["rows"]:
-            if row["verdict"] == "survived" and len(seen) < 6:
-                seen.append(f"{row['path']}:{row['line']} "
-                            f"{row['before']} → {row['after']}")
-        rows.append({
-            "label": "which changes, and what to do with them",
-            "value": f"{m['survived']} candidate(s) for an agent",
+            "label": "mutants nothing caught, awaiting judgement",
+            "value": f"{pending} pending",
             "flag": "warn",
-            "note": "NOT findings. Roughly three in ten will be lines no test "
-                    "should assert about, and this page cannot tell which — "
-                    "only something that reads the enclosing code can. The "
-                    "brief for that pass is in the JSON under `mutant_brief`. "
-                    "First few: " + "; ".join(seen)})
+            "note": "NOT yet defects, and deliberately not counted at `never`. "
+                    "Roughly three in ten will be lines nothing should assert "
+                    "about, and this page cannot tell which — only something "
+                    "that reads the enclosing code can. The brief for that "
+                    "pass is in the JSON under `mutant_brief`; feed the "
+                    "verdicts back with --mutant-answers"})
+    if real or dropped:
+        rows.append({
+            "label": "of those, judged real defects",
+            "value": f"{len(real)} of {len(real) + len(dropped)}",
+            "flag": "bad" if real else "ok",
+            "note": f"{len(dropped)} "
+                    f"{'was' if len(dropped) == 1 else 'were'} judged not "
+                    f"worth a test and left the "
+                    f"count entirely — `never` is only a failure when the "
+                    f"thing never caught was worth catching. Judged by an "
+                    f"agent that did not write this code, which is a weaker "
+                    f"judge than the paper's 66,798 developer clicks"
+                    + ("; first: " + (real or dropped)[0].get("why", "")[:90]
+                       if (real or dropped)[0].get("why") else "")})
 
     if m.get("suppressed"):
         rows.append({
@@ -534,20 +592,24 @@ def mutation_rows(m):
                     "Appendix A; one was not, and is marked where it is "
                     "defined"})
 
-    if m.get("broken") or m.get("timeout"):
-        bits = []
-        if m.get("broken"):
-            bits.append(f"{m['broken']} broke the suite's loading")
-        if m.get("timeout"):
-            bits.append(f"{m['timeout']} hung past {m.get('budget_seconds')}s")
+    outside = []
+    if m.get("broken"):
+        outside.append(f"{m['broken']} broke the suite's loading")
+    if m.get("timeout"):
+        outside.append(f"{m['timeout']} hung past {m.get('budget_seconds')}s")
+    if m.get("false_block"):
+        outside.append(f"{m['false_block']} refused by a hook that refused the "
+                       f"original line too")
+    if outside:
         rows.append({
-            "label": "mutants outside the count",
-            "value": ", ".join(bits),
+            "label": "mutants outside the ladder",
+            "value": ", ".join(outside),
             "flag": "info",
-            "note": "neither is scored as noticed. A suite that cannot import "
-                    "has not detected anything, and a hang is changed "
-                    "behaviour that no test asserted"})
-    return rows, headline
+            "note": "none of these is a catch. A suite that cannot import has "
+                    "not detected anything, a hang is changed behaviour "
+                    "nothing asserted, and a hook that refuses every edit to "
+                    "a file has discriminated nothing"})
+    return rows
 
 
 # -- 3 -----------------------------------------------------------------------
@@ -1231,7 +1293,8 @@ def context_economy(root, probe, blast=None, value=None):
 # ---------------------------------------------------------------------------
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
-           memory=None, truth=None, value=None, mutants=None, mutants_why=""):
+           memory=None, truth=None, value=None, mutants=None, mutants_why="",
+           judged=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1241,7 +1304,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
     return [
         controlled_execution(root, probe, blast),
         change_validation(defects, catch, catch_why, ladder, mutants,
-                          mutants_why),
+                          mutants_why, judged),
         reliable_delivery(root, log, check_dirs),
         repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe, blast, value),

@@ -1380,6 +1380,10 @@ def case_productivity_is_reported_with_its_judge_named(t):
 # the second injection, on the page
 # --------------------------------------------------------------------------
 
+_DFX = {"replayable": 0, "fix_no_test": 0, "has_test_files": True,
+        "shallow": False}
+
+
 def _mutable_repo(t):
     """A repository with one covered line the tests assert about, and one they
     only execute. The second is what a mutant survives on."""
@@ -1410,44 +1414,35 @@ def case_mutation_reaches_the_page_only_when_asked(t):
     same either way: a dimension that shows the same rows whether or not the
     expensive half ran is a dimension nobody can tell has abstained."""
     cmd = _mutable_repo(t)
-    off = dim_mod.change_validation(
-        {"replayable": 0, "fix_no_test": 0, "has_test_files": True,
-         "shallow": False}, None, "", catch_mod.LADDER)
+    off = dim_mod.change_validation(_DFX, None, "", catch_mod.LADDER)
     how = [r for r in off["rows"] if r["label"] == "how the defect got in"]
     if not how or not how[0]["value"].startswith("1 way"):
         return f"without --mutate the page does not say one injection ran: {how}"
 
-    run, why = run_mod.assess(t, 6, command=cmd)
+    run, why = run_mod.assess(t, 6, work=os.path.join(t, "..", "w-" +
+                                                      os.path.basename(t)),
+                              command=cmd)
     if run is None:
         return f"the fixture could not be mutated at all: {why}"
-    on = dim_mod.change_validation(
-        {"replayable": 0, "fix_no_test": 0, "has_test_files": True,
-         "shallow": False}, None, "", catch_mod.LADDER, run)
+    on = dim_mod.change_validation(_DFX, None, "", catch_mod.LADDER, run)
     how = [r for r in on["rows"] if r["label"] == "how the defect got in"]
     if not how or not how[0]["value"].startswith("2 ways"):
         return f"with mutation the page still reports one injection: {how}"
-    if not [r for r in on["rows"]
-            if r["label"] == "changed lines the tests noticed"]:
-        return "the mutation result did not reach dimension 2 at all"
 
-    # The replay abstained in both calls above. Mutation having produced a
-    # reading means the dimension WAS measured -- reporting it as abstained
-    # would hide a measurement somebody paid for.
+    # The replay abstained in both calls. Mutation walked the ladder, so the
+    # dimension WAS measured -- reporting it as unmeasured would throw away
+    # something somebody paid for.
     if on["state"] != "measured":
-        return (f"mutation produced a reading and the dimension still reports "
+        return (f"mutation walked the ladder and the dimension still reports "
                 f"{on['state']!r}")
     if off["state"] == "measured":
         return "the dimension claims a measurement with neither injection run"
 
     # And off by default has to be the CLI's answer too, not only this
-    # function's. A page that silently ran the suite once per mutant because
-    # somebody forgot a flag has spent hours nobody asked for.
-    #
-    # The test command has to be supplied here, or the check is vacuous: the
-    # ecosystem table does not recognise this fixture, mutation would abstain
-    # for that reason instead of for being switched off, and a planted
-    # `default=8` sailed straight through this case. Supplying it means the
-    # only thing left stopping mutation is the default.
+    # function's. The test command has to be supplied here or the check is
+    # vacuous: the ecosystem table does not recognise this fixture, mutation
+    # would abstain for that reason instead of for being switched off, and a
+    # planted `default=8` sailed straight through this case.
     out = subprocess.run(
         [sys.executable, os.path.join(HERE, "factsheet.py"), "--root", t,
          "--no-full", "--test-command", " ".join(cmd)],
@@ -1455,76 +1450,179 @@ def case_mutation_reaches_the_page_only_when_asked(t):
     if "2 ways" in out.stdout:
         return "the default run mutated the repository without being asked"
     if "1 way" not in out.stdout:
-        return f"the default run says nothing about how a defect got in"
+        return "the default run says nothing about how a defect got in"
     return None
 
 
-def case_a_surviving_mutant_is_a_candidate_not_a_finding(t):
-    """The row that would be wrong three times in ten if it claimed defects.
+def case_a_mutant_walks_the_same_ladder_as_a_real_defect(t):
+    """The whole point of the second injection, and what it got wrong first.
 
-    The paper reports 70.6% of the survivors it showed Python developers as
-    worth acting on, which is the same sentence as: three in ten were not.
-    This page cannot tell which three -- only something that reads the
-    enclosing code can -- so the row says candidate, names the pass that
-    judges them, and the brief for that pass is produced here."""
+    A mutant was scored `killed` or `survived` -- did the test suite notice --
+    which is a narrower question than this dimension's and answers it at one
+    rung out of five. But a mutant is a change to a file, so every moment that
+    can see a change can see it: a PreToolUse hook that refuses the write is a
+    defect that never reached the disk, not a defect the suite missed.
+
+    So the mutant walks the same five rungs a defect from the repository's own
+    history walks, and both are counted in one ladder."""
     cmd = _mutable_repo(t)
-    run, why = run_mod.assess(t, 6, command=cmd)
-    if run is None:
-        return f"the fixture could not be mutated at all: {why}"
-    if not run["survived"]:
-        return ("nothing survived on a fixture built to have a line the tests "
-                "execute without asserting about -- the case cannot check "
-                "what it is for")
-    rows, headline = dim_mod.mutation_rows(run)
-    cand = [r for r in rows
-            if r["label"] == "which changes, and what to do with them"]
-    if not cand:
-        return "survivors were reported with no row saying what they are"
-    note = cand[0]["note"]
-    if "NOT findings" not in note:
-        return f"a survivor is presented as a finding: {note[:120]!r}"
-    if "mutant_brief" not in note:
-        return "the row does not say where the brief for judging them is"
-    if not headline:
-        return "survivors did not produce a headline for the dimension"
+    work = os.path.join(t, "..", "w-" + os.path.basename(t))
 
-    got, _why = judge_mod.brief(run, t)
-    if got is None or not got["index"]:
-        return "no brief was produced for the survivors"
-    if "def " not in got["prompt"]:
-        return ("the brief does not carry the enclosing code, so the judging "
-                "pass would be guessing from a diff line")
+    # No hooks: the suite is the first thing that can catch anything.
+    plain, why = run_mod.assess(t, 6, work=work + "-a", command=cmd)
+    if plain is None:
+        return f"the fixture could not be mutated at all: {why}"
+    if not plain["ladder"].get("local-suite"):
+        return (f"nothing reached the suite rung on a fixture whose tests do "
+                f"assert: {plain['ladder']}")
+    if plain["ladder"].get("before-write"):
+        return "a rung fired with no hooks wired at all"
+
+    # Now wire a hook that refuses every write. The same mutants must now be
+    # caught at the TOP of the ladder, not at the suite.
+    hook_script(t, ".claude/block.py", BLOCKER)
+    commit(t, "chore: a hook that refuses writes")
+    hooked, why = run_mod.assess(t, 6, work=work + "-b", command=cmd)
+    if hooked is None:
+        return f"the fixture stopped being mutable once a hook existed: {why}"
+    if not hooked["ladder"].get("before-write") and not hooked["false_block"]:
+        return (f"a hook that refuses every write caught nothing: "
+                f"{hooked['ladder']}")
+    return None
+
+
+def case_a_hook_that_refuses_everything_gets_no_rung(t):
+    """A guard that says no to the fix as well has discriminated nothing.
+
+    `catch.false_block` asks this of a replayed defect, and it has to be asked
+    of a mutant too. Otherwise the best rung on the ladder goes to the least
+    discriminating check in the repository, and a repository could top the
+    measurement by refusing all edits."""
+    cmd = _mutable_repo(t)
+    hook_script(t, ".claude/block.py", BLOCKER)
+    commit(t, "chore: a hook that refuses writes")
+    r, why = run_mod.assess(t, 6, work=os.path.join(t, "..", "w-" +
+                                                    os.path.basename(t)),
+                            command=cmd)
+    if r is None:
+        return f"nothing could be mutated: {why}"
+    if not r["false_block"]:
+        return ("a hook that refuses the original line too was not recorded "
+                "as a false block")
+    if r["ladder"].get("before-write"):
+        return ("a hook that refuses everything was still given the top rung "
+                "of the ladder")
+    return None
+
+
+def case_an_uncaught_mutant_is_pending_until_it_is_judged(t):
+    """`never` is only a failure if the thing never caught was worth catching.
+
+    A mutant nothing catches is not yet a defect: the paper's own figure says
+    roughly three survivors in ten are lines nothing should assert about. So
+    an unjudged one is reported `pending` and is NOT parked at `never` --
+    counting it there would make a repository look worse for having bought a
+    measurement nobody has finished reading. The agent's verdict is what turns
+    it into a defect, or removes it from the count entirely."""
+    cmd = _mutable_repo(t)
+    run, why = run_mod.assess(t, 6, work=os.path.join(t, "..", "w-" +
+                                                      os.path.basename(t)),
+                              command=cmd)
+    if run is None:
+        return f"nothing could be mutated: {why}"
+    if not run["survived"]:
+        return ("nothing reached `never` on a fixture built to have a line "
+                "the tests execute without asserting about")
+
+    counts, pending, real, dropped = dim_mod.mutant_ladder(run, None)
+    if counts.get("never"):
+        return (f"{counts['never']} unjudged mutant(s) were parked at `never` "
+                f"before anybody said they were defects")
+    if pending != run["survived"]:
+        return f"{run['survived']} uncaught, but {pending} reported pending"
+
+    ids = [i for i in range(run["survived"])]
+    yes = {"verdicts": [{"id": i, "verdict": "productive", "why": "real"}
+                        for i in ids]}
+    counts, pending, real, dropped = dim_mod.mutant_ladder(
+        run, judge_mod.grade(run, yes))
+    if counts.get("never") != run["survived"] or pending:
+        return (f"judged real, they did not land at `never`: "
+                f"{counts.get('never')} never, {pending} pending")
+
+    no = {"verdicts": [{"id": i, "verdict": "unproductive", "why": "no test"}
+                       for i in ids]}
+    counts, pending, real, dropped = dim_mod.mutant_ladder(
+        run, judge_mod.grade(run, no))
+    if counts.get("never") or pending:
+        return ("a change judged not worth a test still counts against the "
+                "repository")
+    if len(dropped) != run["survived"]:
+        return f"{len(dropped)} dropped, expected {run['survived']}"
     return None
 
 
 def case_a_caveat_outranks_the_figure_it_qualifies(t):
-    """A survivability figure over a flaky suite is not a survivability figure.
+    """A ladder taken over a flaky suite is not a ladder.
 
-    Both caveats are about the same failure: the number looks like the paper's
-    and is not comparable to it. Printing them below the figure invites exactly
-    the comparison they exist to refuse, so they are placed above it."""
+    Both caveats are about the same failure: the mutation numbers look like
+    the paper's and are not comparable to them. Printing them below the rows
+    they disqualify invites exactly the comparison they exist to refuse."""
     run = {"killed": 8, "survived": 2, "generated": 10, "suppressed": 3,
            "broken": 0, "timeout": 0, "unplaceable": 0, "survivability": 0.2,
            "seconds": 4.0, "command": "pytest", "flaky": True,
+           "false_block": 0,
+           "ladder": {"before-write": 0, "same-turn": 0, "local-suite": 8,
+                      "ci": 0, "never": 2},
            "coverage": "NOT available — the covered-line restriction was "
                        "dropped",
            "rows": [{"verdict": "survived", "path": "a.py", "line": 3,
                      "operator": "AOR", "before": "a + b", "after": "a - b"}]}
-    rows, _h = dim_mod.mutation_rows(run)
+    rows = dim_mod.mutation_rows(run, catch_mod.LADDER, None)
     labels = [r["label"] for r in rows]
-    figure = labels.index("changed lines the tests noticed")
+    body = labels.index("mutants nothing caught, awaiting judgement")
     for caveat in ("!! the suite is flaky", "!! coverage was not available"):
         if caveat not in labels:
             return f"the page does not carry the caveat {caveat!r} at all"
-        if labels.index(caveat) > figure:
-            return (f"{caveat!r} is printed below the figure it disqualifies")
+        if labels.index(caveat) > body:
+            return f"{caveat!r} is printed below the rows it disqualifies"
         if [r for r in rows if r["label"] == caveat][0]["flag"] != "warn":
             return f"{caveat!r} is not flagged, so it reads as a footnote"
 
     clean = dict(run, flaky=False, coverage="measured — 40 line(s) executed")
-    labels = [r["label"] for r in dim_mod.mutation_rows(clean)[0]]
+    labels = [x["label"] for x in
+              dim_mod.mutation_rows(clean, catch_mod.LADDER, None)]
     if [x for x in labels if x.startswith("!!")]:
         return f"a clean run still prints a caveat: {labels}"
+    return None
+
+
+def case_the_brief_asks_about_the_whole_ladder(t):
+    """What the agent is judging changed, so what it is told had to change.
+
+    It used to be handed changes "the suite did not notice". It is now handed
+    changes NOTHING caught -- no hook before the write, no hook after, not the
+    suite, not CI -- and told that its verdict decides whether each one counts
+    as a defect at all. An agent judging the narrower question would be
+    answering about a measurement that no longer exists."""
+    cmd = _mutable_repo(t)
+    run, why = run_mod.assess(t, 6, work=os.path.join(t, "..", "w-" +
+                                                      os.path.basename(t)),
+                              command=cmd)
+    if run is None:
+        return f"nothing could be mutated: {why}"
+    got, _why = judge_mod.brief(run, t)
+    if got is None or not got["index"]:
+        return "no brief was produced for the uncaught changes"
+    if "def " not in got["prompt"]:
+        return ("the brief does not carry the enclosing code, so the judging "
+                "pass would be guessing from a diff line")
+    low = got["prompt"].lower()
+    if "nothing in this repository caught" not in low:
+        return "the brief still describes the narrower suite-only question"
+    if "leaves the measurement" not in low:
+        return ("the brief does not tell the judge that its verdict decides "
+                "whether the change is a defect at all")
     return None
 
 
@@ -2337,8 +2435,14 @@ CASES = [
      case_productivity_is_reported_with_its_judge_named),
     ("mutation reaches the page only when it is asked for",
      case_mutation_reaches_the_page_only_when_asked),
-    ("a surviving mutant is a candidate, not a finding",
-     case_a_surviving_mutant_is_a_candidate_not_a_finding),
+    ("a mutant walks the same ladder as a real defect",
+     case_a_mutant_walks_the_same_ladder_as_a_real_defect),
+    ("a hook that refuses everything gets no rung",
+     case_a_hook_that_refuses_everything_gets_no_rung),
+    ("an uncaught mutant is pending until it is judged",
+     case_an_uncaught_mutant_is_pending_until_it_is_judged),
+    ("the brief asks about the whole ladder, not just the suite",
+     case_the_brief_asks_about_the_whole_ladder),
     ("a caveat is printed above the figure it disqualifies",
      case_a_caveat_outranks_the_figure_it_qualifies),
     ("an unanswered mutant moves the score neither way",

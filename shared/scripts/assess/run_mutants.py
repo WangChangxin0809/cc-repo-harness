@@ -30,6 +30,19 @@ If neither works, the covered-line restriction is **dropped and said to be
 dropped**. Silently mutating uncovered lines would fill the report with
 survivors that mean nothing.
 
+## Where a mutant is caught, not merely whether the suite noticed
+
+A mutant is a change to a file, so every moment that can see a change can see
+it: a PreToolUse hook can refuse the write, a PostToolUse hook can object after
+it, the suite can go red, CI can. It walks the same five rungs a defect from
+the repository's own history walks, stopping at the first red, because the
+question dimension 2 asks is *when is this first caught* -- and scoring a
+mutant only against the test suite answers that at one rung out of five.
+
+A change nothing catches is **not yet a defect**. `never` is only a failure if
+the thing never caught was worth catching, and the paper's own figure says
+roughly three survivors in ten are not. Those go to an agent -> `judge.py`.
+
 ## Killed is not the same as caught
 
 A mutant is `killed` when the suite goes red, `survived` when it stays green,
@@ -60,9 +73,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import mutate as mutate_mod  # noqa: E402
+from catch import (LADDER, bench, ci_command, ci_seconds,  # noqa: E402
+                   edit_payload, fire, park, wired)
 from ecosystems import find, sh  # noqa: E402
 
 TEST_TIMEOUT = 300
+CI_TIMEOUT = 1800
 
 
 # --------------------------------------------------------------------------
@@ -240,6 +256,7 @@ def covered_lines(root, cmd):
 # --------------------------------------------------------------------------
 
 def run_one(root, rel, mutated, cmd, backup, budget=TEST_TIMEOUT):
+    """One mutant against the suite, and the file put back either way."""
     full = os.path.join(root, rel)
     with open(full, "w", encoding="utf-8") as fh:
         fh.write(mutated)
@@ -248,6 +265,14 @@ def run_one(root, rel, mutated, cmd, backup, budget=TEST_TIMEOUT):
     finally:
         with open(full, "w", encoding="utf-8") as fh:
             fh.write(backup)
+    return verdict_of(out, budget)
+
+
+def verdict_of(out, budget):
+    """What a suite run means, separated from the running of it.
+
+    The ladder needs this classification without run_one's write-and-restore,
+    because a mutant on the ladder stays on disk across several rungs."""
     tail = (out.stdout or out.stderr).strip().splitlines()
     detail = tail[-1][:160] if tail else f"exit {out.returncode}"
     if out.returncode == 124:
@@ -275,15 +300,109 @@ def run_one(root, rel, mutated, cmd, backup, budget=TEST_TIMEOUT):
     return "killed", detail
 
 
-def assess(root, limit=30, files=None, work=None, command=None):
-    """`command` overrides the ecosystem table's guess.
+def walk(repo, m, source, mutated, pre, post, cmd, ci, ci_secs, budget):
+    """(rung, verdict, detail, seconds) -- where this mutant is first caught.
 
-    The table is a fast path that knows a handful of conventions, and a
-    repository it has never seen will not match one of them -- measured: of
-    five real Python repositories cloned to test this, the table produced a
-    green suite for one. So a caller who has read the repository, agent or
-    person, can say how its tests run, and the table is only the default."""
-    eco, cmd = find(root)
+    The same five rungs a defect from the repository's own history walks, asked
+    in the same order and stopping at the same place: the first red. A mutant
+    is a change to a file, so every moment that can see a change can see this
+    one, and scoring it only against the test suite measured one rung and
+    reported on a repository.
+
+    That was the bug this replaces. `killed` and `survived` answered *did the
+    suite notice*, which is a different question from this dimension's, and a
+    narrower one: a mutant refused by a PreToolUse hook is not a defect the
+    suite failed to catch, it is a defect that never reached the disk.
+    """
+    full = os.path.join(repo, m.path)
+    t0 = time.monotonic()
+    blocked, h, said = fire(repo, pre,
+                            edit_payload(repo, "PreToolUse", m.path,
+                                         source, mutated))
+    if blocked:
+        return ("before-write", "killed",
+                f"{h['command'][:60]} — {said}", time.monotonic() - t0)
+
+    with open(full, "w", encoding="utf-8") as fh:
+        fh.write(mutated)
+    try:
+        t1 = time.monotonic()
+        blocked, h, said = fire(repo, post,
+                                edit_payload(repo, "PostToolUse", m.path,
+                                             "", mutated))
+        if blocked:
+            return ("same-turn", "killed",
+                    f"{h['command'][:60]} — {said}", time.monotonic() - t1)
+
+        t2 = time.monotonic()
+        verdict, detail = verdict_of(sh(cmd, repo, budget), budget)
+        suite = time.monotonic() - t2
+        # Neither is a rung. A suite that cannot load has not detected
+        # anything, and a hang is changed behaviour nothing asserted -- both
+        # are outside the ladder rather than at the bottom of it.
+        if verdict in ("broken", "timeout"):
+            return None, verdict, detail, None
+        if verdict == "killed":
+            return "local-suite", "killed", detail, suite
+
+        if ci:
+            out = sh(ci, repo, CI_TIMEOUT)
+            if out.returncode != 0:
+                tail = (out.stdout or out.stderr).strip().splitlines()
+                return ("ci", "killed",
+                        tail[-1][:140] if tail else f"exit {out.returncode}",
+                        ci_secs)
+        return "never", "survived", "nothing went red", None
+    finally:
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(source)
+
+
+def blocks_everything(repo, m, source, mutated, pre, post):
+    """Do the same hooks also refuse putting the original line back?
+
+    `catch.false_block` asks this of a replayed defect and it has to be asked
+    here too. A hook that refuses every edit to a file has caught nothing;
+    counting it as `before-write` would give the best rung on the ladder to
+    the least discriminating check on the repository."""
+    blocked, h, said = fire(repo, pre,
+                            edit_payload(repo, "PreToolUse", m.path,
+                                         mutated, source))
+    if blocked:
+        return f"before-write: {h['command'][:60]} — {said}"
+    blocked, h, said = fire(repo, post,
+                            edit_payload(repo, "PostToolUse", m.path,
+                                         mutated, source))
+    if blocked:
+        return f"same-turn: {h['command'][:60]} — {said}"
+    return ""
+
+
+def assess(root, limit=30, files=None, work=None, command=None):
+    """Generate defects, then walk each one down the ladder.
+
+    `command` overrides the ecosystem table's guess. The table is a fast path
+    that knows a handful of conventions, and a repository it has never seen
+    will not match one of them -- measured: of five real Python repositories
+    cloned to test this, the table produced a green suite for one. So a caller
+    who has read the repository, agent or person, can say how its tests run,
+    and the table is only the default.
+
+    Everything happens in a **clone**. The mutants are written to disk and the
+    repository's own hooks are fired at them, and both of those are changes to
+    a working tree. `catch.py` clones for the same reason and this shares its
+    bench.
+    """
+    work = work or tempfile.mkdtemp(prefix="assess-mutate-")
+    repo = bench(root, work)
+    park(repo, "HEAD")
+    # The hooks are the SUBJECT's, read from its settings; they are fired
+    # inside the clone. Reading them from the clone would work too and would
+    # quietly stop working the day a repository wires a hook by absolute path.
+    pre, post = wired(root, "PreToolUse"), wired(root, "PostToolUse")
+    ci = ci_command(repo)
+    ci_secs = ci_seconds(root)
+    eco, cmd = find(repo)
     if command:
         cmd = command if isinstance(command, list) else command.split()
         eco = eco or type("Given", (), {"name": "given", "tool": None})()
@@ -294,7 +413,7 @@ def assess(root, limit=30, files=None, work=None, command=None):
         return None, "cannot judge: ast.unparse needs Python 3.9 or newer"
 
     out = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files",
-                          "*.py"], cwd=root, capture_output=True, text=True)
+                          "*.py"], cwd=repo, capture_output=True, text=True)
     if out.returncode != 0:
         return None, "cannot judge: not a git repository"
     sources = [p for p in out.stdout.split()
@@ -315,7 +434,7 @@ def assess(root, limit=30, files=None, work=None, command=None):
     greens, last, spent = 0, None, []
     for _ in range(3):
         t = time.monotonic()
-        last = sh(cmd, root, TEST_TIMEOUT)
+        last = sh(cmd, repo, TEST_TIMEOUT)
         spent.append(time.monotonic() - t)
         greens += 1 if last.returncode == 0 else 0
     if greens == 0:
@@ -329,9 +448,9 @@ def assess(root, limit=30, files=None, work=None, command=None):
     # nothing and costs the run.
     budget = max(20, int(8 * min(spent)) + 5)
 
-    covered = covered_lines(root, cmd)
+    covered = covered_lines(repo, cmd)
     mutants, dropped, srcs = mutate_mod.generate(
-        root, sources, covered if covered else None, "arid")
+        repo, sources, covered if covered else None, "arid")
     if not mutants:
         return None, "cannot judge: no mutable, covered, non-arid line"
 
@@ -354,16 +473,36 @@ def assess(root, limit=30, files=None, work=None, command=None):
             continue
         mutated = apply(src, m)
         if mutated is None:
-            m.verdict, m.detail = "unplaceable", "the mutation could not be applied"
-        else:
-            m.verdict, m.detail = run_one(root, m.path, mutated, cmd, src,
-                                          budget)
-        rows.append(m.as_dict())
+            row = {**m.as_dict(), "verdict": "unplaceable", "rung": None,
+                   "detail": "the mutation could not be applied",
+                   "seconds": None, "false_block": ""}
+            rows.append(row)
+            continue
+        got, verdict, detail, secs = walk(repo, m, src, mutated, pre, post,
+                                          cmd, ci, ci_secs, budget)
+        wrong = ""
+        if got in ("before-write", "same-turn"):
+            wrong = blocks_everything(repo, m, src, mutated, pre, post)
+            if wrong:
+                # A hook that refuses the fix as well has discriminated
+                # nothing. It does not get the top of the ladder for that.
+                got, verdict = None, "false-block"
+        rows.append({**m.as_dict(), "verdict": verdict, "rung": got,
+                     "detail": detail, "seconds": secs, "false_block": wrong})
 
     counted = [r for r in rows if r["verdict"] in ("killed", "survived")]
     survived = [r for r in counted if r["verdict"] == "survived"]
+    ladder = {k: 0 for k in LADDER}
+    for r_ in rows:
+        if r_.get("rung"):
+            ladder[r_["rung"]] += 1
     return {
         "ecosystem": eco.name, "command": " ".join(cmd),
+        "ci": " ".join(ci) if ci else "", "ci_seconds": ci_secs,
+        "hooks": {"PreToolUse": len(pre), "PostToolUse": len(post)},
+        "ladder": ladder,
+        "false_block": len([r_ for r_ in rows
+                            if r_["verdict"] == "false-block"]),
         "coverage": (f"measured — {sum(len(v) for v in covered.values())} "
                      f"line(s) executed across {len(covered)} file(s)")
                     if covered else
@@ -393,8 +532,18 @@ def render(r):
         lines.append("     on kills: a mutant is scored killed whenever the")
         lines.append("     suite goes red, including when it would have anyway.")
         lines.append("")
-    lines.append(f"  killed      {r['killed']}")
-    lines.append(f"  survived    {r['survived']}")
+    lines.append("  where each mutant was first caught")
+    lines.append("    " + "  ".join(f"{k}:{r['ladder'][k]}" for k in LADDER))
+    lines.append(f"    hooks asked: PreToolUse {r['hooks']['PreToolUse']}, "
+                 f"PostToolUse {r['hooks']['PostToolUse']}"
+                 + (f"; CI: {r['ci']}" if r["ci"] else "; no CI entry point"))
+    lines.append("")
+    lines.append(f"  caught      {r['killed']}")
+    lines.append(f"  never       {r['survived']}   (candidates for the second "
+                 f"pass — not yet defects)")
+    if r.get("false_block"):
+        lines.append(f"  false block {r['false_block']}   (a hook refused the "
+                     f"original line too, so it caught nothing)")
     if r["broken"]:
         lines.append(f"  broken      {r['broken']}   (the suite could not "
                      f"load — NOT counted as killed)")

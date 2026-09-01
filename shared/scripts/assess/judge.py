@@ -107,11 +107,17 @@ def enclosing(source, line, span=14):
 
 
 BRIEF = """\
-# Second pass over surviving mutants
+# Second pass over defects nothing caught
 
 Each block below is a single-line change to code that **the test suite already
-executes**, which the suite did not notice: every test still passed with the
-change in place.
+executes**, and that **nothing in this repository caught** — not a hook before
+it was written, not a hook after, not the test suite, not CI. It went in and
+stayed in.
+
+That is only a problem if the change was worth catching, which is what you are
+here to decide. Your verdict decides whether it counts as a defect at all: a
+change judged unproductive leaves the measurement entirely rather than being
+recorded as one this repository missed.
 
 For each one, answer the question the mutation-testing literature actually
 asks, which is not whether the change is a bug:

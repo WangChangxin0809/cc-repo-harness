@@ -43,6 +43,37 @@ is a fact about the table. Only report the first after you have looked.
 And do not write tests to make the number better. If a suite exists, run it. If
 none exists, the honest page says so.
 
+## The second pass, when mutation was asked for
+
+`--mutate N` adds a second way of introducing a defect: one line the tests
+already execute, changed. Each one walks the same ladder as a defect from the
+repository's own history — a hook can refuse it before it is written, the
+suite can go red, CI can. It is off unless somebody asks for it.
+
+The ones **nothing caught** are not yet defects, and the page says so: they sit
+at `pending`, not at `never`. Roughly three in ten will be lines nothing should
+assert about — a capacity, a log line, a default nobody promised — and no
+machine can tell which three. That is your judgement, and it is the only part
+of this dimension a page cannot produce.
+
+```bash
+# the brief is in the JSON, under `mutant_brief`
+python3 -c "import json;print(json.load(open('assessment.json'))['mutant_brief']['prompt'])" > brief.md
+# read it, answer it, write {"verdicts":[{"id":0,"verdict":"productive","why":"..."}]}
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" --mutate N \
+        --mutant-answers verdicts.json --html assessment.html
+```
+
+The question is not *is this a bug*. It is: **would a test written to catch
+this change be a test worth having?** Say `unproductive` when the answer is no
+and the change leaves the count entirely — that is the right outcome, not a
+concession. Say `productive` when the line encodes behaviour somebody depends
+on; it then lands at `never`, which is the most expensive row on the page.
+
+Judge the change in front of you. Do not go looking for other problems, and do
+not soften a verdict because the surrounding code is good.
+
 Read what it printed before you read anything else. **Do not recompute what it
 gave you.** You cannot count tokens, you will not give the same figure twice,
 and if the numbers come from you then re-measuring later compares two opinions

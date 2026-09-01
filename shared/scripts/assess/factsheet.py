@@ -150,7 +150,7 @@ def gather(root, full, instances, work, command=None, mutate=0):
     # suite that runs code without asserting anything about it.
     if mutate:
         r["mutants"], r["mutants_why"] = mutants_mod.assess(
-            root, mutate, command=command)
+            root, mutate, work=os.path.join(work, "mutate"), command=command)
         if r["mutants"]:
             got, _why = judge_mod.brief(r["mutants"], root)
             r["mutant_brief"] = got
@@ -195,7 +195,7 @@ def head_of(r):
             "tier": p["tier"]}
 
 
-def dimensions_of(r, memory=None):
+def dimensions_of(r, memory=None, judged=None):
     """`memory` is `memory.compare()`'s output, when somebody spent the two
     agents dimension 4's navigation half needs. Without it that half abstains;
     the truth half in `r["truth"]` costs nothing and is always there."""
@@ -203,7 +203,7 @@ def dimensions_of(r, memory=None):
                           r["catch_why"], r["defects"], r.get("log"),
                           catch_mod.LADDER, memory, r.get("truth"),
                           r.get("value"), r.get("mutants"),
-                          r.get("mutants_why", ""))
+                          r.get("mutants_why", ""), judged)
 
 
 def render_flat(r):
@@ -323,6 +323,11 @@ def main():
                     help="change N covered lines and see whether the tests "
                          "notice (default 30 when given without a number). "
                          "Runs the suite once per mutant — minutes to hours.")
+    ap.add_argument("--mutant-answers", default="",
+                    help="JSON from the agent that read `mutant_brief` and "
+                         "said which uncaught changes were worth catching. "
+                         "Without it those mutants are reported pending, not "
+                         "parked at `never`")
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
@@ -397,7 +402,12 @@ def _run(a, root, work):
         if a.memory:
             with open(a.memory, encoding="utf-8") as fh:
                 memory = json.load(fh)
-        head, dims = head_of(r), dimensions_of(r, memory)
+        judged = None
+        if a.mutant_answers and r.get("mutants"):
+            with open(a.mutant_answers, encoding="utf-8") as fh:
+                judged = judge_mod.grade(r["mutants"], json.load(fh))
+            r["mutants_judged"] = judged
+        head, dims = head_of(r), dimensions_of(r, memory, judged)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)

@@ -1,6 +1,6 @@
 ---
 description: Measure this repository as a place for an agent to work — five dimensions, one page, nothing changed
-argument-hint: "[path] [--no-full] [--test-command CMD]"
+argument-hint: "[path] [--no-full] [--test-command CMD] [--mutate N]"
 allowed-tools: Bash, Read, Grep, Glob, Task
 ---
 
@@ -36,6 +36,13 @@ The replay runs by default: it takes real defects from the repository's own
 history and finds how late each one is caught. It costs minutes and it runs
 that repository's tests, so the command is printed before it runs. Pass
 `--no-full` only if the caller asked to skip it.
+
+`--mutate N` is off by default and adds a second source of defects: one line
+the tests already execute, changed, walking the same ladder. It runs the suite
+once per mutant, so pass it only when the caller asked or when the suite is
+fast. The changes nothing caught come back as `pending` — read
+`mutant_brief` in the JSON, judge each one, and feed the verdicts back with
+`--mutant-answers`. Unjudged, they are counted neither way.
 
 If the page says no test command was found, that is a fact about the ecosystem
 table, not about the repository. Read the CI file yourself and pass what you
