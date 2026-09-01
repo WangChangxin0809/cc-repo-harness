@@ -42,9 +42,17 @@ def interpreter():
     return os.environ.get("ASSESS_PYTHON") or sys.executable
 
 
+# Exit codes every runner uses for "this did not run": 5 is pytest collecting
+# nothing, 124 is a timeout, 127 is a command that is not there.
+DID_NOT_RUN = (5, 124, 127)
+
+
 class Ecosystem:
     name = "?"
     tool = None
+    # What this runner's exit codes mean. Overridden where the runner has a
+    # code of its own for "did not start".
+    did_not_run = DID_NOT_RUN
 
     def detect(self, path):
         raise NotImplementedError
@@ -96,6 +104,9 @@ class Node(Ecosystem):
 class Python(Ecosystem):
     name = "python"
     tool = "python3"
+    # pytest exits 2 for a usage error and for an interrupted run. Neither is
+    # a test that failed.
+    did_not_run = DID_NOT_RUN + (2,)
     MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
 
     def detect(self, path):
@@ -180,7 +191,122 @@ class Make(Ecosystem):
         return ["make", "test"] if "\ntest:" in "\n" + body else None
 
 
-ECOSYSTEMS = (Node(), Python(), Rust(), Go(), Make())
+class Declared(Ecosystem):
+    """The command the repository documents for itself, when nothing else fits.
+
+    Every detector above recognises a *convention* -- `pytest`, `npm test`,
+    `cargo test`. A repository whose suite is five bespoke scripts matches
+    none of them, and the assessment then reports "no runnable test command",
+    which is a fact about the detectors rather than about the repository.
+    This project's own tree was that repository: it has 142 assessment cases,
+    18 CI steps and a documented entry point, and dimension 2 abstained on it
+    for months.
+
+    ## Why reading a command out of a document is dangerous, and the rule
+
+    A `README` is prose, and prose about commands contains commands --
+    including the ones it is warning you against. Running the first fenced
+    line in a document would eventually run `rm -rf /` out of a section
+    explaining why not to. That is the failure this project has shipped five
+    times in other checks: text *about* a thing read as the thing.
+
+    So a candidate has to survive all of:
+
+    * it sits in a fenced block **introduced by a line about running checks**
+      -- a heading or sentence naming tests, checks, the suite, or pushing;
+    * it is one line, with no `;`, `&&`, `|`, redirect, backtick or `$(`, so
+      it cannot fan out into something the text never showed;
+    * it **names a path that exists in the tree**. This is the load-bearing
+      one. `python3 scripts/check.py` names a file; `rm -rf /` and
+      `curl ... | sh` name nothing, and neither does an illustrative command
+      from a document about some other repository.
+
+    A command that fails any of these is not narrowed down to something safer
+    -- it is dropped, and the ecosystem goes on abstaining. An abstention is a
+    correct answer here and a guessed command is not.
+    """
+
+    name = "declared"
+    tool = None
+    # The command belongs to the repository, and a repository that ships this
+    # project's harness uses 2 for COULD NOT JUDGE -- stated in its own
+    # CLAUDE.md and honoured by every check it runs.
+    did_not_run = DID_NOT_RUN + (2,)
+    # Which document the command came from, set by `detect`. The assessment
+    # runs this against a repository nobody here has read; printing the
+    # command without saying where it was found would present somebody's
+    # documentation as this tool's own choice.
+    source = None
+
+    # Where a repository states its own entry point, most authoritative first.
+    DOCS = ("CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md", "README.md",
+            "docs/CONTRIBUTING.md", ".github/CONTRIBUTING.md")
+
+    # The line that introduces the block. `test` alone is too weak -- every
+    # README says the word -- so it has to be doing the introducing.
+    INTRO = re.compile(
+        r"(?:^|\n)[^\n]{0,120}?\b(?:before (?:you )?(?:push|commit)|"
+        r"run (?:the )?(?:tests?|checks?|suite)|the (?:whole )?suite|"
+        r"running the tests?|to test|local (?:test|check)|"
+        r"tests?\s*$|checks?\s*$)[^\n]{0,80}$", re.I | re.M)
+
+    FENCE = re.compile(r"```(?:bash|sh|shell|console)?\n(.*?)```", re.S)
+
+    # Anything that lets one line become several.
+    FANOUT = re.compile(r"[;&|><`]|\$\(")
+
+    def _candidates(self, path):
+        for rel in self.DOCS:
+            full = os.path.join(path, rel)
+            if not os.path.exists(full):
+                continue
+            try:
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            for m in self.FENCE.finditer(text):
+                intro = text[:m.start()]
+                if not self.INTRO.search(intro[-260:]):
+                    continue
+                for line in m.group(1).splitlines():
+                    line = line.split("#")[0].strip()
+                    if line.startswith("$ "):
+                        line = line[2:].strip()
+                    if line:
+                        yield rel, line
+                        break
+
+    def detect(self, path):
+        for rel, line in self._candidates(path):
+            if self.FANOUT.search(line):
+                continue
+            parts = line.split()
+            # The load-bearing rule: some argument has to be a file that is
+            # really there. Without it this would run text.
+            # Relative only. `os.path.join(root, "/")` is `/`, which exists
+            # on every machine -- so without this line `rm -rf /` satisfies
+            # the rule that a command must name something real. The
+            # repository's own selftest caught that on its first run.
+            named = [p.strip("\"'") for p in parts[1:]
+                     if "/" in p or p.endswith((".py", ".sh", ".js", ".ts"))]
+            named = [p for p in named
+                     if p and not os.path.isabs(p) and ".." not in p.split("/")]
+            if not named:
+                continue
+            if not any(os.path.exists(os.path.join(path, p)) for p in named):
+                continue
+            if shutil.which(parts[0]) is None:
+                continue
+            self.source = rel
+            return parts
+        return None
+
+
+# Last, deliberately. Where a convention applies it is the better answer --
+# `pytest` knows how to name a single test and a documented shell line does
+# not. This is the fallback for the repositories the conventions cannot see.
+ECOSYSTEMS = (Node(), Python(), Rust(), Go(), Make(), Declared())
 
 # A suite that is red because nothing could be imported is not a red suite. A
 # missing dependency and a failing test both exit non-zero, and scoring the
@@ -189,6 +315,18 @@ CANNOT_RUN = (
     "no tests ran", "INTERNALERROR", "ModuleNotFoundError", "ImportError",
     "ERROR collecting", "cannot find module", "Cannot find module",
     "MODULE_NOT_FOUND", "command not found", "is not on PATH",
+    # The entry point is not there at this commit. A repository's test command
+    # is discovered at HEAD and the replay checks out its history, so a suite
+    # that was introduced last week does not exist at the commit being
+    # replayed -- and an interpreter that cannot open its own script exits
+    # non-zero exactly like a failing test. Reading that as red would report
+    # every commit older than the suite as broken.
+    # Only the interpreter's own wording. A bare "No such file or directory"
+    # was here for one revision and taken out again: a test that fails on a
+    # missing fixture prints exactly that, and calling it could-not-run would
+    # hide a real defect. A shell script that is not there exits 127, which is
+    # already handled above.
+    "can't open file", "cannot open file",
 )
 
 
@@ -213,13 +351,20 @@ def find(path):
     return None, None
 
 
-def run(path, cmd):
-    """(verdict, one line). green / red / could-not-run -- never a bare bool."""
+def run(path, cmd, codes=DID_NOT_RUN):
+    """(verdict, one line). green / red / could-not-run -- never a bare bool.
+
+    `codes` is the runner's own vocabulary and is not universal. 2 means a
+    usage error or an interrupted run to pytest, and COULD NOT JUDGE to a
+    repository following this project's convention -- but to `make` it means
+    the recipe failed, which is a red suite. Reading 2 as could-not-run for
+    everything turned a genuinely failing `make test` into an abstention, and
+    that is the direction this whole assessment is written to refuse."""
     out = sh(cmd, path, TEST_TIMEOUT)
     tail = (out.stdout or out.stderr).strip().splitlines()
     detail = tail[-1][:160] if tail else f"exit {out.returncode}"
     if out.returncode == 0:
         return "green", detail
-    if out.returncode in (5, 124, 127) or unusable(detail):
+    if out.returncode in codes or unusable(detail):
         return "could-not-run", detail
     return "red", detail

@@ -51,11 +51,9 @@ success.
 ```
 
 **The criterion is the one required shape in this file**, and it is required
-because it is content rather than form. Of five context signals measured against
-SWE-bench Verified, reproduction instructions were worth +56.3% — three times
-edit location, and more than everything else combined. A step that says what to
-run and what you should then observe is the highest-value sentence a repository
-can contain. Steps without one are read as gestures and executed as gestures.
+because it is content rather than form — `SKILL.md` gives the measurement
+behind that. A step that says what to run and what you should then observe is
+the highest-value sentence a repository can contain.
 
 Write the positive path. The set of wrong ways is unbounded and a document that
 enumerates them is both longer and still incomplete. A prohibition worth keeping
@@ -135,7 +133,7 @@ one artifact that records what you used to believe and why — the part that sto
 the idea being re-litigated every six months. Record what you rejected, for the
 same reason.
 
-Two honest notes. Decision records are for people, not agents: in observed
+Two things worth saying plainly. Decision records are for people, not agents: in observed
 sessions, agents opened architecture and decision documents 4.0% of the time,
 and there is no measured evidence they help an agent at all. And the genre
 usually does not survive — about half of all repositories with decision records
@@ -146,10 +144,9 @@ process pulls it, not a convention.
 
 ## `docs/exec-plans/` — what are we in the middle of?
 
-Multi-session work needs a file, because context does not survive the session
-and the plan is the only thing that does. Past a few steps it needs a **folder**:
-the plan's state has to be readable at a glance while one step may carry pages
-of decisions.
+`SKILL.md` says why multi-session work needs a file at all. Past a few steps
+it needs a **folder**, and this is its shape: the plan's state has to be
+readable at a glance while one step may carry pages of decisions.
 
 ```
 docs/exec-plans/migrate-verifier/
@@ -218,9 +215,6 @@ detects it:
 
 > `blocked: git restore discards uncommitted work in the same file. Back up`
 > `with cp first — see docs/how-to/reverting-safely.md`
-
-Failure output is the one place a negative is guaranteed to be read, because the
-reader is stuck.
 
 **Generated is a property, not a place.** A generated file lives in the
 directory its content belongs to and declares itself in its own first line:

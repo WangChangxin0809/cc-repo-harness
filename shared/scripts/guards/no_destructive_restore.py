@@ -23,8 +23,18 @@ from __future__ import annotations
 import re
 
 # `git checkout -- x`, `git checkout HEAD -- x`, `git checkout .`
+#
+# `--ours` and `--theirs` are excluded with `-b`/`-B`. They are only meaningful
+# while a merge or rebase is unresolved, and what they overwrite is the
+# conflict-marked file git wrote a moment ago -- not work anybody authored.
+# Blocking them leaves no ordinary way to resolve a conflict at all, which is
+# how this was found: taking one side of an eight-file merge on this
+# repository was refused, and the way through was to write git's own index
+# stages out by hand.
 _CHECKOUT_RESTORE = re.compile(
-    r"\bgit\s+(?:-\S+\s+)*checkout\b(?![^|;&]*\s-{1,2}[bB]\b)"
+    r"\bgit\s+(?:-\S+\s+)*checkout\b"
+    r"(?![^|;&]*\s-{1,2}[bB]\b)"
+    r"(?![^|;&]*\s--(?:ours|theirs)\b)"
     r"[^|;&]*?(?:\s--\s|\s\.\s*$|\s\.\s*[|;&])"
 )
 # `git restore x` -- but `--staged` alone only touches the index, which is safe.
@@ -66,6 +76,11 @@ CASES = [
     ("Bash", {"command": "git checkout main"}, False),
     ("Bash", {"command": "git checkout -B release origin/release"}, False),
     ("Bash", {"command": "git restore --staged src/main.py"}, False),
+    # Resolving a conflict, not discarding work: what these overwrite is the
+    # conflict-marked file git wrote, and there is no other ordinary way to
+    # take a side.
+    ("Bash", {"command": "git checkout --ours -- shared/scripts/x.py"}, False),
+    ("Bash", {"command": "git checkout --theirs -- docs/index.md"}, False),
     ("Bash", {"command": "git status"}, False),
     ("Bash", {"command": "echo 'never run git checkout -- x'"}, True),
     ("Read", {"file_path": "git checkout -- x"}, False),

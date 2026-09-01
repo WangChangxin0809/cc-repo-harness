@@ -529,6 +529,14 @@ def tier3(root, documents, now, limit=8):
             continue
         named = ", ".join(subjects[:3]) + (" …" if len(subjects) > 3 else "")
         rows.append({"tier": 3, "file": rel,
+                     # When the document itself last moved. A reading of a
+                     # tier-3 candidate is a reading of *this* document, and
+                     # it stands for as long as the document does -- however
+                     # much churn goes on around it. The claim cannot carry
+                     # that: it counts commits to the subjects, so it changes
+                     # every time one of them is touched, and an answer keyed
+                     # to it would expire on somebody else's commit.
+                     "moved": int(moved),
                      "claim": f"{churn} commit(s) to what it points at "
                               f"({named}) in the {days:.0f} days since this "
                               f"was touched",
@@ -654,6 +662,157 @@ def assess(root, now=None):
             "checked": len(documents), "why": ""}
 
 
+BRIEF = """\
+# Which of these are real?
+
+Each line below is a place a machine can point at and cannot judge. A count
+that disagrees with the tree is usually the tree having moved and sometimes the
+document being wrong about what it describes. A path that resolves nowhere is
+usually a document about a repository this one scaffolds, where the path is
+correct and simply not here.
+
+So the tiers are where to look, and nothing else. Read the document, read what
+it describes, and say which it is.
+
+    T1  a count the document gives that the tree disagrees with
+    T2  a path the document names that resolves nowhere
+    T3  a document whose subject changed after the document last did
+    T4  two documents giving one number two values
+
+**A dismissal is an answer**, and the reason it is worth writing down is that
+it does not survive otherwise: the same candidate comes back on every run of
+every assessment forever, and each reader pays to rediscover that the path
+belongs to somebody else's tree.
+
+## Answer
+
+    {"candidates": [
+      {"id": 0, "file": "skills/bootstrap-repo-harness/SKILL.md", "real": false,
+       "why": "scripts/guards/ is what a scaffolded repository gets. It is
+               correct that it is absent here -- ours live under shared/."},
+      {"id": 3, "file": "README.md", "real": true,
+       "why": "README says the report is committed. build.py writes it into
+               docs/generated/, which is not tracked."}
+    ]}
+
+Answer only the ids listed. One you leave out stays a candidate, which is
+honest -- an unread candidate and a dismissed one are different things.
+
+**`file` is not optional and it is not decoration.** The list is rebuilt from
+the tree on every run, so an id is a position in *this* run and nothing more.
+Fix one of these and the next run renumbers everything after it -- an answers
+file carrying ids alone would then attach yesterday's verdicts to today's
+candidates, quietly, in whichever direction the numbering shifted. So each
+answer names the document it is about, and one whose id and file disagree is
+matched by file or refused.
+
+A T3 candidate additionally carries `moved`, the moment the document itself
+last changed. Copy it into the answer. A T3 claim counts commits to what the
+document points at, so it moves whenever *somebody else's* file is touched --
+but the reading was of this document, and it stands for as long as this
+document does. When the document itself changes the answer expires, because
+what was read is no longer what is there.
+
+---
+
+"""
+
+
+def brief(r):
+    """The questions, with an id per candidate. Empty where there are none."""
+    if not r or not r.get("candidates"):
+        return ""
+    out = [BRIEF]
+    for i, row in enumerate(r["candidates"]):
+        out.append('## %d — T%d  %s\n' % (i, row["tier"], row["file"]))
+        out.append("%s\n" % row["claim"])
+        if row.get("why"):
+            out.append("_why it was flagged_: %s\n" % row["why"])
+    return "\n".join(out)
+
+
+def _locate(cands, item):
+    """Which candidate an answer is about, or None.
+
+    The id is a position in one run and the list is rebuilt from the tree on
+    every run, so acting on a candidate renumbers every candidate after it.
+    An answers file carrying ids alone would then hand yesterday's verdicts to
+    today's candidates -- silently, and in whichever direction the numbering
+    happened to shift. So the file an answer names is what identifies it, and
+    the id is only the fast path: it is used when it agrees, and ignored when
+    it does not."""
+    def unexpired(n):
+        """The candidate, unless the document has changed under the answer.
+
+        Only tier 3 carries `moved`, and only tier 3 needs it: the other
+        claims are properties of the document, and this one is a measurement
+        of how far its subjects have run ahead of it."""
+        was, now = item.get("moved"), cands[n].get("moved")
+        return n if now is None or was == now else None
+
+    i, named = item.get("id"), item.get("file")
+    if isinstance(i, int) and 0 <= i < len(cands):
+        if not named or cands[i]["file"] == named:
+            return unexpired(i)
+    if not named:
+        # No file and no usable id. Refusing beats guessing: a verdict landing
+        # on the wrong candidate is worse than one that did not land.
+        return None
+    # Narrowing, in order, and each step is only taken when the one before it
+    # was ambiguous. The claim is the strongest identifier and the least
+    # stable: a T3 claim reads "5 commit(s) to what it points at", so it
+    # changes every time anything the document points at is touched -- which
+    # is the condition that produced the candidate. Tier and file survive that.
+    claim = (item.get("claim") or "").strip()
+    tier = item.get("tier")
+    same_file = [n for n, c in enumerate(cands) if c["file"] == named]
+    for narrower in (
+            lambda n: claim and cands[n]["claim"].strip() == claim,
+            lambda n: tier is not None and cands[n]["tier"] == tier,
+            lambda n: True):
+        hits = [n for n in same_file if narrower(n)]
+        if len(hits) == 1:
+            return unexpired(hits[0])
+    return None
+
+
+def grade(r, answers):
+    """What a reader said. Never a verdict nobody gave.
+
+    The shape mirrors `conflict.grade` on purpose: both sub-items hand an
+    agent a list a machine narrowed and neither may turn silence into a
+    verdict. An id nobody answered stays pending, and pending is printed."""
+    if not isinstance(answers, dict) or not isinstance(
+            answers.get("candidates"), list):
+        return None, "the answers are not {\"candidates\": [...]}"
+    cands = r.get("candidates") or []
+    total = len(cands)
+    real, dismissed, seen, stale = [], [], set(), []
+    for item in answers["candidates"]:
+        if not isinstance(item, dict):
+            continue
+        i = _locate(cands, item)
+        if i is None:
+            # Either an id nobody was handed, or an answer about a document
+            # that is no longer a candidate -- usually because somebody acted
+            # on it. Both are recorded as stale rather than dropped: an
+            # answers file quietly losing entries is how a reading rots.
+            stale.append(item.get("file") or item.get("id"))
+            continue
+        if i in seen:
+            continue
+        seen.add(i)
+        (real if item.get("real") else dismissed).append(
+            {**item, "candidate": cands[i]})
+    if not seen:
+        return None, ("no candidate was judged either way"
+                      + (" — %d answer(s) name nothing in this run, so the "
+                         "file is for an older tree" % len(stale)
+                         if stale else ""))
+    return {"real": real, "dismissed": dismissed, "judged": len(seen),
+            "stale": stale, "pending": max(0, total - len(seen))}, ""
+
+
 def render(r):
     lines = ["", f"  {r['checked']} non-historical document(s) read"]
     t = r["thickness"]
@@ -679,7 +838,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--json", default="")
+    ap.add_argument("--brief", default="",
+                    help="a run's JSON, or this module's — print the questions")
     a = ap.parse_args()
+
+    if a.brief:
+        with open(a.brief, encoding="utf-8") as fh:
+            run = json.load(fh)
+        text = brief(run.get("truth") if "truth" in run else run)
+        if not text:
+            print("cannot judge: no candidates in that run", file=sys.stderr)
+            return 2
+        sys.stdout.write(text)
+        return 0
+
     root = os.path.abspath(a.root)
     r = assess(root)
     if r is None:

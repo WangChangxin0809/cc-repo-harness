@@ -13,9 +13,12 @@ review. Most repositories have none: they have a `CLAUDE.md` full of rules that
 are read once, paid every turn, and followed unevenly.
 
 **Everything this skill installs must work without it.** The test is literal:
-install, uninstall the plugin, hand a fresh agent a real task, and the
-repository must still teach it how to work. Anything that only works while the
-plugin is present was built in the wrong place.
+
+1. Install, then uninstall the plugin.
+2. Hand a fresh agent a real task.
+3. The repository still teaches it how to work.
+
+Anything that only works while the plugin is present belongs somewhere else.
 
 That is independence, not disposal. A harness decays — the standing cost creeps
 up, a guard stops matching, a document falls behind the code it claims — and a
@@ -206,9 +209,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root <repo> --tier <A
 **The red list is the to-do list.** `./ci.sh --fast` is red immediately after
 scaffolding and is supposed to be: `check_templates_filled.py` names every
 placeholder still sitting in a scaffolded file. That red list is the only form
-of to-do list that cannot be forgotten, so do not go looking for a way to make
-it green early — green here would mean the gate cannot see the thing it exists
-to see. The scaffolder is additive and idempotent; nothing existing is
+of to-do list that cannot be forgotten, so work it down by filling the files it
+names — green arrives when the last placeholder is gone. Green any earlier
+means the gate cannot see the thing it exists to see. The scaffolder is additive and idempotent; nothing existing is
 overwritten, and `settings.json` is merged after a `.bak`.
 
 **Empty directories are deliberate.** `docs/how-to/`, `docs/decisions/`,
@@ -288,7 +291,8 @@ If the plan moved a rule, or added a check:
 
 7. At least one rule left `CLAUDE.md`, and its paragraph is gone rather than
    duplicated.
-8. A guard has been seen blocking, and its selftest has been seen red.
+8. A guard has been seen blocking, **and** a near miss has been seen going
+   through. A harness that refuses both has improved nothing.
 9. A fresh session's first screen states something no file could have contained.
 
 ## References
@@ -305,5 +309,6 @@ and guards), `writing-github-docs` (README and the community health files),
 These five are **not installed with this plugin** — you copy them into the
 repository as part of the scaffold, at the tier that earns each one, so they
 reach teammates who never installed anything. Until that copy happens they are
-files on disk under the plugin's `shared/skills/`, readable but not loaded, so
-a reference to one of them here may not resolve to an invokable skill yet.
+files on disk under the plugin's `shared/skills/`: readable, and loaded only
+once they are in the repository — so read a reference to one of them here as a
+path, and invoke it after the scaffold has put it in place.

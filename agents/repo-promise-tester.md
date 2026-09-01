@@ -59,11 +59,11 @@ and the function it names is called `apply`, implement the sentence. You are
 not reconstructing what the author meant to build — you are building what they
 wrote down, because whether that was buildable is the entire question.
 
-Do not write a stub that satisfies only the failing tests. One test that
-passed on the real code and fails on yours discards the whole claim, and it
-should: an incomplete implementation's successes are evidence about nothing.
 Write the smallest thing that could satisfy the **sentence**, and expect what
-already passed to keep passing.
+already passed to keep passing. A stub shaped to the failing tests alone scores
+as a failure rather than partial credit: one test that passed on the real code
+and fails on yours discards the whole claim, and it should, because an
+incomplete implementation's successes are evidence about nothing.
 
 ## What you return
 

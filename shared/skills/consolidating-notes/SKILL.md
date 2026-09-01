@@ -18,10 +18,10 @@ and is what the scripts here do.
 
 ## The invariant
 
-**Never synthesize in place.** The input is frozen, the output is new, and
-adoption is a decision you make after reading a diff. In-place editing destroys
-the evidence needed to tell a good merge from a lossy one, and lossy merges are
-the normal failure — they read beautifully.
+**Write the synthesis to a new file and leave the input untouched.** Adoption is
+then a decision you make after reading a diff of the two. In-place editing
+destroys the evidence needed to tell a good merge from a lossy one, and lossy
+merges are the normal failure — they read beautifully.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
@@ -33,7 +33,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py diff
 
 1. **What is gone.** Every measurement, commit hash, and path present in the
    input and absent from the candidate, quoted. This is the check the whole
-   invariant exists to enable, and it is mechanical — do not do it by eye.
+   invariant exists to enable, and it is mechanical — the tool finds these, a
+   careful reading of the candidate does not.
 2. **What has no destination.** Entries that survived without a `ROUTE:` line.
    A consolidation whose output is a tidier pile of notes has moved nothing.
 3. **Unchanged / rewritten / dropped / new**, by name.

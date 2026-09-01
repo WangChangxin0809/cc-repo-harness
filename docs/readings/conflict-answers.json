@@ -1,0 +1,8 @@
+{"pairs": [{
+  "subject": "--budget",
+  "a": "agents/repo-explorer.md",
+  "b": "shared/skills/repo-index/SKILL.md",
+  "real": false,
+  "believe": null,
+  "why": "Both are explicit --budget arguments inside example commands, and neither claims to be the default. query.py:236 sets default=2000; an example passing 3000 is a caller choosing a larger map, not a document contradicting one that says 2000."
+}]}

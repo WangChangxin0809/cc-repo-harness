@@ -395,7 +395,114 @@ def case_a_crash_never_costs_a_tool_call(t):
     return None
 
 
+
+# --------------------------------------------------------------------------
+# same_turn.py
+
+SAME_TURN = os.path.join(os.path.dirname(HOOK), "same_turn.py")
+
+
+def beside(tmp, code, says="what the check said"):
+    """A directory holding a file and a `selftest.py` that exits `code`."""
+    d = os.path.join(tmp, "work", "guards")
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "thing.py"), "w", encoding="utf-8") as fh:
+        fh.write("x = 1\n")
+    with open(os.path.join(d, "selftest.py"), "w", encoding="utf-8") as fh:
+        fh.write("import sys\nprint(%r)\nsys.exit(%d)\n" % (says, code))
+    return os.path.join(d, "thing.py")
+
+
+def edit(tmp, path):
+    return subprocess.run(
+        [sys.executable, SAME_TURN],
+        input=json.dumps({"hook_event_name": "PostToolUse",
+                          "tool_name": "Edit",
+                          "tool_input": {"file_path": path}}),
+        cwd=tmp, capture_output=True, text=True)
+
+
+def case_a_red_check_beside_the_edit_blocks(t):
+    """The rung itself. A check that judged and went red must reach the model
+    while the reasoning that produced the edit is still there -- which means
+    exit 2 and stderr, because that is the channel that arrives."""
+    proc = edit(t, beside(t, 1, "GUARD STOPPED REFUSING"))
+    if proc.returncode != 2:
+        return "a red check beside the edit did not block: exit %d" % proc.returncode
+    if "GUARD STOPPED REFUSING" not in proc.stderr:
+        return "the check's own output was swallowed: %r" % proc.stderr.strip()
+    return None
+
+
+def case_a_green_check_says_nothing(t):
+    """A rung that speaks on every edit is a rung people switch off."""
+    proc = edit(t, beside(t, 0))
+    if proc.returncode != 0:
+        return "a green check blocked: exit %d" % proc.returncode
+    if proc.stderr.strip() or delivered(proc):
+        return "spoke on a green check: %r" % (proc.stderr.strip()
+                                               or delivered(proc))
+    return None
+
+
+def case_could_not_judge_informs_and_does_not_block(t):
+    """The distinction this file is built on, in its second place.
+
+    Exit 2 is COULD NOT JUDGE. Blocking on it leaves the agent no way forward
+    -- it cannot fix a check that did not run -- but staying silent makes an
+    unchecked edit indistinguishable from a checked one. So it is told, on the
+    channel that arrives, and not blocked on."""
+    proc = edit(t, beside(t, 2, "no interpreter for that"))
+    if proc.returncode != 0:
+        return "could-not-judge blocked the turn: exit %d" % proc.returncode
+    got = delivered(proc)
+    if not got:
+        return "an unchecked edit was passed over in silence"
+    if "could not judge" not in got:
+        return "the abstention did not say what it was: %r" % got
+    return None
+
+
+def case_a_directory_with_no_selftest_is_silent(t):
+    """The rule is "the check beside the file", and most files have none.
+
+    A hook that complained about every directory without a selftest would be
+    telling a repository to adopt a layout, which is not what this measures."""
+    d = os.path.join(t, "src")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "app.py")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("x = 1\n")
+    proc = edit(t, path)
+    if proc.returncode != 0 or proc.stderr.strip() or delivered(proc):
+        return "spoke about a directory with no check in it"
+    return None
+
+
+def case_a_document_is_not_run_against_a_selftest(t):
+    """A `.md` beside a `selftest.py` is not code that selftest verifies.
+
+    Without this, editing a note in `guards/` runs the guard suite -- seconds
+    paid for an edit that could not have broken it."""
+    path = beside(t, 1, "SHOULD NOT RUN")
+    doc = os.path.join(os.path.dirname(path), "NOTES.md")
+    with open(doc, "w", encoding="utf-8") as fh:
+        fh.write("Some prose.\n")
+    proc = edit(t, doc)
+    if proc.returncode != 0:
+        return "editing a document ran the code's selftest: exit %d" % proc.returncode
+    return None
+
+
 CASES = [
+    ("a red check beside the edit blocks", case_a_red_check_beside_the_edit_blocks),
+    ("a green check says nothing", case_a_green_check_says_nothing),
+    ("could not judge informs and does not block",
+     case_could_not_judge_informs_and_does_not_block),
+    ("a directory with no selftest is silent",
+     case_a_directory_with_no_selftest_is_silent),
+    ("a document is not run against a selftest",
+     case_a_document_is_not_run_against_a_selftest),
     ("a judged failure blocks the stop", case_a_judged_failure_blocks_the_stop),
     ("could not judge never blocks a stop", case_cannot_judge_never_blocks_a_stop),
     ("stop_hook_active short-circuits", case_stop_hook_active_short_circuits),

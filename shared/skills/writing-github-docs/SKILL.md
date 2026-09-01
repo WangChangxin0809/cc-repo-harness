@@ -75,8 +75,8 @@ Answer what a contributor cannot find out by reading the code:
 - **Who reviews, and how fast.** An honest "usually within a week, sometimes
   longer" beats silence. Unstated expectations are read as neglect.
 - **How to file a good issue** — what to include, where the logs live.
-- **How to say something is a security problem**, pointing at `SECURITY.md`.
-  Never the public issue tracker.
+- **How to say something is a security problem** — one private channel, named,
+  pointing at `SECURITY.md`. A public issue tracker publishes the report.
 - **Development setup**, only if it differs from the README's quick start. If it
   does not, link to it. This is where the second quick start creeps in.
 - **Commit and branch conventions**, if enforced. If a check enforces them, name
@@ -95,9 +95,13 @@ Answer what a contributor cannot find out by reading the code:
 | `.github/PULL_REQUEST_TEMPLATE.md` | fixed | Prefills the PR description |
 
 `SECURITY.md` holds how to report and what counts as a vulnerability. The rules
-themselves are not prose — what must never leave the machine is a guard, what
-must never enter the tree is a gate, why the boundary sits where it does is a
-decision record. See `writing-checks`.
+themselves live where they run, and each has one home:
+
+- what must never leave the machine is a guard
+- what must never enter the tree is a gate
+- why the boundary sits where it does is a decision record
+
+See `writing-checks`.
 
 Issue templates are worth more than they look: they are the one place you can
 ask for the version, the platform, and the exact error *before* the round trip

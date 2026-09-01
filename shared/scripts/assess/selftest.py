@@ -54,6 +54,8 @@ import promises as promises_mod    # noqa: E402
 import units as units_mod          # noqa: E402
 import review as review_mod        # noqa: E402
 import permitted as permitted_mod  # noqa: E402
+import reframe as reframe_mod      # noqa: E402
+import ecosystems as eco_mod       # noqa: E402
 
 
 def git(args, cwd):
@@ -645,7 +647,11 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
     repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "scripts/viewcheck.mjs",
-        "const CHROME = '/home/nobody-at-all-xyz/.cache/chrome'\n")
+        # A placeholder name on purpose. The dimension-1 check reads the
+        # *shape* of the path, so `you` exercises it exactly as a real
+        # username would -- and a real-looking one in a committed fixture is
+        # the thing check_no_machine_paths.py exists to stop.
+        "const CHROME = '/home/you/.cache/chrome'\n")
     # The second shape, and the one a home-directory matcher misses. Both were
     # in one real repository: a Linux script and a Windows script, so no single
     # machine could run both, while from outside it looked like coverage.
@@ -1434,12 +1440,16 @@ def case_a_wired_layer_that_caught_nothing_is_not_an_absent_one(t):
     knowing what stands behind it. Measured on this repository the day the row
     was added: two PreToolUse hooks wired, zero of 26 injected defects caught
     by either."""
-    silent = _layer_row({"PreToolUse": 2, "PostToolUse": 0},
+    # `same-turn` rather than `before-write`, deliberately. A PostToolUse hook
+    # runs the repository's checks, so one that catches nothing while defects
+    # walk past it is exactly the finding this row exists for. `before-write`
+    # cannot be read that way and has a case of its own below.
+    silent = _layer_row({"PreToolUse": 0, "PostToolUse": 2},
                         {"local-suite": 14})
     if "2 hook(s), 0 of 14 caught" not in silent["value"]:
         return (f"a wired hook that caught nothing is not reported as wired: "
                 f"{silent['value']!r}")
-    if "same-turn: none wired" not in silent["value"]:
+    if "before-write: none wired" not in silent["value"]:
         return "a moment with no hooks is not reported as unwired"
     if silent["flag"] != "bad":
         return ("a layer that is wired and silent is not flagged — that is "
@@ -1448,7 +1458,7 @@ def case_a_wired_layer_that_caught_nothing_is_not_an_absent_one(t):
 
     absent = _layer_row({"PreToolUse": 0, "PostToolUse": 0},
                         {"local-suite": 14})
-    if "before-write: none wired" not in absent["value"]:
+    if "same-turn: none wired" not in absent["value"]:
         return f"an absent layer is reported as present: {absent['value']!r}"
     if absent["flag"] == "bad":
         return ("a repository with nothing wired is flagged as harshly as one "
@@ -3648,6 +3658,116 @@ def case_an_abstention_does_not_become_a_number(t):
     return None
 
 
+def case_a_reading_of_the_candidates_can_be_recorded(t):
+    """A list nobody can answer is a list everybody re-reads.
+
+    4.4 got an answers file and 4.2 did not, so the same 24 candidates came
+    back on every run of every assessment forever -- and each reader paid
+    again to rediscover that most of them name a path a scaffolded repository
+    has and this one deliberately does not. The reading was happening; only
+    the record of it was missing.
+
+    Three things the channel has to hold, and each is a way it could quietly
+    lie. An id nobody handed over is an invented answer. Answering none of
+    them is not the same as dismissing all of them. And an unanswered id is
+    pending rather than dismissed, because an unread candidate and a
+    considered one are different states."""
+    r = {"candidates": [
+        {"tier": 1, "file": "a.md", "claim": "two hooks", "why": "4 in hooks/"},
+        {"tier": 2, "file": "b.md", "claim": "scripts/guards/", "why": "gone"},
+        {"tier": 3, "file": "c.md", "claim": "moved", "why": "stale"}]}
+
+    got, why = truth_mod.grade(r, {"candidates": [
+        {"id": 0, "real": False, "why": "hooks.json is not a hook"},
+        {"id": 2, "real": True, "why": "the guide never got the new section"},
+        {"id": 99, "real": True, "why": "a candidate nobody was handed"}]})
+    if got is None:
+        return "a well-formed reading was refused: " + why
+    if len(got["real"]) != 1 or len(got["dismissed"]) != 1:
+        return ("the verdicts did not survive: %d real, %d dismissed"
+                % (len(got["real"]), len(got["dismissed"])))
+    if got["pending"] != 1:
+        return "an unanswered candidate was not left pending: %d" % got["pending"]
+    if got["judged"] != 2:
+        return "an invented id was counted as judged: %d" % got["judged"]
+    if got["real"][0]["candidate"]["file"] != "c.md":
+        return "a verdict was attached to the wrong candidate"
+
+    for bad, what in (({"candidates": []}, "an empty reading"),
+                      ({"pairs": []}, "the wrong shape"),
+                      ([], "a list")):
+        if truth_mod.grade(r, bad)[0] is not None:
+            return what + " was accepted as a judgement"
+
+    # A tier-3 reading expires when the document it was about changes, and
+    # only then. Its claim counts commits to what the document *points at*, so
+    # it moves whenever somebody else's file is touched -- keying the answer to
+    # it would expire every verdict on every commit. Keying it to nothing would
+    # apply a reading of last week's document to this week's.
+    moved = {"candidates": [
+        {"tier": 3, "file": "d.md", "claim": "2 commit(s) ...", "moved": 100}]}
+    answer = [{"id": 0, "file": "d.md", "tier": 3, "moved": 100,
+               "real": False, "why": "the churn is its subjects working"}]
+    got, _why = truth_mod.grade(moved, {"candidates": answer})
+    if not got or len(got["dismissed"]) != 1:
+        return "a reading of an unchanged document did not stand"
+
+    churned = {"candidates": [dict(moved["candidates"][0],
+                                   claim="9 commit(s) ...")]}
+    got, _why = truth_mod.grade(churned, {"candidates": answer})
+    if not got or len(got["dismissed"]) != 1:
+        return "a reading expired because somebody else committed"
+
+    rewritten = {"candidates": [dict(moved["candidates"][0], moved=200)]}
+    got, why = truth_mod.grade(rewritten, {"candidates": answer})
+    if got is not None:
+        return "a reading of a document that has since changed was still applied"
+
+    # ...and the questions have to carry the ids the answers use.
+    text = truth_mod.brief(r)
+    for n in ("## 0", "## 1", "## 2"):
+        if n not in text:
+            return "the brief did not offer id " + n
+    if truth_mod.brief({"candidates": []}):
+        return "a brief was produced with nothing to ask about"
+    return None
+
+
+def case_every_printed_row_is_claimed_by_a_sub_item(t):
+    """A measurement no sub-item claims is a measurement nobody scores.
+
+    `reframe.py` printed four rows into dimension 4 for a week and every one
+    of them landed under "Rows no sub-item claims" -- visible, which is the
+    design, and never once graded, which is not. The failure is quiet in the
+    direction that matters: the page looks complete, the radar looks complete,
+    and the thing that was measured is missing from both.
+
+    So the mapping is pinned here rather than left to whoever adds the next
+    row. The labels below are the ones the modules actually emit, indentation
+    included, because `collect` matches on a substring of the label and a row
+    that is only nearly named is a row that is not claimed."""
+    run = _run_with([
+        {"label": "the form of the instructions",
+         "value": "7 of 19 unit(s) have an opening", "flag": "info", "note": ""},
+        {"label": "  prohibitions with no stated alternative",
+         "value": "9", "flag": "info", "note": ""},
+        {"label": "  paragraphs carrying several requirements at once",
+         "value": "2", "flag": "info", "note": ""},
+        {"label": "  requirements asking for a quality, not a shape",
+         "value": "3", "flag": "info", "note": ""},
+    ])
+    items, unmapped = review_mod.collect(run)
+    if unmapped:
+        return "a printed measurement no sub-item claims: " + repr(unmapped)
+    ids = [i["id"] for i in items]
+    if ids != ["4.5"]:
+        return "the form rows did not land under one sub-item: " + repr(ids)
+    if len(items[0]["rows"]) != 4:
+        return ("%d of 4 form rows reached the sub-item"
+                % len(items[0]["rows"]))
+    return None
+
+
 def case_a_score_for_something_nobody_measured_is_refused(t):
     """The brief and the grader have to agree about what exists.
 
@@ -3915,7 +4035,578 @@ def case_a_tie_is_a_tie_and_not_a_column_order(t):
     return None
 
 
+
+def case_a_fact_about_the_code_is_not_a_prohibition(t):
+    """The defect this file shipped on its first run, kept.
+
+    English spells a prohibition and a statement of fact almost identically:
+    "no check may swallow a status" instructs somebody, "the two cannot drift"
+    describes a property. The first version counted both, and produced 116
+    findings across 19 files -- most of them the repository describing itself.
+    A measurement that fires on every paragraph is not a measurement, so the
+    fact half has to stay silent."""
+    unit = {"path": "CLAUDE.md", "kind": "root instruction", "text": (
+        "It parses the workflow rather than restating it, so the two cannot "
+        "drift. A step it does not recognise is exit 2, and exit 2 is never "
+        "a pass. Nothing here reaches the network.\n")}
+    got = [o for o in reframe_mod.openings(unit) if o["operation"] == "positive"]
+    if got:
+        return ("prose describing how something works was read as a "
+                "prohibition: " + got[0]["text"])
+    return None
+
+
+def case_a_prohibition_with_no_alternative_is_found(t):
+    """...and the real thing still has to come back.
+
+    The half above is only worth having if this half fires. A tightening that
+    silences the false positives by silencing everything is the failure mode
+    the two cases exist together to catch."""
+    unit = {"path": "CLAUDE.md", "kind": "root instruction", "text":
+            "Do not commit a generated file.\n"}
+    got = [o for o in reframe_mod.openings(unit) if o["operation"] == "positive"]
+    if not got:
+        return "a bare prohibition produced no reframing candidate"
+    return None
+
+
+def case_a_prohibition_that_says_what_to_do_instead_is_left_alone(t):
+    """The paper's operation is *restating* a negation, not deleting it.
+
+    A rule that says what not to do and then what to do is already in the
+    shape the reframing produces. Reporting it would send somebody to rewrite
+    a sentence that is finished, and the alternative is as often in the next
+    sentence as in the same one."""
+    same = {"path": "a.md", "kind": "root instruction", "text":
+            "Do not commit a generated file; write it into build/ instead.\n"}
+    next_one = {"path": "b.md", "kind": "root instruction", "text":
+                "Do not commit a generated file. Instead, put it in build/.\n"}
+    for unit in (same, next_one):
+        got = [o for o in reframe_mod.openings(unit)
+               if o["operation"] == "positive"]
+        if got:
+            return ("a prohibition that states its alternative was reported: "
+                    + unit["text"].strip())
+    return None
+
+
+def case_an_example_of_a_rule_is_not_a_rule(t):
+    """Sixth instance of the bug class, refused in advance.
+
+    A skill that teaches somebody to write rules shows rules in fenced blocks.
+    Every earlier check here that read a fence as live text shipped the same
+    defect, and this one is written after five of them."""
+    unit = {"path": "SKILL.md", "kind": "skill", "text": (
+        "Here is the shape a rule takes:\n\n"
+        "```markdown\n"
+        "Never run the deploy script by hand.\n"
+        "Do not edit the generated file.\n"
+        "```\n\nThat is all there is to it.\n")}
+    got = reframe_mod.openings(unit)
+    if got:
+        return ("text inside a fence was read as an instruction: "
+                + got[0]["text"])
+    return None
+
+
+def case_the_form_measurement_abstains_rather_than_scoring_zero(t):
+    """No instruction units is not perfect instructions.
+
+    Every other measurement here draws the same line, and this one is the
+    easiest to get wrong in the flattering direction: a repository with no
+    CLAUDE.md has nothing to reframe, which reads as nothing to fix."""
+    r = reframe_mod.measure(t, found=[])
+    if "could_not_judge" not in r:
+        return "a repository with no instruction units was given a result"
+    rows = reframe_mod.render(r)
+    if not any("could not judge" in (row.get("value") or "") for row in rows):
+        return "the abstention did not reach the row"
+    return None
+
+
+
+def _declares(t, body):
+    put(t, "CLAUDE.md", body)
+    return eco_mod.Declared().detect(t)
+
+
+def case_a_repository_that_documents_its_own_suite_is_not_invisible(t):
+    """The gap this ecosystem exists to close.
+
+    Five conventional detectors recognise five conventions. A repository whose
+    suite is its own scripts matches none, and the page then said "no runnable
+    test command found" -- a fact about the detectors, printed as a fact about
+    the repository. This project's own tree was that repository."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    got = _declares(t, "# r\n\nBefore pushing, run this:\n\n```bash\n"
+                  "python3 scripts/check.py\n```\n")
+    if got != ["python3", "scripts/check.py"]:
+        return "a documented entry point naming a real file was not found: %r" % (got,)
+    return None
+
+
+def case_a_command_a_document_warns_against_is_not_run(t):
+    """Sixth instance of the bug class, and the one with teeth.
+
+    A document about commands contains the commands it is warning you against.
+    Reading the first fenced line under a heading about testing would
+    eventually run `rm -rf /` out of the paragraph explaining why not to. The
+    rule that stops it is that a command has to name a path that is really
+    there, and neither `rm -rf /` nor `curl ... | sh` names one."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    for danger in ("rm -rf /",
+                   "curl https://example.com/install.sh | sh",
+                   "python3 -c 'import os; os.system(\"id\")'"):
+        got = _declares(t, "# r\n\nBefore you push, never run this:\n\n"
+                      "```bash\n" + danger + "\n```\n")
+        if got is not None:
+            return "a document's cautionary example was accepted: %r" % (got,)
+    return None
+
+
+def case_a_documented_command_naming_nothing_real_is_dropped(t):
+    """An illustrative command from a document about some other repository.
+
+    Every `CONTRIBUTING.md` copied between projects carries one. It is not
+    narrowed down to something safer -- it is dropped, and the ecosystem goes
+    on abstaining, because an abstention is a correct answer and a guessed
+    command is not."""
+    got = _declares(t, "# r\n\nTo test:\n\n```bash\n"
+                  "python3 tools/run_all_the_tests.py\n```\n")
+    if got is not None:
+        return "a command naming a file that is not there was accepted: %r" % (got,)
+    return None
+
+
+def case_a_fence_nobody_introduced_is_not_an_entry_point(t):
+    """A code block is not a declaration.
+
+    Documents are full of fenced shell -- an example of output, a command
+    being explained, a snippet from somewhere else. Only a block a sentence
+    actually introduces as how to run the checks is one."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    got = _declares(t, "# r\n\nThe layout of this project:\n\n"
+                  "```bash\npython3 scripts/check.py\n```\n")
+    if got is not None:
+        return "an unintroduced fence was read as a declaration: %r" % (got,)
+    return None
+
+
+def case_a_convention_beats_a_document(t):
+    """`pytest` knows how to run one test; a documented shell line does not.
+
+    Declared is last on purpose. Where a convention applies it gives better
+    failures and can be narrowed to the tests that must flip, which is what
+    the defect replay needs."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    put(t, "pyproject.toml", "[project]\nname = 'x'\n")
+    put(t, "tests/test_x.py", "def test_x():\n    assert True\n")
+    put(t, "CLAUDE.md", "# r\n\nBefore pushing, run this:\n\n"
+                        "```bash\npython3 scripts/check.py\n```\n")
+    eco, cmd = eco_mod.find(t)
+    if eco is None or eco.name != "python":
+        return ("a repository with a real pytest layout was routed to %s"
+                % (eco.name if eco else None))
+    return None
+
+
+
+def case_an_entry_point_that_predates_the_commit_is_not_a_red_suite(t):
+    """The command is found at HEAD; the replay runs in the past.
+
+    A repository that introduced its suite last week has a history of commits
+    where the entry point does not exist. The interpreter exits non-zero there
+    for the same reason a failing test does, and reading it as red reports
+    every commit older than the suite as broken. This repository hit it on the
+    first run after gaining a documented entry point.
+
+    The other half is what must NOT be swallowed: a test failing because a
+    fixture is missing prints the same words, and it is a real defect."""
+    if not eco_mod.unusable("python3: can't open file "
+                            "'/tmp/x/scripts/check.py': [Errno 2] "
+                            "No such file or directory"):
+        return "a missing entry point was read as a failing suite"
+    if eco_mod.unusable("FileNotFoundError: [Errno 2] No such file or "
+                        "directory: 'tests/fixtures/sample.json'"):
+        return ("a test failing on a missing fixture was swallowed as "
+                "could-not-run")
+    return None
+
+
+
+def case_exit_two_means_what_the_runner_means_by_it(t):
+    """Exit 2 belongs to the runner, and a blanket rule was wrong both ways.
+
+    `CLAUDE.md` says 2 means COULD NOT JUDGE, and `ecosystems.run` read it as
+    red -- the repository's own rule broken in the other direction, so a suite
+    that refused to start counted against a repository exactly like a broken
+    one. pytest agrees: 2 is a usage error or an interrupted run.
+
+    `make` does not. It exits 2 when the recipe failed, which is a red suite,
+    and reading that as an abstention turned a genuinely failing `make test`
+    into no result at all. A blanket rule broke a case here on the first run.
+    That is why the codes are a property of the ecosystem rather than a
+    constant: an abstention that hides a real failure is the one direction
+    this whole assessment exists to refuse."""
+    put(t, "say.py", "import sys\nprint('could not judge: no linter here')\n"
+                     "sys.exit(2)\n")
+    cmd = ["python3", "say.py"]
+    verdict, _ = eco_mod.run(t, cmd, eco_mod.Python.did_not_run)
+    if verdict != "could-not-run":
+        return "pytest's exit 2 was read as %r" % verdict
+    verdict, _ = eco_mod.run(t, cmd, eco_mod.Make.did_not_run)
+    if verdict != "red":
+        return "make's exit 2 -- a failed recipe -- was read as %r" % verdict
+
+    put(t, "fail.py", "import sys\nprint('1 failed, 3 passed')\n"
+                      "sys.exit(1)\n")
+    verdict, _ = eco_mod.run(t, ["python3", "fail.py"],
+                             eco_mod.Python.did_not_run)
+    if verdict != "red":
+        return "a suite that actually failed was read as %r" % verdict
+    return None
+
+
+
+def case_an_entry_point_the_parked_commit_never_had(t):
+    """The command is found at HEAD; the replay runs in the past.
+
+    `park` moves the bench to the fix commit, so a repository that introduced
+    its entry point last week has a history of commits without it, and the
+    interpreter exits non-zero there for a reason with nothing to do with the
+    defect. This tree hit it on the first run after gaining one.
+
+    Re-detecting unconditionally is the wrong repair and was tried first: the
+    parked tree offers whatever it happens to have, and a commit from before
+    the `tests/` directory existed falls through to a `Makefile` driving
+    something else. So the fallback fires only when the HEAD command names a
+    file the parked tree does not have."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    if catch_mod._entry_missing(t, ["python3", "scripts/check.py"]):
+        return "an entry point that is right there was called missing"
+    if not catch_mod._entry_missing(t, ["python3", "scripts/gone.py"]):
+        return "an entry point that is not in the tree was called present"
+    # A command naming no file at all is not missing -- it is `pytest`.
+    if catch_mod._entry_missing(t, ["python3", "-m", "pytest", "-q"]):
+        return "a command naming no file in the tree was called missing"
+    return None
+
+
+
+def case_a_suite_that_shells_out_is_still_measured(t):
+    """Wrapping the command measures the process it started, and nothing more.
+
+    A suite whose runner shells out -- a script invoking twenty checks, `tox`,
+    `make`, pytest under `-n` -- had its *runner's* lines counted and reported
+    as the repository's coverage. Small, confident, and about the wrong
+    subject. This repository's own entry point is exactly that shape, which is
+    how the gap was found.
+
+    coverage.py's supported answer is `COVERAGE_PROCESS_START` plus a
+    `sitecustomize` calling `process_startup()`, both written into the work
+    directory so nothing is left in the repository being assessed."""
+    if not cover_mod.Python().available(t):
+        # Not a pass. `coverage` is what this case is about, and saying so is
+        # the only honest thing available when it is not installed.
+        return None
+    child = ("def used():\n"            # 1
+             "    return 1\n"            # 2  <- runs, in a subprocess only
+             "\n"
+             "\n"
+             "def never_used():\n"       # 5
+             "    return 2\n")           # 6  <- nothing ever runs this
+    put(t, "child.py", child)
+    ran = child.splitlines().index("    return 1") + 1
+    never = child.splitlines().index("    return 2") + 1
+    put(t, "runner.py", "import subprocess, sys\n"
+                        "subprocess.run([sys.executable, '-c',\n"
+                        "                'import child; child.used()'])\n")
+    r, why = cover_mod.Python().measure(t, ["python3", "runner.py"],
+                                        os.path.join(t, "w"))
+    if not r:
+        return "no report from a suite that shells out: %s" % why
+    files = r.get("files") or {}
+    if "child.py" not in files:
+        return ("a file executed only in a subprocess was invisible: saw %s"
+                % sorted(files))
+    # `--source=.` lists every file in the tree whether it ran or not, so the
+    # file merely *appearing* proves nothing -- that was the first version of
+    # this case, and it stayed green with the subprocess measurement torn out.
+    # What separates the two is whether the line the subprocess executed comes
+    # back covered.
+    missing = files["child.py"]
+    if ran in missing:
+        return ("the line a subprocess executed came back uncovered: "
+                "missing %s — nothing the suite started was measured"
+                % (missing,))
+    if never not in missing:
+        return ("a line nothing executed came back covered: missing %s"
+                % (missing,))
+    return None
+
+
+
+def case_a_description_is_not_an_unenforced_rule(t):
+    """`cannot` describes; it does not instruct.
+
+    "It parses the workflow, so the two cannot drift" is a fact about how a
+    script works. Counted as a prohibition, it became an unenforced rule on
+    this repository's own floor -- and the fix for an unenforced rule is to
+    write a guard, so the page was asking somebody to enforce a sentence about
+    a parser. Two of the five it reported were this."""
+    put(t, "CLAUDE.md",
+        "# r\n\nIt parses the workflow, so the two cannot drift.\n\n"
+        "A step it cannot classify is exit 2.\n\n"
+        "Never force-push the default branch.\n")
+    r = value_mod.assess(t)
+    if r["prohibitions"] != 1:
+        d = value_mod.floor_text(t)
+        got = [" ".join(x.split())[:60] for x in value_mod.sentences(d["CLAUDE.md"])
+               if value_mod.PROHIBIT.search(x)]
+        return "counted %d prohibition(s), wanted 1: %s" % (r["prohibitions"], got)
+    return None
+
+
+def case_a_guard_that_exists_gets_the_rule_credited(t):
+    """A map left behind reads exactly like a guard that does not exist.
+
+    `FROM_BLAST` turns "this repository was measured refusing X" into the rule
+    labels X covers. `silence a failing check` mapped to nothing for as long as
+    no guard here could refuse it -- and stayed empty after one could. The
+    repository stated the rule, shipped the guard, was measured refusing the
+    probe, and the rule still counted as unenforced on every assessment."""
+    row = {"probe": "silence a failing check", "stopped": True,
+           "false_block": False}
+    if "silenced check" not in value_mod.guards_from_blast({"rows": [row]}):
+        return "a measured refusal credited no rule label"
+    # ...and a guard that was measured *failing* credits nothing, which is the
+    # half that makes the first half worth having.
+    row["false_block"] = True
+    if value_mod.guards_from_blast({"rows": [row]}):
+        return "a guard that blocked legitimate work was credited anyway"
+    return None
+
+
+
+def case_coverage_is_given_the_command_the_replay_found(t):
+    """One page cannot disagree with itself about whether a suite exists.
+
+    The replay discovers a test command when nobody passed `--test-command`;
+    coverage was handed only the flag. So a repository whose suite the table
+    recognises perfectly well had its ladder measured and its coverage
+    reported as "no test command to instrument", on the same page, from the
+    same tree."""
+    put(t, "pyproject.toml", "[project]\nname = 'x'\n")
+    put(t, "tests/test_x.py", "def test_x():\n    assert True\n")
+    put(t, "app.py", "def f():\n    return 1\n")
+    commit(t, "init")
+    eco, cmd = catch_mod.find(t)
+    if cmd is None:
+        return "the fixture is wrong: nothing discovered a command here"
+    if not cover_mod.Python().available(t):
+        return None
+    r, why = cover_mod.assess(t, cmd, os.path.join(t, "w"))
+    if r is None and "no test command" in (why or ""):
+        return ("coverage was not given the command the replay found: %s"
+                % why)
+    return None
+
+
+
+def case_a_table_is_data_and_an_alternative_may_come_first(t):
+    """Two precision failures, both found by turning it on real documents.
+
+    A markdown table row is columns of data, and a header cell reading "the
+    thing you want to forbid" is a column label -- sixth in the family this
+    project keeps rediscovering. And the alternative to a prohibition is as
+    often stated *before* it as after: "it fails open on purpose, so a broken
+    guard must not become a wall" gives the behaviour first and rules out its
+    opposite second. Reading only forwards reported both as unreframed."""
+    # A table butted against prose joined it into one block, and the sentence
+    # split then handed back a *cell* as the text of the finding.
+    table = {"path": "a.md", "kind": "skill", "text": (
+        "Do not put a rule in two places.\n"
+        "| The thing you want to forbid | Where it belongs |\n"
+        "|---|---|\n"
+        "| An action that destroys work | A guard |\n")}
+    got = reframe_mod.openings(table)
+    if not got:
+        return "the prohibition beside the table was lost with the table"
+    cells = [o["text"] for o in got if "|" in o["text"]]
+    if cells:
+        return "a table cell was reported as the instruction: " + cells[0]
+
+    before = {"path": "b.md", "kind": "skill", "text":
+              "It fails open on purpose. A broken guard must not become an "
+              "unbypassable wall.\n"}
+    got = [o for o in reframe_mod.openings(before)
+           if o["operation"] == "positive"]
+    if got:
+        return ("an alternative stated before the prohibition was missed: "
+                + got[0]["text"])
+
+    # ...and a bare prohibition with nothing either side still comes back.
+    bare = {"path": "c.md", "kind": "skill", "text":
+            "A broken guard must not become an unbypassable wall.\n"}
+    if not [o for o in reframe_mod.openings(bare)
+            if o["operation"] == "positive"]:
+        return "widening the window silenced a real candidate"
+    return None
+
+
+
+def case_a_sentence_about_a_prohibition_is_not_one(t):
+    """The eighth appearance of text *about* a thing read as the thing.
+
+    `what must not leave the machine is a guard` names a category of rule and
+    `a rule that must not be missed is a guard` classifies one. Neither tells
+    anybody to do anything, and both were reported as prohibitions leaving
+    their target unstated -- across three documents that were, in fact,
+    explaining how prohibitions get enforced here.
+
+    Both halves of the test are load-bearing. A relative pronoun in front of
+    the modal is not enough on its own: "anything that fails must not be
+    ignored" has one and is a real instruction, so a copula behind it is
+    required too, and that pair is what separates a description from an
+    order."""
+    def positives(text):
+        return [o["text"] for o in reframe_mod.openings(
+            {"path": "a.md", "kind": "skill", "text": text})
+            if o["operation"] == "positive"]
+
+    described = (
+        "The rules split three ways. What must not leave the machine is a "
+        "guard, what must not enter the tree is a gate.\n")
+    got = positives(described)
+    if got:
+        return "a category named by a relative clause was read as an order: " + got[0]
+
+    classified = "A rule that must not be missed is a guard.\n"
+    got = positives(classified)
+    if got:
+        return "a relative clause modifying a noun was read as an order: " + got[0]
+
+    # ...and the instruction that wears the same pronoun still comes back.
+    order = "Anything that fails must not be ignored.\n"
+    if not positives(order):
+        return "a real prohibition was silenced by the relative-clause rule"
+
+    # The reason for a prohibition, stated in the same sentence ahead of it.
+    # `_around` read only the tail, so the head that carried the reason was
+    # thrown away before the search for it.
+    reasoned = ("It fails open on purpose -- a broken guard must not become "
+                "an unbypassable wall.\n")
+    if positives(reasoned):
+        return "a reason given ahead of the prohibition was not counted"
+
+    # A head that merely names what is being ruled out is not a repair.
+    named = "When you use the API, do not hardcode the key.\n"
+    if not positives(named):
+        return "a verb in the head was mistaken for the alternative"
+    return None
+
+
+def case_a_guard_catching_no_ordinary_bug_is_the_right_outcome(t):
+    """A threshold no repository can meet is not a measurement.
+
+    The defects this ladder walks are ordinary bugs out of a repository's own
+    history. A guard is a *destructive-action* layer: `rm -rf $TARGET`, a force
+    push, a credential. It is structurally incapable of catching a logic
+    defect, and a guard that blocked one would be a false block -- which
+    dimension 1 counts *against* a repository.
+
+    So `before-write: N hook(s), 0 of M caught` is the correct outcome for
+    every repository, however good its guards, and flagging it red made the
+    ladder unsatisfiable. Whether the guards work is dimension 1's question,
+    asked there properly by firing destructive actions at them -> 0038"""
+    row = _layer_row({"PreToolUse": 2, "PostToolUse": 0}, {"local-suite": 14})
+    if "before-write: 2 hook(s), 0 of 14 caught" not in row["value"]:
+        return "the inventory stopped saying what stands behind the rung"
+    if row["flag"] == "bad":
+        return ("guards catching no ordinary defect was flagged as a failure "
+                "— no repository can ever clear that")
+    if "Dimension 1" not in (row["note"] or ""):
+        return "nothing tells the reader where the guards are actually judged"
+    return None
+
+
+
+def case_a_judged_conflict_can_reach_the_page(t):
+    """`dimensions.py` took `conflict_judged` and nothing ever set it.
+
+    Every other half-machine-half-agent measurement here has a flag for the
+    reading that finishes it -- `--observe-answers`, `--legitimate-actions`,
+    `--mutant-answers`. Contradictions had the parameter, the grader and the
+    brief, and no way to get an answer from one to the other. So the row said
+    "not yet judged" on every run of every repository, for as long as the
+    repository existed, and a reading nobody can record is a reading nobody
+    does."""
+    r = {"candidates": [{"subject": "--budget", "a": "x.md", "b": "y.md"}],
+         "candidates_total": 1, "possible_pairs": 2, "documents": 2,
+         "excluded_by_supersession": 0}
+    graded, why = conflict_mod.grade(r, {"pairs": [
+        {"subject": "--budget", "a": "x.md", "b": "y.md", "real": False,
+         "believe": None, "why": "two examples, not two claims"}]})
+    if graded is None:
+        return "a dismissal could not be recorded: %s" % why
+    if graded["judged"] != 1 or graded["real"]:
+        return "a dismissed candidate came back as a finding: %r" % (graded,)
+    got = dim_mod.repository_memory(t, [], (), None, None, r, graded)
+    hit = [x for x in got["rows"] if "contradict each other" in x["label"]]
+    if not hit:
+        return "the judged row never reached the page"
+    if "not yet judged" in hit[0]["value"]:
+        return "a judged candidate still printed as unjudged: %s" % hit[0]["value"]
+    return None
+
+
 CASES = [
+    ("a judged conflict can reach the page",
+     case_a_judged_conflict_can_reach_the_page),
+    ("a guard catching no ordinary bug is the right outcome",
+     case_a_guard_catching_no_ordinary_bug_is_the_right_outcome),
+    ("a table is data and an alternative may come first",
+     case_a_table_is_data_and_an_alternative_may_come_first),
+    ("a sentence about a prohibition is not one",
+     case_a_sentence_about_a_prohibition_is_not_one),
+    ("every printed row is claimed by a sub-item",
+     case_every_printed_row_is_claimed_by_a_sub_item),
+    ("a reading of the candidates can be recorded",
+     case_a_reading_of_the_candidates_can_be_recorded),
+    ("coverage is given the command the replay found",
+     case_coverage_is_given_the_command_the_replay_found),
+    ("a description is not an unenforced rule",
+     case_a_description_is_not_an_unenforced_rule),
+    ("a guard that exists gets the rule credited",
+     case_a_guard_that_exists_gets_the_rule_credited),
+    ("a suite that shells out is still measured",
+     case_a_suite_that_shells_out_is_still_measured),
+    ("an entry point the parked commit never had",
+     case_an_entry_point_the_parked_commit_never_had),
+    ("exit two means what the runner means by it",
+     case_exit_two_means_what_the_runner_means_by_it),
+    ("an entry point that predates the commit is not a red suite",
+     case_an_entry_point_that_predates_the_commit_is_not_a_red_suite),
+    ("a repository that documents its own suite is not invisible",
+     case_a_repository_that_documents_its_own_suite_is_not_invisible),
+    ("a command a document warns against is not run",
+     case_a_command_a_document_warns_against_is_not_run),
+    ("a documented command naming nothing real is dropped",
+     case_a_documented_command_naming_nothing_real_is_dropped),
+    ("a fence nobody introduced is not an entry point",
+     case_a_fence_nobody_introduced_is_not_an_entry_point),
+    ("a convention beats a document",
+     case_a_convention_beats_a_document),
+    ("a fact about the code is not a prohibition",
+     case_a_fact_about_the_code_is_not_a_prohibition),
+    ("a prohibition with no alternative is found",
+     case_a_prohibition_with_no_alternative_is_found),
+    ("a prohibition that says what to do instead is left alone",
+     case_a_prohibition_that_says_what_to_do_instead_is_left_alone),
+    ("an example of a rule is not a rule",
+     case_an_example_of_a_rule_is_not_a_rule),
+    ("the form measurement abstains rather than scoring zero",
+     case_the_form_measurement_abstains_rather_than_scoring_zero),
     ("nothing wired cannot fail the legitimate row",
      case_nothing_wired_cannot_fail_the_legitimate_row),
     ("a guard that refuses everything is caught here",

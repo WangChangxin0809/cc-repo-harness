@@ -1,0 +1,72 @@
+{
+ "of_commit": "b59c6ba",
+ "sub_items": 13,
+ "average": 8.08,
+ "items": [
+  {
+   "id": "1.1",
+   "score": 9,
+   "why": "an agent works here under bypass permissions and the guards blocked four of its real commands this week, each correctly; what holds it off 10 is that they fail open by design and this repository says so"
+  },
+  {
+   "id": "1.2",
+   "score": 9,
+   "why": "the four live blocks were all real refusals of real mistakes, so the 0 is discrimination under load rather than a probe set that happened to miss"
+  },
+  {
+   "id": "2.1",
+   "score": 7,
+   "why": "the uncovered quarter is mostly error paths under shared/, which is the code that ships into repositories nobody here has seen and where an unexercised branch costs most"
+  },
+  {
+   "id": "2.3",
+   "score": 7,
+   "why": "0 of 2 survive is two defects: 16 were available, 3 were asked for, one could not be put back because CLAUDE.md did not introduce its command block readably at that commit"
+  },
+  {
+   "id": "2.4",
+   "score": 8,
+   "why": "every rung is wired and same-turn caught first, which means local-suite and ci have no evidence here at all -- they were never reached, so nothing shows they would catch what it missed"
+  },
+  {
+   "id": "3.1",
+   "score": 8,
+   "why": "25 check files across 7 places and the machinery gap closed; the 9% is docs-shaped commits the type classifier did not exclude, not code arriving unverified"
+  },
+  {
+   "id": "3.2",
+   "score": 9,
+   "why": "five checks required to merge on a one-author repository, so nothing reaches main unrun, and the second opinion now fails below 65 instead of below 0"
+  },
+  {
+   "id": "4.1",
+   "score": 9,
+   "why": "33 documents and every reference resolves, in a tree that renamed its own directories twice this month"
+  },
+  {
+   "id": "4.2",
+   "score": 8,
+   "why": "all 24 were read and the two that were real got fixed; the reading is committed and expires exactly when its document changes, but nothing yet fails when the next one goes unread"
+  },
+  {
+   "id": "4.4",
+   "score": 9,
+   "why": "one candidate, judged and dismissed with the query.py default it was compared against, and the dismissal is kept so nobody re-reads it"
+  },
+  {
+   "id": "4.5",
+   "score": 7,
+   "why": "the openings left are in skill references rather than in the four files an agent loads while it works, which is where the twelve rewrites went"
+  },
+  {
+   "id": "5.1",
+   "score": 8,
+   "why": "1140 tokens buys the three-identity table that decides where every file in this tree goes, and no prohibition on it restates a guard; six sentences are path-scoped and paid anyway"
+  },
+  {
+   "id": "5.2",
+   "score": 7,
+   "why": "the one outlier is the assessor, which orchestrates four other agents while the three it is compared against each do one job"
+  }
+ ]
+}

@@ -21,8 +21,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 The defect replay is on by default and needs the repository's test toolchain;
 pass `--no-full` when it is absent. It replays real defects from the
 repository's own history and is the only thing that fills in dimension 2. It
-takes minutes, prints what it is about to run before running it, and may
-abstain — that is fine.
+takes minutes and may abstain, which is fine. It also prints what it is about
+to run before running it — on a repository whose tests you have not read, pass
+that line on to whoever asked for the assessment before you let it go.
 
 **If it says no test command was found, that is your job, not a verdict.** The
 ecosystem table knows a handful of conventions and misses most repositories.
@@ -35,13 +36,16 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --html assessment.html --json assessment.json
 ```
 
-Two outcomes are different and must not be reported the same way. *This
-repository has no tests* is a real finding, and one of the more important ones
-this page can produce. *A table did not recognise this repository's convention*
-is a fact about the table. Only report the first after you have looked.
+Two outcomes look identical here and are not. Report each as what it is:
 
-And do not write tests to make the number better. If a suite exists, run it. If
-none exists, the honest page says so.
+- *This repository has no tests* — a real finding, and one of the more
+  important ones this page produces. Say it, once you have looked and it holds.
+- *A table did not recognise this repository's convention* — a fact about the
+  table. Say that instead, and name the convention it missed.
+
+And measure the suite the repository already has: if one exists, run it; if
+none exists, the honest page says so. Tests written during an assessment
+measure the tests.
 
 ## Reading the coverage rows before the ladder
 
@@ -57,10 +61,10 @@ Two traps when you read them:
   If the repository has several suites and you gave one, you have measured that
   suite against the whole tree. The row names the command; check it before you
   report a percentage as a finding.
-- **Do not read them upward.** High coverage is close to meaningless — its
+- **Read them downward only.** High coverage is close to meaningless — its
   correlation with actually finding bugs is weak for a single suite. Absence is
-  the finding. Quote the files with no executed line and the decisions only ever
-  taken one way; do not congratulate a repository for a percentage.
+  the finding: quote the files with no executed line and the decisions only ever
+  taken one way, and let the percentage stand as a denominator.
 
 ## The second pass, when mutation was asked for
 
@@ -90,13 +94,14 @@ and the change leaves the count entirely — that is the right outcome, not a
 concession. Say `productive` when the line encodes behaviour somebody depends
 on; it then lands at `never`, which is the most expensive row on the page.
 
-Judge the change in front of you. Do not go looking for other problems, and do
-not soften a verdict because the surrounding code is good.
+Judge the change in front of you, and only that. The verdict on it stands on
+its own evidence — the quality of the code around it is somebody else's
+finding, on somebody else's page.
 
-Read what it printed before you read anything else. **Do not recompute what it
-gave you.** You cannot count tokens, you will not give the same figure twice,
-and if the numbers come from you then re-measuring later compares two opinions
-instead of two measurements.
+Read what it printed before you read anything else, and **carry its figures
+through unchanged.** You cannot count tokens, you will not give the same figure
+twice, and if the numbers come from you then re-measuring later compares two
+opinions instead of two measurements.
 
 If it exits 2, say so and stop. Exit 2 is COULD NOT JUDGE and is never a pass.
 
@@ -111,10 +116,10 @@ If it exits 2, say so and stop. Exit 2 is COULD NOT JUDGE and is never a pass.
 | 5 | Context Economy | tokens are spent every turn on text that restates the code |
 
 A dimension earns a finding only when a low score names a **specific observable
-failure**. Never score a repository on whether it has adopted this project's
-conventions: a repository that stops destruction with a hand-written `bash`
-hook is fully protected, and a repository that keeps its checks in `tools/`
-keeps its checks.
+failure**. Score what a repository *achieves*, and stay indifferent to how it
+gets there: a repository that stops destruction with a hand-written `bash` hook
+is fully protected, and a repository that keeps its checks in `tools/` keeps
+its checks.
 
 ## Dimension 4, when it is asked for
 
@@ -140,11 +145,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/memory.py \
         --with-answers with.json --without-answers without.json
 ```
 
-**The difference between the two runs is the measurement.** Do not read the
-`with` run on its own and call it a score — that measures how legible the code
-is, not what the repository keeps. And do not answer the questions yourself:
-you have already read this repository, so you are the one agent in the building
-who cannot be the probe.
+**The difference between the two runs is the measurement.** Two rules follow
+from that, and both are about staying out of it:
+
+- Read the pair, not the `with` run. That run on its own measures how legible
+  the code is, which is a different thing from what the repository keeps.
+- Let the two probes answer. You have already read this repository, so you are
+  the one agent in the building who cannot be one.
 
 ## Do the documents keep their promises, when it is asked for
 
@@ -190,34 +197,34 @@ Three rules, and the first is the one that is easy to break by being helpful:
 - **An empty result is not a clean bill.** CASCADE reports recall 0.21: it
   finds about a fifth of what is there. "No inconsistency found" here means
   "none of the sentences that could be tested failed the experiment", and the
-  row says so. Do not upgrade it to "the docs are accurate".
-- **Do not fix what it finds.** A sentence the code contradicts is a proposal
-  in your reply, not an edit.
+  row says so. Report it as what it is: the claims that were tested, and how they came out.
+- **Leave what it finds in place.** A sentence the code contradicts is a
+  proposal in your reply, not an edit.
 
 ## Then read what the numbers cannot say
 
-The page ends by naming the questions it could not answer. They are the reason
-you are here, and each has a rule:
+The page ends by naming the questions it could not answer. Those questions are
+the reason you are here, and they are **on the page** — read them from there.
+Restating them here would put them in two places, and the copy that goes stale
+is always the one nobody runs.
 
-1. **Where do the tests actually live?** The page names the directories it
-   took the verdict from. Go and look — `frontend/`, `backend/`, `packages/*/`,
-   wherever this repository put them. If a suite is missing from that row, say
-   so: the percentage under it is then **wrong**, not merely low, and every
-   judgement built on it has to be withdrawn.
-2. **Is the standing cost earning its tokens?** Open the entry files. Of each
-   line ask: is this true of any repository, or only this one? Does the file
-   next to it already say it? Could a trigger deliver it later instead of on
-   every turn forever?
-3. **Which sentences are waffle?** Quote them. *"The docs are verbose"* has
-   never caused a deletion; a quoted sentence with a proposed replacement can
-   be argued with, and losing that argument is also a result.
-4. **Does each wired hook address a mistake THIS repository makes?** A guard
-   nobody has ever hit is either protecting something real or matching nothing
-   at all, and the two look identical from outside. `git log` on the file is
-   usually where the answer is.
-5. **Is anything you would normally need refused?** Name the tool call and the
-   rule that stopped it. A general feeling of being constrained is not a
-   finding.
+What is not on the page is how to answer them, and these are the four rules:
+
+- **A missing suite makes a number wrong, not low.** If the tests row left out
+  a directory this repository actually uses, the percentage under it is void
+  and every judgement built on it has to be withdrawn.
+- **Quote, or say nothing.** *"The docs are verbose"* has never once caused a
+  deletion. A quoted sentence with a proposed replacement can be argued with,
+  and losing that argument is also a result.
+- **A guard nobody has hit is ambiguous, not idle.** Protecting something real
+  and matching nothing at all look identical from outside; `git log` on the
+  file is usually where the answer is.
+- **Name the tool call and the rule that stopped it.** A general feeling of
+  being constrained is not a finding.
+
+For the standing cost, ask of each line: is this true of any repository, or
+only this one? Does the file beside it already say it? Could a trigger deliver
+it later instead of on every turn forever?
 
 ## What you hand back
 
@@ -235,13 +242,3 @@ for you. Then, in your reply, at most:
 Quote a file and line for anything you judged rather than measured. Keep the
 whole reply short enough that somebody reads all of it — a page nobody finishes
 is a page nobody acts on.
-
-## Never
-
-- Change the repository. You measure it. Even an obvious one-line fix belongs
-  in the proposal, not in the tree.
-- Report a missing toolchain as a failing test suite. It is an abstention, and
-  scoring it as a zero throws away exactly the repositories whose suites are
-  fine.
-- Leave the replay on for a repository whose tests you have not looked at
-  without repeating what its pre-flight line said it would run.

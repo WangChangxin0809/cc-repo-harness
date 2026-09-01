@@ -1,0 +1,202 @@
+{
+ "candidates": [
+  {
+   "id": 0,
+   "real": false,
+   "why": "The heading is 'Two rules that shape every row below' and two bolded rules follow it. T1 compared it against .claude/rules/, which holds one file about something else entirely -- the sentence is not about that directory.",
+   "file": "guide/1-assess.md",
+   "claim": "Two rules",
+   "tier": 1
+  },
+  {
+   "id": 1,
+   "real": false,
+   "why": "WangChangxin0809/agent-harness is the old marketplace name, named on purpose so somebody who added the plugin under it can find the rename. A slug that no longer resolves is the whole point of the sentence.",
+   "file": "README.md",
+   "claim": "WangChangxin0809/agent-harness",
+   "tier": 2
+  },
+  {
+   "id": 2,
+   "real": false,
+   "why": "CONTRIBUTING.md points at SECURITY.md for where to report and at shared/scripts/index/ as a place contributions are welcome. Neither claim depends on what changed inside them; the commits are to their contents, not to their existence or role.",
+   "file": "CONTRIBUTING.md",
+   "claim": "11 commit(s) to what it points at (SECURITY.md, shared/scripts/index) in the 4 days since this was touched",
+   "tier": 3,
+   "moved": 1787907609
+  },
+  {
+   "id": 3,
+   "real": false,
+   "why": "'two agents' is dimension 4's memory probe costing exactly two repo-probe agents, which is still true -- memory.py prepares two trees and the assessor is told to spawn no more. Compared against agents/, which holds four agent definitions, a different set.",
+   "file": "guide/1-assess.md",
+   "claim": "two\nagents",
+   "tier": 1
+  },
+  {
+   "id": 4,
+   "real": false,
+   "why": "Fixed one commit ago. docs/generated/index-report.md is written by scripts/index/build.py and the README now says so and says it is generated rather than committed, so the path correctly resolves nowhere in a fresh clone.",
+   "file": "README.md",
+   "claim": "docs/generated/index-report.md",
+   "tier": 2
+  },
+  {
+   "id": 5,
+   "real": false,
+   "why": "SECURITY.md points at .claude/settings.json and hooks/run_repo_guards.py as where the refusals live. Both still live there; the commits changed which guards are wired, which is what the document says varies.",
+   "file": "SECURITY.md",
+   "claim": "6 commit(s) to what it points at (.claude/settings.json, hooks/run_repo_guards.py) in the 4 days since this was touched",
+   "tier": 3,
+   "moved": 1787920002
+  },
+  {
+   "id": 6,
+   "real": false,
+   "why": "hooks/ holds four files, two of which are hooks -- hooks.json is the manifest and selftest.py is the check. The README's 'two hooks' is a count of hooks, not of files in the directory.",
+   "file": "README.md",
+   "claim": "two hooks",
+   "tier": 1
+  },
+  {
+   "id": 7,
+   "real": false,
+   "why": "src/billing/ is the worked example inside the bootstrap skill, showing where a scaffolded repository would put a document's Governs: target. It describes somebody else's tree, which is why it is absent here.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "src/billing/",
+   "tier": 2
+  },
+  {
+   "id": 8,
+   "real": false,
+   "why": "eval/README.md describes the corpus harness. The commits are to the workflow that drives it and to .work/ and results/, which are outputs the document names as outputs -- their changing is the document being right.",
+   "file": "eval/README.md",
+   "claim": "4 commit(s) to what it points at (.github/workflows/nim-agent.yml, eval/.work, eval/results/latest.json …) in the 3 days since this was touched",
+   "tier": 3,
+   "moved": 1788026969
+  },
+  {
+   "id": 9,
+   "real": false,
+   "why": "Same shape as 0: the README's 'Two rules follow' is followed by two bolded rules. .claude/rules/ is unrelated.",
+   "file": "README.md",
+   "claim": "Two rules",
+   "tier": 1
+  },
+  {
+   "id": 10,
+   "real": false,
+   "why": "scripts/guards/ is where a SCAFFOLDED repository keeps its guards. Ours are under shared/scripts/guards/ because we are the source they are copied from -- CLAUDE.md's hard rule 5. Correct that it is absent here.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/guards/",
+   "tier": 2
+  },
+  {
+   "id": 11,
+   "tier": 3,
+   "file": "guide/2-checklist.md",
+   "real": false,
+   "why": "guide/2-checklist.md points at the tech-debt tracker, docs/index.md and its own neighbour as places a finding lands. The commits added entries to them, which is those documents working rather than this one going stale.",
+   "moved": 1788177813
+  },
+  {
+   "id": 12,
+   "real": false,
+   "why": "'Two rules everything else follows from' is followed by exactly two bolded rules -- knowledge in the repository, and no reliance on retrieval for what cannot tolerate a miss.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "Two rules",
+   "tier": 1
+  },
+  {
+   "id": 13,
+   "real": false,
+   "why": "scripts/index/ is tier C of a scaffolded repository. Same class as 10.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/index/",
+   "tier": 2
+  },
+  {
+   "id": 14,
+   "real": false,
+   "why": "guide/3-decide.md points at .claude/settings.json and decision 0022 as examples of the shape a decision takes. Both still say what it quotes them for.",
+   "file": "guide/3-decide.md",
+   "claim": "5 commit(s) to what it points at (.claude/settings.json, docs/decisions/0022-one-assessment-step-that-may-end-in-nothing.md, docs/index.md …) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788177813
+  },
+  {
+   "id": 15,
+   "real": false,
+   "why": "'Four rules, and then use your judgement:' is followed by exactly four bullets.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "Four rules",
+   "tier": 1
+  },
+  {
+   "id": 16,
+   "real": false,
+   "why": "scripts/selftests/ is a scaffolded repository's layout. Same class as 10 and 13.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/selftests/",
+   "tier": 2
+  },
+  {
+   "id": 17,
+   "real": false,
+   "why": "guide/4-do-the-work.md links its neighbours 3-decide and 5-re-measure as the steps either side of it. They changed; their being the neighbours did not.",
+   "file": "guide/4-do-the-work.md",
+   "claim": "2 commit(s) to what it points at (guide/3-decide.md, guide/5-re-measure.md) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788187346
+  },
+  {
+   "id": 18,
+   "real": false,
+   "why": "The sentence is 'Never *we added five guards* -- that is a claim about us.' It is a quoted example of a sentence an assessment must not write. Counting the number inside it is the same failure the quote is warning about, and the ninth time this project has met text about a thing read as the thing.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "five guards",
+   "tier": 1
+  },
+  {
+   "id": 19,
+   "real": false,
+   "why": "scripts/baselines/ is a scaffolded repository's layout. Same class as 10, 13 and 16.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/baselines/",
+   "tier": 2
+  },
+  {
+   "id": 20,
+   "real": false,
+   "why": "repo-index/SKILL.md cites decision 0001 for retrieval being measured rather than argued. The decision still says that; the commit was to its wording.",
+   "file": "shared/skills/repo-index/SKILL.md",
+   "claim": "1 commit(s) to what it points at (docs/decisions/0001-retrieval-is-measured-not-argued.md, docs/generated) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788185084
+  },
+  {
+   "id": 21,
+   "real": false,
+   "why": "Same as 18: 'added three gates' sits inside a quoted example of what an assessment must never say.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "three gates",
+   "tier": 1
+  },
+  {
+   "id": 22,
+   "real": false,
+   "why": "src/bill is the worked example for how Governs: matches by path segment -- the section exists to explain that src/bill does not reach src/billing_old/. An illustrative path, not a claim about this tree.",
+   "file": "shared/skills/writing-docs/SKILL.md",
+   "claim": "src/bill",
+   "tier": 2
+  },
+  {
+   "id": 23,
+   "tier": 3,
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "real": false,
+   "why": "Read, and it found something: moments.md, which this SKILL points at for the seven delivery moments, told people that nothing is wired at PostToolUse by default and that a hook there should always exit 0. Both stopped being true when same_turn.py shipped -- scaffold.py wires it, and a red check exits 2 on purpose. moments.md is fixed. SKILL.md itself says nothing that has gone stale, so this candidate is dismissed: what moved was under it, not in it.",
+   "moved": 1788283509
+  }
+ ]
+}

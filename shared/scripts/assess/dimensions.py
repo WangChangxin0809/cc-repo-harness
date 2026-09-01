@@ -33,7 +33,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-import history as history_mod  # noqa: E402
+import history as history_mod
+import reframe as reframe_mod  # noqa: E402
 
 # A rule with no `paths:` loads at launch; one with `paths:` loads only when
 # Claude reads a matching file. The distinction decides both what a rule costs
@@ -561,7 +562,15 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
                     .get("PreToolUse", 0)) + deny
     post = hooks.get("PostToolUse", 0)
     suite = bool((catch or {}).get("command") or (mutants or {}).get("command"))
-    ci = bool((catch or {}).get("ci") or (mutants or {}).get("ci"))
+    # Two different questions, and conflating them reported this repository --
+    # five required checks on a protected branch -- as having no CI rung at
+    # all. `catch["ci"]` is a command the replay could *run in the bench*, and
+    # it recognises `ci.sh` and `make ci`: one of which this plugin scaffolds.
+    # Grading a repository on whether it adopted our convention is the thing
+    # 0025 rejected. Whether the rung *exists* is the probe's question, and it
+    # already knew about the workflow.
+    ci_runnable = bool((catch or {}).get("ci") or (mutants or {}).get("ci"))
+    ci = ci_runnable or bool(disc.get("ci_entry"))
 
     # How many defects actually got as far as each rung. The walk stops at the
     # first red, so a lower rung showing 0 is *expected* when the rungs above
@@ -591,7 +600,10 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
         state(post, "same-turn", f"{post} hook(s)"),
         state(suite, "local-suite",
               f"{len(disc.get('check_dirs') or [])} check dir(s)"),
-        state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point"),
+        state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point")
+        + ("" if ci_runnable or not ci else
+           " (no entry point the replay could run here, so nothing was fired "
+           "at it)"),
     ]
     unenforced = 0
     if value:
@@ -602,7 +614,17 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
 
     empty = [b.split(":")[0] for b in bits if "none wired" in b]
     silent = [b.split(":")[0] for b in bits if " of " in b
-              and b.endswith(" caught") and ", 0 of " in b]
+              and b.endswith(" caught") and ", 0 of " in b
+              # ...except the guards. They are a *destructive-action* layer,
+              # and the defects walked past them here are ordinary bugs out of
+              # this repository's own history. A guard that blocked one would
+              # be a false block, which dimension 1 counts against a
+              # repository -- so `before-write: 0 of N` is the correct
+              # outcome, and flagging it red is a threshold no repository can
+              # ever meet however good its guards are. Whether they work is
+              # dimension 1's question and it is asked there properly, by
+              # firing destructive actions at them -> 0038
+              and not b.startswith("before-write")]
     return {
         "label": "what could have caught it",
         "value": " · ".join(bits),
@@ -612,6 +634,11 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
                  "below prints the same 0 for both. A rung nothing reached "
                  "is neither: the walk stops at the first red"
                  + (f". Wired and silent: {', '.join(silent)}" if silent else "")
+                 + (". `before-write` catching none of these is the right "
+                    "outcome, not a silence: these are ordinary defects, and "
+                    "a guard that blocked one would be a false block. "
+                    "Dimension 1 is where the guards are fired at"
+                    if pre else "")
                  + (f". Not wired at all: {', '.join(empty)}" if empty else "")
                  + (". `rule` has no rung because a document cannot be fired "
                     "at — it is a layer nobody can show working"
@@ -1129,7 +1156,7 @@ def _is_source(path, check_dirs=()):
 
 def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
                       conflict=None, conflict_judged=None,
-                      promises=None):
+                      promises=None, truth_judged=None):
     """Can an agent that has never seen this repository find its way, and is
     that because of something the repository keeps?
 
@@ -1187,16 +1214,40 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
             by = {}
             for c in cands:
                 by[c["tier"]] = by.get(c["tier"], 0) + 1
-            rows.append({
-                "label": "candidates for a second reading",
-                "value": "  ".join(f"T{k}:{v}" for k, v in sorted(by.items())),
-                "flag": "info",
-                "note": "NOT findings. A machine can say where to look and "
-                        "cannot say what is wrong: T1 a count the tree "
-                        "disagrees with, T2 a path resolving nowhere, T3 a "
-                        "document the code moved out from under, T4 two "
-                        "documents giving one number two values. An agent "
-                        "reads these and keeps what is real"})
+            judged = truth_judged
+            spread = "  ".join(f"T{k}:{v}" for k, v in sorted(by.items()))
+            if judged:
+                # A reading that happened and was written down. Without this
+                # the same 24 candidates came back on every run forever, and
+                # each reader paid again to rediscover that most of them
+                # describe a repository this one scaffolds rather than this
+                # one -> conflict.py, which had the same hole.
+                rows.append({
+                    "label": "candidates for a second reading",
+                    "value": "%d real of %d candidate(s)%s" % (
+                        len(judged["real"]), judged["judged"],
+                        ", %d unread" % judged["pending"]
+                        if judged["pending"] else ""),
+                    "flag": "bad" if judged["real"] else "ok",
+                    "note": ("read, not counted: " + spread + ". "
+                             + (judged["real"][0].get("why", "")[:160]
+                                if judged["real"]
+                                else "every candidate was dismissed on "
+                                     "reading, and the reasons are in the "
+                                     "answers file"))})
+            else:
+                rows.append({
+                    "label": "candidates for a second reading",
+                    "value": spread,
+                    "flag": "info",
+                    "note": "NOT findings. A machine can say where to look and "
+                            "cannot say what is wrong: T1 a count the tree "
+                            "disagrees with, T2 a path resolving nowhere, T3 a "
+                            "document the code moved out from under, T4 two "
+                            "documents giving one number two values. An agent "
+                            "reads these and keeps what is real — "
+                            "`truth.py --brief <run.json>`, then "
+                            "`--truth-answers`"})
 
     records = _mistake_records(root)
     if records:
@@ -1214,6 +1265,16 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
                      "value": "none found", "flag": "warn",
                      "note": "no postmortem, decision record, known-issues or "
                              "changelog anywhere in the tree"})
+
+    # Everything above asks what the repository writes down. This asks what
+    # shape the sentences are in, which is a separate question with its own
+    # evidence: reframing an instruction without changing what it asks moves
+    # how reliably it is followed -> reframe.py. Candidates only; which are
+    # worth rewriting is a reading, and a repository may mean its prose.
+    # It costs nothing -- no agent, no network, one walk of the tracked `.md`
+    # files -- so it runs every time, the way `truth` does. A measurement
+    # nobody has to opt into is a measurement that gets looked at.
+    rows.extend(reframe_mod.render(reframe_mod.measure(root)))
 
     # Does the repository contradict itself? Stage one is lexical and narrows
     # hard -- 1711 possible pairs to one candidate here -- because a filter
@@ -1611,7 +1672,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
            conflict_judged=None, promises=None, units=None,
-           permitted=None):
+           permitted=None, truth_judged=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1625,7 +1686,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, memory, truth,
-                          conflict, conflict_judged, promises),
+                          conflict, conflict_judged, promises, truth_judged),
         context_economy(root, probe, blast, value, units),
     ]
 

@@ -115,6 +115,15 @@ jobs:
       - name: docs routing table resolves
         run: python3 shared/scripts/gates/check_docs_index.py --root .
 
+      # A second instrument scoring this repository found a username in three
+      # committed result files. It was right, and the answer to a finding a
+      # paragraph could have prevented is a check rather than a paragraph.
+      - name: nobody's home directory is committed
+        run: python3 shared/scripts/gates/check_no_machine_paths.py --root .
+
+      - name: that gate can still turn red
+        run: python3 shared/scripts/gates/check_no_machine_paths.py --selftest
+
       # The gate that found four shipped commands in this repository's own
       # skills that exited with `unrecognized arguments`. Documentation is the
       # one artefact here that nobody ever executes, which is why it drifts
@@ -141,6 +150,14 @@ jobs:
       # that an unreviewed packet cannot come back clean.
       - name: the drift pass can still tell a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
+
+      # `scripts/check.py` is the one local command, and it works by reading
+      # this file rather than restating it -- so the failure mode is a step
+      # landing here in a shape it cannot classify, which it would then
+      # silently not run. This is the step that catches that: it parses the
+      # real workflow and goes red if anything in it is unreadable.
+      - name: the local runner can still read this file
+        run: python3 scripts/check.py --selftest
 
   acceptance:
     # The plugin's own acceptance criterion, the one the README states in prose:
@@ -215,6 +232,29 @@ jobs:
       # was deliberately not selected. It found two real defects on first run.
       - name: the Python says what it means
         run: ruff check .
+
+      # A second opinion, from an instrument this project did not write. It
+      # scores the same subject the assessment does -- how well a repository
+      # supports a coding agent -- across six dimensions of its own, so where
+      # it disagrees with our own page, one of the two is wrong and that is
+      # worth knowing.
+      #
+      # Pinned to the commit the v1.1.13 tag pointed at, not to the tag: a tag
+      # is a promise from whoever can move it, which is the rule zizmor
+      # enforces two steps up.
+      #
+      # The first run scored 68. The threshold sits just under it, which is
+      # what makes this a check rather than a printout: a change that costs
+      # three points on somebody else's scale turns the job red and somebody
+      # has to say why. `fail-below: 0` would be the step that can never fail,
+      # which is the thing dimension 3.2 exists to find.
+      #
+      # Raise this when the score rises. Lowering it needs a sentence here
+      # saying what was traded for the points.
+      - name: a second opinion on the harness
+        uses: 0xmariowu/AgentLint@6cf433c4092ee10a3162c2f4ddd68ff13b5d4aff  # v1.1.13
+        with:
+          fail-below: '65'
 
   release-hygiene:
     # Only on a pull request: there is nothing to diff a push to main against,

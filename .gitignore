@@ -27,3 +27,13 @@ eval/.improve/
 # person can open them. Never committed: they are a snapshot of one machine on
 # one day, and a stale one reads as current.
 tmp/
+
+# Environment files. Never committed: a value in one of these is a credential,
+# and a credential that reaches a commit is in the history, in every clone and
+# in every fork afterwards -- the fix for which is a rotation, not a revert.
+# The `.example` twin is the thing to commit: the shape, with placeholders.
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template

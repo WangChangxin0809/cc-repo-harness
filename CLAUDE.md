@@ -39,8 +39,7 @@ arrives. The other five are payload, copied into the repository that chose them
 2. **A check nobody has watched fail is a file, not a check.** A new gate or
    guard is not done until you have planted its defect, watched it go red, and
    left a selftest case behind that does the same. See `writing-checks`.
-3. **Exit 2 means COULD NOT JUDGE and is never a pass.** No check may swallow a
-   status with `|| true`.
+3. **Exit 2 means COULD NOT JUDGE and is never a pass.**
 4. **Repository behaviour never lives in the plugin.** If installing or
    uninstalling this plugin changes what a repository *does*, that is a bug: it
    makes the repository behave differently for teammates who have not installed
@@ -58,6 +57,19 @@ arrives. The other five are payload, copied into the repository that chose them
 
 ## Commands
 
+**Before pushing, run this.** It is the whole suite, about seventy seconds:
+
+```bash
+python3 scripts/check.py            # everything CI will run, that a laptop can
+python3 scripts/check.py --list     # what it would run, and what it skips
+```
+
+It reads `.github/workflows/ci.yml` and runs the steps out of it, so there is
+no second list to drift. Unreadable step, or a linter this machine lacks: exit
+2, by rule 3 below.
+
+The pieces, when you want one of them alone:
+
 ```bash
 python3 shared/scripts/guards/selftest.py     # guards can still turn red
 python3 shared/scripts/gates/selftest.py      # gates can still turn red
@@ -68,9 +80,6 @@ python3 shared/scripts/probe_repo.py --root . # what this repo has and lacks
 python3 shared/scripts/assess/factsheet.py --root .   # the whole assessment, one page
 claude plugin validate . --strict             # the manifest, by the first-party checker
 ```
-
-There is no `ci.sh` here. `.github/workflows/ci.yml` is the entry point, and it
-runs the scripts above one per step.
 
 ## Where to look
 

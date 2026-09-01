@@ -45,15 +45,14 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py diff
 ```
 
 `prepare` copies and then chmods the snapshot read-only. That is not paranoia
-about permissions: it is what makes "never synthesize in place" a property of
-the filesystem rather than of everyone's discipline. In-place editing destroys
-the evidence needed to tell a good merge from a lossy one, and lossy merges are
-the normal failure — they read beautifully.
+about permissions: it is what makes the invariant in `SKILL.md` a property of
+the filesystem rather than of everyone's discipline, and the reason it is worth
+that is stated there.
 
 `diff` leads with what is **gone**: every measurement, commit hash, and path
 that appears in the snapshot and not in the candidate, quoted in full. That
 comparison is by content, not by filename — consolidation *merges*, so an entry
-that moved from `cache.md` into `perf.md` must not read as a loss, and a number
+that moved from `cache.md` into `perf.md` reads as moved, and a number
 deleted during that move must not read as a move.
 
 It then lists entries that survived with no `ROUTE:` line, and only then the

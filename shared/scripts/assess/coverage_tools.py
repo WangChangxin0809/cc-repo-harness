@@ -78,10 +78,10 @@ REPORT_TIMEOUT = 180
 CRITERIA = ("statement", "function", "branch", "mcdc")
 
 
-def sh(args, cwd, timeout):
+def sh(args, cwd, timeout, env=None):
     try:
         return subprocess.run(args, cwd=cwd, capture_output=True, text=True,
-                              timeout=timeout)
+                              timeout=timeout, env=env)
     except (OSError, subprocess.SubprocessError) as exc:
         return subprocess.CompletedProcess(args, 127, "", str(exc))
 
@@ -369,16 +369,59 @@ class Python:
             return run + argv
         return None
 
+    def subprocesses(self, work):
+        """(env, rcfile) so that Python processes the suite *starts* are
+        measured too.
+
+        Wrapping the command measures the process `coverage run` launched, and
+        nothing it spawns. That is the whole of the measurement for a suite
+        whose runner shells out -- a `check.py` that invokes twenty scripts, a
+        `tox`, a `make`, pytest under `-n` -- and the number that comes back is
+        the runner's own lines: small, confident and about the wrong subject.
+
+        coverage.py has a supported answer and this is it. `COVERAGE_PROCESS_START`
+        names an rcfile, and any interpreter that imports a `sitecustomize`
+        calling `coverage.process_startup()` joins the measurement. Both halves
+        are written into the work directory, so nothing is left in the
+        repository being assessed."""
+        os.makedirs(work, exist_ok=True)
+        rc = os.path.join(work, "coverage.rc")
+        with open(rc, "w", encoding="utf-8") as fh:
+            fh.write("[run]\nbranch = True\nsource = .\nparallel = True\n"
+                     "sigterm = True\n")
+        boot = os.path.join(work, "cov-boot")
+        os.makedirs(boot, exist_ok=True)
+        with open(os.path.join(boot, "sitecustomize.py"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("try:\n    import coverage\n"
+                     "    coverage.process_startup()\n"
+                     "except Exception:\n    pass\n")
+        env = dict(os.environ)
+        env["COVERAGE_PROCESS_START"] = rc
+        env["PYTHONPATH"] = os.pathsep.join(
+            [boot] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
+        return env, rc
+
     def measure(self, root, command, work):
         argv = self.wrap(command)
         if not argv:
             return None, ("the test command cannot be wrapped by `coverage "
                           "run` without reading the repository -- pass one "
                           "shaped like `pytest ...` or `python3 <script>`")
-        sh(argv, root, RUN_TIMEOUT)
+        env, rc = self.subprocesses(work)
+        # `--rcfile` carries branch, source and parallel, so the flags `wrap`
+        # put there would be saying the same thing twice.
+        argv = [a for a in argv if a not in ("--branch", "--source=.")]
+        argv = argv[:argv.index("run") + 1] + ["--rcfile", rc] \
+            + argv[argv.index("run") + 1:]
+        sh(argv, root, RUN_TIMEOUT, env)
+        # Parallel mode writes one file per process; combining them is what
+        # turns the suite and everything it started into a single report.
+        sh([sys.executable, "-m", "coverage", "combine", "--rcfile", rc],
+           root, REPORT_TIMEOUT, env)
         out = os.path.join(work, "coverage.json")
-        rep = sh([sys.executable, "-m", "coverage", "json", "-o", out],
-                 root, REPORT_TIMEOUT)
+        rep = sh([sys.executable, "-m", "coverage", "json", "--rcfile", rc,
+                  "-o", out], root, REPORT_TIMEOUT, env)
         if rep.returncode != 0:
             # `No data to report.` arrives on stdout, not stderr, so reading
             # only stderr produced `produced no report: ` with nothing after

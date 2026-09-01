@@ -179,6 +179,23 @@ def scoped(eco, cmd, tests):
     return None
 
 
+def _portable(repo, cmd):
+    """`cmd` with any path inside `repo` written relative to it.
+
+    A recorded command that names `/home/<somebody>/…/.venv-defects/bin/python`
+    is a record of one laptop. Two runs of the same subject on two machines
+    then differ in a field that describes neither the subject nor the run."""
+    root = os.path.abspath(repo)
+    out = []
+    for part in cmd:
+        full = os.path.abspath(part)
+        if os.path.isabs(part) and (full == root
+                                    or full.startswith(root + os.sep)):
+            part = "./" + os.path.relpath(full, root).replace(os.sep, "/")
+        out.append(part)
+    return out
+
+
 def run(repo, cmd):
     """(verdict, one line of detail). green / red / could-not-run."""
     out = sh(cmd, repo, TEST_TIMEOUT)
@@ -208,7 +225,12 @@ def validate(repo, sha, samples):
              and os.path.exists(os.path.join(repo, p))]
     narrow = scoped(eco_name, cmd, tests)
     cmd = narrow or cmd
-    row = {"ecosystem": eco_name, "command": " ".join(cmd),
+    # Relative to the repository, not to this machine. The command holds the
+    # path to a per-subject virtualenv, and writing it absolute put a
+    # username into every committed result file -- a record nobody else can
+    # reproduce, carrying somebody's name into every clone and fork
+    # -> shared/scripts/gates/check_no_machine_paths.py
+    row = {"ecosystem": eco_name, "command": " ".join(_portable(repo, cmd)),
            "scope": "touched tests" if narrow else "whole suite",
            "tests": tests}
 

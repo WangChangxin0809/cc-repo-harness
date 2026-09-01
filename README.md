@@ -344,9 +344,11 @@ finding out that the thing was built for a repository nobody actually has.
 - Claude Code with plugin support
 
 No optional dependencies either. The index extracts symbols with per-language
-regexes, and `docs/generated/index-report.md` records the holes that leaves —
-the files it skipped, the imports it could not resolve, the dispatch it cannot
-see. Read that before trusting an absence in the graph.
+regexes, and `scripts/index/build.py` writes what that leaves out to
+`docs/generated/index-report.md` — the files it skipped, the imports it could
+not resolve, the dispatch it cannot see. The report is generated rather than
+committed, so it exists once the index has been built; read it before trusting
+an absence in the graph.
 
 This section used to promise that installing `tree-sitter-languages` upgraded
 extraction. It did not, and the report said `tree-sitter` anyway — see

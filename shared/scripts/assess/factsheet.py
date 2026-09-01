@@ -173,6 +173,15 @@ def gather(root, full, instances, work, command=None, mutate=0):
         cwork = os.path.join(work, "cover")
         cbench = catch_mod.bench(root, cwork)
         catch_mod.park(cbench, "HEAD")
+        # `command` is only what somebody typed after `--test-command`. The
+        # replay above discovers one when nobody did, and coverage was not
+        # given it -- so a repository whose suite the table recognises still
+        # reported "no test command to instrument" unless the flag was passed
+        # by hand. Two parts of one page disagreeing about whether this
+        # repository has a suite is worse than either answer.
+        if not command:
+            _eco, found_cmd = catch_mod.find(cbench)
+            command = found_cmd
         r["cover"], r["cover_why"] = cover_mod.assess(cbench, command, cwork)
 
     # Second injection, and the only one that is opt-in. The replay asks how
@@ -241,7 +250,7 @@ def dimensions_of(r, memory=None, judged=None, observed=None):
                           r.get("observe"), observed, r.get("gate"),
                           r.get("conflict"), r.get("conflict_judged"),
                           r.get("promises"), r.get("units"),
-                          r.get("permitted"))
+                          r.get("permitted"), r.get("truth_judged"))
 
 
 def render_flat(r):
@@ -366,6 +375,18 @@ def main():
                          "verdict on whether an agent can watch its own change "
                          "run here. Without it dimension 1 prints two rows "
                          "instead of three, rather than guessing the third.")
+    ap.add_argument("--truth-answers", default="",
+                    help="JSON from the agent that read `truth.py --brief` — "
+                         "which candidates for a second reading are real. "
+                         "Without it the same list comes back on every run "
+                         "for as long as the repository exists, and every "
+                         "reader pays again to dismiss it.")
+    ap.add_argument("--conflict-answers", default="",
+                    help="JSON from the agent that read `conflict.py --brief` "
+                         "— which candidate pairs are real contradictions. "
+                         "Without it dimension 4 reports them as unjudged "
+                         "for as long as the repository exists, which is "
+                         "what it did until this flag was added.")
     ap.add_argument("--legitimate-actions", default="",
                     help="JSON from the agent that read `permitted_brief` — "
                          "this repository's own legitimate work, fired at its "
@@ -432,7 +453,14 @@ def preflight(root, a, work):
              f"defects, in a clone under {work}"]
     lines.append("  and once more, instrumented, to record which lines, "
                  "branches and conditions it exercises at all")
-    lines.append("  it will run: " + (" ".join(cmd) if cmd else
+    # Where the command came from, when it came from the repository's own
+    # documents rather than from a convention this tool recognises. Running
+    # somebody's documented command is reasonable; running it without saying
+    # whose it is presents their sentence as this tool's decision.
+    whose = ""
+    if cmd and not a.test_command and getattr(eco, "source", None):
+        whose = "  (declared in " + eco.source + ")"
+    lines.append("  it will run: " + (" ".join(cmd) + whose if cmd else
                                       "nothing — no runnable test command "
                                       "found. Pass --test-command, or "
                                       "dimension 2 will abstain"))
@@ -503,6 +531,20 @@ def _run(a, root, work):
                 print(f"  --legitimate-actions ignored: {why}\n")
             else:
                 r["permitted"] = fired
+        if a.truth_answers and r.get("truth"):
+            with open(a.truth_answers, encoding="utf-8") as fh:
+                tj, why = truth_mod.grade(r["truth"], json.load(fh))
+            if tj is None:
+                print(f"  --truth-answers ignored: {why}\n")
+            else:
+                r["truth_judged"] = tj
+        if a.conflict_answers and r.get("conflict"):
+            with open(a.conflict_answers, encoding="utf-8") as fh:
+                cj, why = conflict_mod.grade(r["conflict"], json.load(fh))
+            if cj is None:
+                print(f"  --conflict-answers ignored: {why}\n")
+            else:
+                r["conflict_judged"] = cj
         observed = None
         if a.observe_answers and r.get("observe"):
             with open(a.observe_answers, encoding="utf-8") as fh:

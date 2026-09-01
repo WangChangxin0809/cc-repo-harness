@@ -473,6 +473,15 @@ CONTEXT_SCRIPTS = [
     # while work is happening; none covers finishing with the tree red, which
     # is the failure a person discovers later, from CI, after the agent is gone.
     ("on_stop.py", [("Stop", "*")], "B"),
+    # The rung between a guard refusing a call and the agent choosing to run
+    # the tests: the check runs *because an edit happened*, with the reasoning
+    # that produced the edit still in front of the model.
+    #
+    # Tier B, with the rest of `context/`, and not C: `context/selftest.py`
+    # ships at B and has cases for this file, so a higher floor here would
+    # ship a suite testing something that is not in the tree. The scaffold
+    # selftest caught exactly that, which is what it is for.
+    ("same_turn.py", [("PostToolUse", "Write|Edit|MultiEdit")], "B"),
     # Ships with them and answers to no event. A hook nobody can watch fail is
     # how `after_edit.py` spent its whole life printing to a channel the model
     # never reads, with a passing test that asserted on the wrong boundary.
