@@ -54,6 +54,7 @@ import merge as merge_mod          # noqa: E402
 import conflict as conflict_mod    # noqa: E402
 import promises as promises_mod    # noqa: E402
 import units as units_mod          # noqa: E402
+import permitted as permitted_mod  # noqa: E402
 
 
 def git(args, cwd):
@@ -3236,7 +3237,107 @@ def case_an_untracked_file_is_not_loadable_context(t):
     return None
 
 
+
+_ALWAYS_NO = ("#!/usr/bin/env python3\n"
+              "import json, sys\n"
+              "json.load(sys.stdin)\n"
+              "print('Blocked: everything is blocked', file=sys.stderr)\n"
+              "sys.exit(2)\n")
+
+
+def _hooked(t, body):
+    os.makedirs(os.path.join(t, ".claude"), exist_ok=True)
+    with open(os.path.join(t, "everything.py"), "w", encoding="utf-8") as fh:
+        fh.write(body)
+    with open(os.path.join(t, ".claude", "settings.json"), "w",
+              encoding="utf-8") as fh:
+        json.dump({"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+            {"type": "command",
+             "command": "python3 \"$CLAUDE_PROJECT_DIR/everything.py\""}]}]}},
+            fh)
+    return t
+
+
+def case_nothing_wired_cannot_fail_the_legitimate_row(t):
+    """A repository with no guard has no guard to be wrong about.
+
+    Reporting `0 of 20 blocked` for a repository that blocks nothing would
+    put a tick beside the very thing dimension 1 exists to find missing."""
+    got, why = permitted_mod.evidence(t)
+    if got:
+        return "a repository with no hooks was still measured for false blocks"
+    if "nothing is wired" not in why:
+        return f"the abstention does not say why: {why!r}"
+    return None
+
+
+def case_a_guard_that_refuses_everything_is_caught_here(t):
+    """The row exists because 6 of 6 refusals is free to such a guard.
+
+    Dimension 1 counts what a repository refuses. This is what stops that
+    number being awarded to a repository that has simply stopped working."""
+    _hooked(t, _ALWAYS_NO)
+    got, why = permitted_mod.fire(t, {"actions": [
+        {"what": "run the tests", "tool": "Bash", "command": "pytest -q"},
+        {"what": "read history", "tool": "Bash", "command": "git log -1"}]})
+    if not got:
+        return f"nothing was fired: {why}"
+    if len(got["blocked"]) != 2:
+        return ("a hook refusing everything let legitimate work through: "
+                + repr(got["blocked"]))
+    if not got["blocked"][0]["by"]:
+        return "the refusing hook was not named, so nobody can go and fix it"
+    return None
+
+
+def case_only_a_shell_fence_is_a_documented_command(t):
+    """A fenced Python block is an example of code, not an instruction.
+
+    Firing `def main():` at the hooks as though somebody had typed it into a
+    shell produces noise in the corpus an agent is meant to build on."""
+    _hooked(t, _ALWAYS_NO)
+    with open(os.path.join(t, "README.md"), "w", encoding="utf-8") as fh:
+        fh.write("# R\n\n```bash\npython3 run_all_of_it.py --root .\n```\n\n"
+                 "```python\ndef never_run_this_from_a_shell():\n    pass\n```\n")
+    got, _why = permitted_mod.evidence(t)
+    cmds = [c["command"] for c in got["documented_commands"]]
+    if "python3 run_all_of_it.py --root ." not in cmds:
+        return f"the shell command was not collected: {cmds}"
+    if any("def " in c for c in cmds):
+        return f"a python fence was collected as a shell command: {cmds}"
+    return None
+
+
+def case_a_ci_step_that_is_a_template_is_not_a_command(t):
+    """`${{ ... }}` is filled in by the runner, not by a shell.
+
+    Firing the literal text measures nothing, and it is the shape most likely
+    to look alarming to a guard while meaning nothing at all."""
+    _hooked(t, _ALWAYS_NO)
+    where = os.path.join(t, ".github", "workflows")
+    os.makedirs(where, exist_ok=True)
+    with open(os.path.join(where, "ci.yml"), "w", encoding="utf-8") as fh:
+        fh.write("on: [push]\njobs:\n  t:\n    steps:\n"
+                 "      - run: python3 selftest.py\n"
+                 "      - run: deploy --to ${{ secrets.TARGET }}\n")
+    got, _why = permitted_mod.evidence(t)
+    cmds = [c["command"] for c in got["ci_commands"]]
+    if "python3 selftest.py" not in cmds:
+        return f"a real CI command was lost: {cmds}"
+    if any("${{" in c for c in cmds):
+        return f"an unexpanded template was collected as a command: {cmds}"
+    return None
+
+
 CASES = [
+    ("nothing wired cannot fail the legitimate row",
+     case_nothing_wired_cannot_fail_the_legitimate_row),
+    ("a guard that refuses everything is caught here",
+     case_a_guard_that_refuses_everything_is_caught_here),
+    ("only a shell fence is a documented command",
+     case_only_a_shell_fence_is_a_documented_command),
+    ("a CI step that is a template is not a command",
+     case_a_ci_step_that_is_a_template_is_not_a_command),
     ("a repeated table is not a repeated paragraph",
      case_a_repeated_table_is_not_a_repeated_paragraph),
     ("a file is compared to its own kind",

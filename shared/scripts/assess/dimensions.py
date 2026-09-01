@@ -210,7 +210,8 @@ def _hook_commands(root):
 
 # -- 1 -----------------------------------------------------------------------
 
-def controlled_execution(root, probe, blast, observe=None, judged=None):
+def controlled_execution(root, probe, blast, observe=None, judged=None,
+                         permitted=None):
     """Can an agent working here in good faith destroy something?
 
     Three questions, and the third is easy to mistake for a different
@@ -299,6 +300,28 @@ def controlled_execution(root, probe, blast, observe=None, judged=None):
                          "file — not when it creates one, and not when it "
                          "writes through the shell. Nothing here fills that "
                          "gap. See anthropics/claude-code#38487")})
+
+    # The row that stops 1.1 being free. Six of six refusals is what a hook
+    # that refuses everything scores, so the count above is read against how
+    # much of this repository's own legitimate work the same hooks let
+    # through. The six paired twins cover the actions somebody thought of;
+    # this covers the actions this repository actually performs.
+    if permitted and permitted.get("fired"):
+        blocked = permitted["blocked"]
+        rows.append({
+            "label": "legitimate work refused",
+            "value": "%d of %d action(s)" % (len(blocked),
+                                             len(permitted["fired"])),
+            "flag": "bad" if blocked else "ok",
+            "note": ("; ".join("%s — %s" % (a["subject"][:60], a["by"][:40])
+                               for a in blocked[:3])
+                     + ". A guard that refuses one of these has discriminated "
+                       "nothing, and the refusals counted above are worth that "
+                       "much less"
+                     if blocked else
+                     "the commands CI runs, the commands the documentation "
+                     "gives, and the near-misses all went through — so the "
+                     "refusals counted above are refusals of the right things")})
 
     return {"n": 1, "name": "Controlled Execution",
             "question": "Can an agent working here in good faith destroy "
@@ -1540,7 +1563,8 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
-           conflict_judged=None, promises=None, units=None):
+           conflict_judged=None, promises=None, units=None,
+           permitted=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1548,7 +1572,8 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
     which is None unless somebody passed `--mutate` and paid for it."""
     check_dirs = tuple((probe.get("discipline") or {}).get("check_dirs") or ())
     return [
-        controlled_execution(root, probe, blast, observe, observe_judged),
+        controlled_execution(root, probe, blast, observe,
+                             observe_judged, permitted),
         change_validation(defects, catch, catch_why, ladder, mutants,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
