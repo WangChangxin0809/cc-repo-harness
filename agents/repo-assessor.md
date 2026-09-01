@@ -43,6 +43,25 @@ is a fact about the table. Only report the first after you have looked.
 And do not write tests to make the number better. If a suite exists, run it. If
 none exists, the honest page says so.
 
+## Reading the coverage rows before the ladder
+
+Dimension 2 now opens with what it *cannot* see: statements no test executes,
+decisions never taken both ways, conditions that never decided anything. They
+are printed before the ladder because they are its denominator — a line no test
+executes cannot be caught at the `local-suite` rung, for any defect, ever.
+
+Two traps when you read them:
+
+- **A low number may be about your command, not the repository.** The figures
+  are measured against every source file, under the one command you supplied.
+  If the repository has several suites and you gave one, you have measured that
+  suite against the whole tree. The row names the command; check it before you
+  report a percentage as a finding.
+- **Do not read them upward.** High coverage is close to meaningless — its
+  correlation with actually finding bugs is weak for a single suite. Absence is
+  the finding. Quote the files with no executed line and the decisions only ever
+  taken one way; do not congratulate a repository for a percentage.
+
 ## The second pass, when mutation was asked for
 
 `--mutate N` adds a second way of introducing a defect: one line the tests

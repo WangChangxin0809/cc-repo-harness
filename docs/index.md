@@ -24,6 +24,7 @@
 | Know which of the mutation paper's numbers we reproduced, and which we did not | [0028](decisions/0028-mutation-testing-copied-from-a-paper-and-checked-against-its-numbers.md) |
 | Know why dimension 5 itemises the floor, and why the replay can be told how to run | [0029](decisions/0029-the-floor-is-itemised-and-the-replay-can-be-told-how-to-run.md) |
 | Know why mutation is opt-in, and why a surviving mutant is never a finding | [0030](decisions/0030-mutation-is-the-second-injection-and-a-survivor-is-never-a-finding.md) |
+| Know why coverage is reported as a denominator and never as a score | [0031](decisions/0031-coverage-is-the-denominator-and-its-inference-runs-one-way.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed

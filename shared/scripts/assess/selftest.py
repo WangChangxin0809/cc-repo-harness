@@ -24,6 +24,7 @@ hundred tokens a turn. Both are cases here now.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import shutil
@@ -47,6 +48,7 @@ import judge as judge_mod          # noqa: E402
 import mutate as mutate_mod        # noqa: E402
 import run_mutants as run_mod      # noqa: E402
 import factsheet as fact_mod       # noqa: E402
+import cover as cover_mod          # noqa: E402
 
 
 def git(args, cwd):
@@ -1405,6 +1407,157 @@ def _mutable_repo(t):
     return [sys.executable, "suite.py"]
 
 
+# --------------------------------------------------------------------------
+# coverage: what the ladder cannot speak about
+# --------------------------------------------------------------------------
+
+def _covered_repo(t, calls):
+    """One decision with two conditions, one function nothing calls, and a
+    suite that makes exactly `calls`."""
+    repo(t)
+    put(t, "app.py",
+        "def gate(a, b):\n"
+        "    if a and b:\n"
+        "        return 'both'\n"
+        "    return 'no'\n"
+        "\n"
+        "\n"
+        "def nobody_calls_this(x):\n"
+        "    if x > 0:\n"
+        "        return 1\n"
+        "    return 2\n")
+    put(t, "suite.py",
+        "import sys, os\n"
+        "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+        "from app import gate\n"
+        + "".join(f"gate({a}, {b})\n" for a, b in calls)
+        + "sys.exit(0)\n")
+    commit(t, "feat: a gate")
+    return [sys.executable, "suite.py"]
+
+
+def case_a_short_circuited_condition_is_absent_not_false(t):
+    """The one detail the whole MC/DC measurement rests on.
+
+    `a and b` does not evaluate `b` when `a` is false. If the recorder writes
+    False for the condition that never ran, the two observations then differ in
+    *two* places instead of one, no independence pair is found, and `a` is
+    reported as untested when it was tested perfectly well. The failure is
+    silent and it makes the measurement pessimistic in exactly the cases that
+    short-circuit most.
+
+    So: call with a=False (b never evaluated) and a=True,b=True. `a` must come
+    out independent -- and it only can if the skipped `b` was recorded as
+    absent rather than as false."""
+    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
+    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
+    r, why = cover_mod.assess(t, cmd, work)
+    if r is None:
+        return f"coverage could not be measured at all: {why}"
+    gate = [x for x in r["not_independent"] if x["line"] == 2]
+    if not gate:
+        return "the two-condition decision was not reported at all"
+    if gate[0]["independent"] != 1:
+        return (f"`a` was not shown independent ({gate[0]['independent']} of "
+                f"{gate[0]['conditions']}) — a condition that short-circuited "
+                f"away is being recorded as false rather than as absent")
+    return None
+
+
+def case_mcdc_finds_a_condition_branch_coverage_calls_covered(t):
+    """Why the third criterion is worth its instrumentation.
+
+    With calls (False,True) and (True,True) the decision `a and b` goes both
+    ways, so branch coverage is satisfied and says the line is fine. But `b` is
+    true every single time it is reached: you could delete it and no test would
+    notice, which is precisely a mutant we would generate. MC/DC is the
+    criterion that can say so, and it says it without running the suite once
+    per mutant."""
+    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
+    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
+    r, why = cover_mod.assess(t, cmd, work)
+    if r is None:
+        return f"coverage could not be measured at all: {why}"
+    gate = [x for x in r["not_independent"] if x["line"] == 2]
+    if not gate:
+        return "MC/DC did not flag the decision at all"
+    if not gate[0]["both_ways"]:
+        return ("the fixture was supposed to satisfy branch coverage on this "
+                "decision and did not, so the case proves nothing")
+    if gate[0]["missing"] != 1:
+        return (f"branch coverage is satisfied and MC/DC reports "
+                f"{gate[0]['missing']} untested condition(s), expected 1")
+    return None
+
+
+def case_a_decision_no_test_reaches_is_not_the_same_as_one_way(t):
+    """Two findings with two different fixes, and one number would hide both.
+
+    A decision nothing reaches needs a test that gets there at all. A decision
+    reached that only ever went one way needs a test that gets there with the
+    other answer. Reporting them as a single branch percentage leaves the
+    reader with neither."""
+    cmd = _covered_repo(t, [("False", "True"), ("True", "True")])
+    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
+    r, why = cover_mod.assess(t, cmd, work)
+    if r is None:
+        return f"coverage could not be measured at all: {why}"
+    cold = [x for x in r["unreached"] if x["line"] == 8]
+    if not cold:
+        return ("the decision inside the function nothing calls was not "
+                "reported as unreached")
+    if [x for x in r["one_way"] if x["line"] == 8]:
+        return "a decision nothing reaches was also counted as one-way"
+    st = r.get("statements")
+    if not st or not st["files_with_none_total"] == 0:
+        pass          # app.py IS partly executed; only the function is dark
+    return None
+
+
+def case_an_assertion_is_not_a_decision(t):
+    """A green suite makes every assertion in the repository one-way.
+
+    An assertion that has gone both ways is a test run that failed. Counting
+    assertions as decisions would therefore report every correct assertion as
+    an uncovered branch -- a denominator made entirely of noise, and one that
+    gets worse the more carefully a repository asserts."""
+    src = ("def f(x):\n"
+           "    assert x is not None\n"
+           "    if x > 0:\n"
+           "        return 1\n"
+           "    return 0\n")
+    got = cover_mod.decisions(ast.parse(src))
+    if len(got) != 1:
+        return (f"{len(got)} decision(s) found in a function with one `if` "
+                f"and one `assert` — the assertion is being counted")
+    return None
+
+
+def case_the_instrument_leaves_the_tree_as_it_found_it(t):
+    """It rewrites every source file and drops a recorder module in the root.
+
+    Both have to be gone afterwards, on the failure path as well as the happy
+    one. An instrument that leaves its own scaffolding behind has changed the
+    repository it was pointed at, and the next thing to read that tree -- the
+    mutation pass, the replay, a person -- sees the instrument instead of the
+    subject."""
+    cmd = _covered_repo(t, [("True", "True")])
+    before = git(["status", "--porcelain"], t).stdout
+    work = os.path.join(t, "..", "cw-" + os.path.basename(t))
+    r, _why = cover_mod.assess(t, cmd, work)
+    if r is None:
+        return "coverage could not be measured, so nothing was proven"
+    after = git(["status", "--porcelain"], t).stdout
+    if after != before:
+        return f"the tree was left modified: {after.strip()[:200]!r}"
+    if os.path.exists(os.path.join(t, cover_mod.RECORDER + ".py")):
+        return "the recorder module was left in the repository root"
+    with open(os.path.join(t, "app.py"), encoding="utf-8") as fh:
+        if "_ASSESS_C" in fh.read():
+            return "an instrumented source file was left in place"
+    return None
+
+
 def case_mutation_reaches_the_page_only_when_asked(t):
     """`--mutate` is off by default, and off has to mean the page says so.
 
@@ -2433,6 +2586,16 @@ CASES = [
      case_a_redundant_short_circuit_guard_is_suppressed),
     ("productivity is reported with its judge named",
      case_productivity_is_reported_with_its_judge_named),
+    ("a short-circuited condition is absent, not false",
+     case_a_short_circuited_condition_is_absent_not_false),
+    ("MC/DC finds a condition branch coverage calls covered",
+     case_mcdc_finds_a_condition_branch_coverage_calls_covered),
+    ("a decision nothing reaches is not the same as a one-way decision",
+     case_a_decision_no_test_reaches_is_not_the_same_as_one_way),
+    ("an assertion is not a decision",
+     case_an_assertion_is_not_a_decision),
+    ("the instrument leaves the tree as it found it",
+     case_the_instrument_leaves_the_tree_as_it_found_it),
     ("mutation reaches the page only when it is asked for",
      case_mutation_reaches_the_page_only_when_asked),
     ("a mutant walks the same ladder as a real defect",

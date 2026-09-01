@@ -37,6 +37,12 @@ history and finds how late each one is caught. It costs minutes and it runs
 that repository's tests, so the command is printed before it runs. Pass
 `--no-full` only if the caller asked to skip it.
 
+Dimension 2 opens with coverage — statements, branches and conditions the
+suite never exercises. It is the ladder's denominator, not a score: absence is
+the finding, and a high percentage means very little. If the figures look
+catastrophic, check that the command you supplied runs all of the repository's
+suites and not one of them.
+
 `--mutate N` is off by default and adds a second source of defects: one line
 the tests already execute, changed, walking the same ladder. It runs the suite
 once per mutant, so pass it only when the caller asked or when the suite is

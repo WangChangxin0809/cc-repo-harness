@@ -51,6 +51,7 @@ sys.path.insert(0, HERE)
 
 import blast as blast_mod  # noqa: E402
 import catch as catch_mod  # noqa: E402
+import cover as cover_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402
 import run_mutants as mutants_mod  # noqa: E402
@@ -120,7 +121,8 @@ def gather(root, full, instances, work, command=None, mutate=0):
 
     r = {"probe": probe, "blast": None, "catch": None, "catch_why": "",
          "drift": drift_pairs(root), "defects": None,
-         "mutants": None, "mutants_why": "", "mutant_brief": None}
+         "mutants": None, "mutants_why": "", "mutant_brief": None,
+         "cover": None, "cover_why": ""}
 
     if os.path.isdir(os.path.join(root, ".claude")):
         r["blast"] = blast_mod.assess(root, a_source_file(root),
@@ -141,6 +143,15 @@ def gather(root, full, instances, work, command=None, mutate=0):
     if full:
         r["catch"], r["catch_why"] = catch_mod.assess(
             root, instances, work, command)
+
+        # What the ladder below cannot speak about. A line no test executes
+        # cannot be caught at the suite rung, ever, for any defect -- that is
+        # a guarantee rather than a correlation, and it is the only direction
+        # in which coverage means anything at all.
+        cwork = os.path.join(work, "cover")
+        cbench = catch_mod.bench(root, cwork)
+        catch_mod.park(cbench, "HEAD")
+        r["cover"], r["cover_why"] = cover_mod.assess(cbench, command, cwork)
 
     # Second injection, and the only one that is opt-in. The replay asks how
     # late a defect that actually happened here is caught; mutation asks
@@ -203,7 +214,8 @@ def dimensions_of(r, memory=None, judged=None):
                           r["catch_why"], r["defects"], r.get("log"),
                           catch_mod.LADDER, memory, r.get("truth"),
                           r.get("value"), r.get("mutants"),
-                          r.get("mutants_why", ""), judged)
+                          r.get("mutants_why", ""), judged,
+                          r.get("cover"), r.get("cover_why", ""))
 
 
 def render_flat(r):
@@ -368,6 +380,8 @@ def preflight(root, a, work):
     lines = [f"  assessing {root}",
              f"  replaying up to {a.instances} of this repository's own "
              f"defects, in a clone under {work}"]
+    lines.append("  and once more, instrumented, to record which lines, "
+                 "branches and conditions it exercises at all")
     lines.append("  it will run: " + (" ".join(cmd) if cmd else
                                       "nothing — no runnable test command "
                                       "found. Pass --test-command, or "

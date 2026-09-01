@@ -301,7 +301,8 @@ def secs(v):
 
 
 def change_validation(defects, catch, catch_why, ladder, mutants=None,
-                      mutants_why="", judged=None):
+                      mutants_why="", judged=None, cover=None,
+                      cover_why=""):
     """When a defect is introduced, how late is it caught?"""
     rows = []
     if defects is None:
@@ -352,6 +353,8 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                        if mutants_why else ", and --mutate was not passed")
                     + ". A repository can be caught early by this and still "
                       "have failure modes nothing on this page looks for."})
+
+    rows += coverage_rows(cover, cover_why)
 
     # Both injections feed ONE ladder. A mutant is a change to a file, so
     # every moment that can see a change can see it, and the question is the
@@ -475,6 +478,93 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
     return {"n": 2, "name": "Change Validation",
             "question": "When a defect is introduced, how late is it caught?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def coverage_rows(c, why=""):
+    """What the ladder cannot speak about, placed before it rather than after.
+
+    Coverage predicts almost nothing in the direction people usually read it:
+    for one project's one suite, its correlation with actually finding bugs is
+    weak (Zhao, Zhou & Cohen 2026, r <= 0.481 pooled). Read the other way it is
+    not a correlation at all but a guarantee -- a line no test executes cannot
+    be caught at the `local-suite` rung, for any defect, ever.
+
+    So these rows are the **denominator of the two injections below them**. The
+    replay only reaches lines this repository's history put a bug in; mutation
+    only touches lines the suite already executes. Coverage is the part both of
+    them are silent about, and silence that is not stated reads as a pass."""
+    if not c:
+        if not why:
+            return []
+        return [{"label": "what no test executes", "value": "could not judge",
+                 "flag": "info",
+                 "note": why.replace("cannot judge: ", "")
+                         + " — so the rows below are silent about an unknown "
+                           "share of this repository, rather than about a "
+                           "known one"}]
+    rows = []
+    if not c.get("instrumented_green", True):
+        rows.append({
+            "label": "!! instrumenting changed the suite's result",
+            "value": "green before, not green after",
+            "flag": "warn",
+            "note": "the branch and condition figures below are about a "
+                    "program that is not quite this one. The statement figure "
+                    "is measured on the untouched tree and is unaffected"})
+
+    st = c.get("statements")
+    if st:
+        dark = st["files_with_none_total"]
+        rows.append({
+            "label": "statements no test executes",
+            "value": f"{st['executable'] - st['executed']} of "
+                     f"{st['executable']}  ({100 * (1 - st['rate']):.0f}%)",
+            "flag": "bad" if st["rate"] < 0.5 else "info",
+            "note": f"under `{c['command']}`. A repository with several suites "
+                    f"needs a command that runs all of them, or this is one "
+                    f"suite's coverage measured against the whole tree"
+                    + (f". {dark} file(s) have no executed line at all: "
+                       + ", ".join(d["path"] for d in st["files_with_none"][:3])
+                       if dark else "")})
+    else:
+        rows.append({
+            "label": "statements no test executes",
+            "value": "could not judge",
+            "flag": "info",
+            "note": "no coverage tool in the subject and the stdlib tracer "
+                    "could not run this command"})
+
+    if c.get("branch") is not None:
+        cold = c["decisions"] - c["decisions_reached"]
+        oneway = c["decisions_reached"] - c["branch_covered"]
+        rows.append({
+            "label": "decisions never taken both ways",
+            "value": f"{cold + oneway} of {c['decisions']}",
+            "flag": "bad" if c["branch"] < 0.5 else "info",
+            "note": f"{cold} never reached at all, {oneway} reached and only "
+                    f"ever went one way. The second is the classic shape: "
+                    f"every error path in the file, entered by nothing"
+                    + ("; first: " + "; ".join(
+                        f"{d['id'].rsplit(':', 1)[0]}:{d['line']}"
+                        for d in (c["one_way"] or c["unreached"])[:3])
+                       if (c["one_way"] or c["unreached"]) else "")})
+
+    if c.get("mcdc") is not None:
+        rows.append({
+            "label": "conditions that never decided anything",
+            "value": f"{c['conditions'] - c['conditions_independent']} of "
+                     f"{c['conditions']}",
+            "flag": "bad" if c["mcdc"] < 0.5 else "info",
+            "note": f"MC/DC: no pair of runs shows this condition changing the "
+                    f"outcome on its own. In `if a and b`, a `b` that is true "
+                    f"every time it is reached is not being tested — you could "
+                    f"delete it and nothing would notice, which is exactly a "
+                    f"mutant. {c['compound_decisions']} decision(s) have more "
+                    f"than one condition; where that count is small this is "
+                    f"nearly the row above. Masking MC/DC, not unique-cause — "
+                    f"unique-cause is unreachable in a language that "
+                    f"short-circuits"})
+    return rows
 
 
 def mutant_ladder(m, judged=None):
@@ -1294,7 +1384,7 @@ def context_economy(root, probe, blast=None, value=None):
 
 def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            memory=None, truth=None, value=None, mutants=None, mutants_why="",
-           judged=None):
+           judged=None, cover=None, cover_why=""):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time;
     `memory` is what the two navigation agents came back with, or None when
@@ -1304,7 +1394,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
     return [
         controlled_execution(root, probe, blast),
         change_validation(defects, catch, catch_why, ladder, mutants,
-                          mutants_why, judged),
+                          mutants_why, judged, cover, cover_why),
         reliable_delivery(root, log, check_dirs),
         repository_memory(root, log, check_dirs, memory, truth),
         context_economy(root, probe, blast, value),
