@@ -4120,29 +4120,69 @@ def case_an_entry_point_that_predates_the_commit_is_not_a_red_suite(t):
 
 
 
-def case_exit_two_is_not_a_failing_suite(t):
-    """This repository's own rule, which the instrument was breaking.
+def case_exit_two_means_what_the_runner_means_by_it(t):
+    """Exit 2 belongs to the runner, and a blanket rule was wrong both ways.
 
-    `CLAUDE.md` says exit 2 means COULD NOT JUDGE and is never a pass. The
-    mirror of that is that it is never a fail either, and `run` was reading it
-    as red -- so a suite that refused to start because a tool was missing
-    counted against the repository exactly like a broken one. It is also
-    pytest's code for a usage error and for an interrupted run."""
+    `CLAUDE.md` says 2 means COULD NOT JUDGE, and `ecosystems.run` read it as
+    red -- the repository's own rule broken in the other direction, so a suite
+    that refused to start counted against a repository exactly like a broken
+    one. pytest agrees: 2 is a usage error or an interrupted run.
+
+    `make` does not. It exits 2 when the recipe failed, which is a red suite,
+    and reading that as an abstention turned a genuinely failing `make test`
+    into no result at all. A blanket rule broke a case here on the first run.
+    That is why the codes are a property of the ecosystem rather than a
+    constant: an abstention that hides a real failure is the one direction
+    this whole assessment exists to refuse."""
     put(t, "say.py", "import sys\nprint('could not judge: no linter here')\n"
                      "sys.exit(2)\n")
-    verdict, _ = eco_mod.run(t, ["python3", "say.py"])
+    cmd = ["python3", "say.py"]
+    verdict, _ = eco_mod.run(t, cmd, eco_mod.Python.did_not_run)
     if verdict != "could-not-run":
-        return "exit 2 was read as %r rather than could-not-run" % verdict
+        return "pytest's exit 2 was read as %r" % verdict
+    verdict, _ = eco_mod.run(t, cmd, eco_mod.Make.did_not_run)
+    if verdict != "red":
+        return "make's exit 2 -- a failed recipe -- was read as %r" % verdict
+
     put(t, "fail.py", "import sys\nprint('1 failed, 3 passed')\n"
                       "sys.exit(1)\n")
-    verdict, _ = eco_mod.run(t, ["python3", "fail.py"])
+    verdict, _ = eco_mod.run(t, ["python3", "fail.py"],
+                             eco_mod.Python.did_not_run)
     if verdict != "red":
         return "a suite that actually failed was read as %r" % verdict
     return None
 
 
+
+def case_an_entry_point_the_parked_commit_never_had(t):
+    """The command is found at HEAD; the replay runs in the past.
+
+    `park` moves the bench to the fix commit, so a repository that introduced
+    its entry point last week has a history of commits without it, and the
+    interpreter exits non-zero there for a reason with nothing to do with the
+    defect. This tree hit it on the first run after gaining one.
+
+    Re-detecting unconditionally is the wrong repair and was tried first: the
+    parked tree offers whatever it happens to have, and a commit from before
+    the `tests/` directory existed falls through to a `Makefile` driving
+    something else. So the fallback fires only when the HEAD command names a
+    file the parked tree does not have."""
+    put(t, "scripts/check.py", "import sys\nsys.exit(0)\n")
+    if catch_mod._entry_missing(t, ["python3", "scripts/check.py"]):
+        return "an entry point that is right there was called missing"
+    if not catch_mod._entry_missing(t, ["python3", "scripts/gone.py"]):
+        return "an entry point that is not in the tree was called present"
+    # A command naming no file at all is not missing -- it is `pytest`.
+    if catch_mod._entry_missing(t, ["python3", "-m", "pytest", "-q"]):
+        return "a command naming no file in the tree was called missing"
+    return None
+
+
 CASES = [
-    ("exit two is not a failing suite", case_exit_two_is_not_a_failing_suite),
+    ("an entry point the parked commit never had",
+     case_an_entry_point_the_parked_commit_never_had),
+    ("exit two means what the runner means by it",
+     case_exit_two_means_what_the_runner_means_by_it),
     ("an entry point that predates the commit is not a red suite",
      case_an_entry_point_that_predates_the_commit_is_not_a_red_suite),
     ("a repository that documents its own suite is not invisible",

@@ -42,9 +42,17 @@ def interpreter():
     return os.environ.get("ASSESS_PYTHON") or sys.executable
 
 
+# Exit codes every runner uses for "this did not run": 5 is pytest collecting
+# nothing, 124 is a timeout, 127 is a command that is not there.
+DID_NOT_RUN = (5, 124, 127)
+
+
 class Ecosystem:
     name = "?"
     tool = None
+    # What this runner's exit codes mean. Overridden where the runner has a
+    # code of its own for "did not start".
+    did_not_run = DID_NOT_RUN
 
     def detect(self, path):
         raise NotImplementedError
@@ -96,6 +104,9 @@ class Node(Ecosystem):
 class Python(Ecosystem):
     name = "python"
     tool = "python3"
+    # pytest exits 2 for a usage error and for an interrupted run. Neither is
+    # a test that failed.
+    did_not_run = DID_NOT_RUN + (2,)
     MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt")
 
     def detect(self, path):
@@ -217,6 +228,10 @@ class Declared(Ecosystem):
 
     name = "declared"
     tool = None
+    # The command belongs to the repository, and a repository that ships this
+    # project's harness uses 2 for COULD NOT JUDGE -- stated in its own
+    # CLAUDE.md and honoured by every check it runs.
+    did_not_run = DID_NOT_RUN + (2,)
     # Which document the command came from, set by `detect`. The assessment
     # runs this against a repository nobody here has read; printing the
     # command without saying where it was found would present somebody's
@@ -336,18 +351,20 @@ def find(path):
     return None, None
 
 
-def run(path, cmd):
-    """(verdict, one line). green / red / could-not-run -- never a bare bool."""
+def run(path, cmd, codes=DID_NOT_RUN):
+    """(verdict, one line). green / red / could-not-run -- never a bare bool.
+
+    `codes` is the runner's own vocabulary and is not universal. 2 means a
+    usage error or an interrupted run to pytest, and COULD NOT JUDGE to a
+    repository following this project's convention -- but to `make` it means
+    the recipe failed, which is a red suite. Reading 2 as could-not-run for
+    everything turned a genuinely failing `make test` into an abstention, and
+    that is the direction this whole assessment is written to refuse."""
     out = sh(cmd, path, TEST_TIMEOUT)
     tail = (out.stdout or out.stderr).strip().splitlines()
     detail = tail[-1][:160] if tail else f"exit {out.returncode}"
     if out.returncode == 0:
         return "green", detail
-    # 2 is this repository's own convention for COULD NOT JUDGE, stated in
-    # `CLAUDE.md` and honoured by every check it ships -- and it was read as
-    # red here, which is the same rule broken in the other direction. It is
-    # also pytest's code for a usage error or an interrupted run, and a suite
-    # that never started is not a suite that failed.
-    if out.returncode in (2, 5, 124, 127) or unusable(detail):
+    if out.returncode in codes or unusable(detail):
         return "could-not-run", detail
     return "red", detail

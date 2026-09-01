@@ -59,7 +59,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ecosystems import find, run, sh  # noqa: E402
+from ecosystems import DID_NOT_RUN, find, run, sh  # noqa: E402
 from history import candidates, mine  # noqa: E402
 
 LADDER = ("before-write", "same-turn", "local-suite", "ci", "never")
@@ -196,6 +196,21 @@ def bench(root, work):
     os.makedirs(work, exist_ok=True)
     git(["clone", "-q", "--no-hardlinks", os.path.abspath(root), dst], work)
     return dst
+
+
+def _entry_missing(repo, cmd):
+    """True when the command names a file inside the repository that is not
+    there. `find` runs at HEAD and `park` moves the tree to the fix commit, so
+    a repository that introduced its entry point last week has a history of
+    commits without it -- and the interpreter then exits non-zero for a reason
+    that has nothing to do with the defect being replayed."""
+    for part in (cmd or [])[1:]:
+        if part.startswith("-"):
+            continue
+        if "/" in part or part.endswith((".py", ".sh", ".js", ".ts", ".mjs")):
+            if not os.path.exists(os.path.join(repo, part.lstrip("./"))):
+                return True
+    return False
 
 
 def park(repo, sha):
@@ -395,6 +410,9 @@ def assess(root, instances, work, command=None):
         cmd = command if isinstance(command, list) else command.split()
         eco = eco or type("Given", (), {
             "name": "given", "tool": None,
+            # A command somebody passed on the command line is theirs, and
+            # this project's convention is that 2 means COULD NOT JUDGE.
+            "did_not_run": DID_NOT_RUN + (2,),
             "install": staticmethod(lambda p: []),
             "scope": staticmethod(lambda c, t: None)})()
     if cmd is None:
@@ -415,11 +433,29 @@ def assess(root, instances, work, command=None):
     ci_secs = ci_seconds(root)
 
     out = []
+    # The command is discovered at HEAD, and `park` moves the tree to the fix
+    # commit -- so a repository that introduced or moved its entry point since
+    # then has a history of commits where the HEAD command does not exist. It
+    # is also the wrong command to ask about: the question is whether the suite
+    # *that was there* caught the defect, and that suite is the one in the
+    # parked tree. So re-detect per instance, and fall back to the HEAD command
+    # only where the parked tree offers none.
+    at_head, eco_at_head = cmd, eco
     for row in rows:
         park(repo, row["sha"])
+        # ...and only then. Re-detecting unconditionally picks whatever the
+        # parked tree happens to offer, which is not always the same
+        # ecosystem: a commit from before the `tests/` directory existed falls
+        # through to a `Makefile` whose `test` target drives something else
+        # entirely. That turned a case here from `local-suite` to nothing.
+        eco, cmd = eco_at_head, at_head
+        if command is None and _entry_missing(repo, cmd):
+            eco_then, then = find(repo)
+            if then is not None:
+                eco, cmd = eco_then, then
         tests = [p for p in row["tests"] if os.path.exists(os.path.join(repo, p))]
         scoped = eco.scope(cmd, tests) or cmd
-        base, detail = run(repo, scoped)
+        base, detail = run(repo, scoped, eco.did_not_run)
         if base != "green":
             out.append({"sha": row["sha"][:10], "subject": row["subject"],
                         "rung": None, "detail": f"unusable — at the fix the "
