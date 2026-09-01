@@ -102,7 +102,7 @@ Four things that are easy to get wrong:
 - **`non_fast_forward` is the force-push rule.** It is the one that matters
   most, because a force push is the only operation here that destroys history
   the reflog on someone else's clone cannot recover.
-- **Never require a status check that does not exist yet.** The name must match
+- **Require a status check only once the job producing it exists.** The name must
   the job as GitHub reports it — including the matrix suffix, `checks (3.13)`,
   not `ci`. A required check that never reports blocks every merge forever, and
   it looks exactly like a broken CI.

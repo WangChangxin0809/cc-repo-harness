@@ -46,8 +46,8 @@ latency is paid every time — measure it before wiring anything that touches th
 filesystem broadly.
 
 This is the reflex retrieval slot: seed a query from paths and symbols named in
-the prompt and inject a short ranked list. It must never decide anything, and
-nothing may depend on it firing. See the `repo-index` skill, including the
+the prompt and inject a short ranked list. It informs and nothing else: the
+turn reaches the same result whether or not it fired. See the `repo-index` skill, including the
 measured latencies — full ranking is too slow here on a large repository, and
 the one-hop mode exists for exactly this moment.
 

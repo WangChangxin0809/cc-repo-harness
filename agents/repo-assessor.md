@@ -42,8 +42,9 @@ Two outcomes look identical here and are not. Report each as what it is:
 - *A table did not recognise this repository's convention* — a fact about the
   table. Say that instead, and name the convention it missed.
 
-And do not write tests to make the number better. If a suite exists, run it. If
-none exists, the honest page says so.
+And measure the suite the repository already has: if one exists, run it; if
+none exists, the honest page says so. Tests written during an assessment
+measure the tests.
 
 ## Reading the coverage rows before the ladder
 

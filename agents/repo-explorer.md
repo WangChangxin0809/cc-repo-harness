@@ -19,7 +19,8 @@ your value is that those twenty files stay in yours.
    ```
 
    If `scripts/index/` does not exist, fall back to `grep`/`glob` and say so in
-   your answer. Do not build an index.
+   your answer. Building one is the `repo-index` skill's job — an index made
+   inside this turn is thrown away at the end of it.
 
 2. **Read what it ranked.** The graph gives you paths, never conclusions. An
    answer derived from ranking alone describes the shape of the code, not its
@@ -55,8 +56,9 @@ fourth is dispatched through a string table in `registry.py` and I could not
 tell whether it reaches this path" is more useful than a clean list of three,
 because it tells the reader where to look themselves.
 
-Never return a file dump, and never return a summary that would let the caller
-skip reading the code. Return the paths and what is at them.
+Return the paths and what is at them: enough that the caller opens the right
+file, and little enough that they still open it. A dump and a self-contained
+summary are the two ways to miss that, in opposite directions.
 
 ## Cost
 

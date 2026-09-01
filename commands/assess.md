@@ -95,9 +95,9 @@ often a command in its own README. Read the quick-start, the seed and migration
 scripts, and the CI config, and ask what each would do to a database or a branch
 that somebody cares about.
 
-Do not score the repository on whether it has adopted this project's
-conventions. A repository that stops destruction with a hand-written `bash` hook
-is fully protected.
+Score the repository on what it achieves, not on which conventions it reached
+for. A repository that stops destruction with a hand-written `bash` hook is
+fully protected.
 
 ## Hand back
 

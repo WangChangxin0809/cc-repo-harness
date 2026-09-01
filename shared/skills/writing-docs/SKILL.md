@@ -241,7 +241,7 @@ Three rules that are easy to get wrong:
    the generated index report as a dangling target. This is the one signal
    that catches a document still describing a path that was deleted — invisible
    from the document's side and from the code's side, both.
-3. **Do not govern what you do not describe.** The line is a claim that this
+3. **Govern exactly what you describe.** The line is a claim that this
    document explains how that code is supposed to work. Pointing it at a whole
    `src/` makes every edit deliver a document that answers nothing, and then the
    hook's output stops being read.

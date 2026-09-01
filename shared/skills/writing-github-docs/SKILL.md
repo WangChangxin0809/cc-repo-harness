@@ -75,8 +75,8 @@ Answer what a contributor cannot find out by reading the code:
 - **Who reviews, and how fast.** An honest "usually within a week, sometimes
   longer" beats silence. Unstated expectations are read as neglect.
 - **How to file a good issue** — what to include, where the logs live.
-- **How to say something is a security problem**, pointing at `SECURITY.md`.
-  Never the public issue tracker.
+- **How to say something is a security problem** — one private channel, named,
+  pointing at `SECURITY.md`. A public issue tracker publishes the report.
 - **Development setup**, only if it differs from the README's quick start. If it
   does not, link to it. This is where the second quick start creeps in.
 - **Commit and branch conventions**, if enforced. If a check enforces them, name

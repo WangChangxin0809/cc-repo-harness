@@ -11,10 +11,10 @@ the difference decides what you may depend on:
 
 Copied code has to keep working after this plugin is uninstalled, so it may
 depend on nothing but the tree it lands in. Code run from here may import its
-siblings, but must never assume the *subject* repository is shaped like ours --
-`probe_repo.py` looked for gates under `scripts/gates` and reported this
-repository's own as absent, which is the failure this distinction exists to
-prevent.
+siblings, and must discover the *subject* repository's shape rather than expect
+it to match ours -- `probe_repo.py` looked for gates under `scripts/gates` and
+reported this repository's own as absent, which is the failure this distinction
+exists to prevent.
 
 A diagnostic is not repository behaviour and does not belong in `COPY`.
 Uninstalling the plugin must not change what a repository *does*, and a repo
