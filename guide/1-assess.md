@@ -232,6 +232,13 @@ be fired at, so it can never be shown working — and a repository whose only
 defence against a mistake is a paragraph asking nicely has a layer that looks
 present and catches nothing.
 
+A rule with no script behind it is also often not *delivered*: a `paths:`
+rule loads only when Claude reads a matching file, never on a Write, Glob,
+Grep or anything through Bash — measured in
+[`context/before_write.py`](../shared/scripts/context/before_write.py), and
+asked for in `anthropics/claude-code#38487`, `#23478`, `#27861` and `#36334`,
+all closed.
+
 *Why it earns its place:* "add CI" and "your CI caught nothing" are different
 pieces of advice, and the ladder alone cannot tell you which one you need.
 
@@ -329,12 +336,11 @@ What kinds of memory exist: root and nested `CLAUDE.md`, skills, hooks, rules,
 settings, documents. This is the denominator that every row under it is read
 against.
 
-One thing this row exists to say: a rule with a `paths:` glob is delivered only
-when the agent reads a matching file. A rule that needs a script behind it and
-does not have one is not a constraint, it is a hope — and it costs tokens either
-way. That distinction decides both what a rule costs (dimension 5) and whether
-it is delivered at all (dimension 1), so it is worth knowing per file rather
-than in aggregate.
+One thing this row exists to say: a rule that needs a script behind it and does
+not have one is not a constraint, it is a hope — and it often does not reach the
+agent at all (2.4). It costs tokens either way. That decides both what a rule
+costs (dimension 5) and whether it is delivered (dimension 1), so it is worth
+knowing per file rather than in aggregate.
 
 ### 4.2 Is each memory worth keeping?
 
