@@ -54,6 +54,7 @@ import merge as merge_mod          # noqa: E402
 import conflict as conflict_mod    # noqa: E402
 import promises as promises_mod    # noqa: E402
 import units as units_mod          # noqa: E402
+import review as review_mod        # noqa: E402
 import permitted as permitted_mod  # noqa: E402
 
 
@@ -3610,6 +3611,114 @@ _ALWAYS_NO = ("#!/usr/bin/env python3\n"
               "sys.exit(2)\n")
 
 
+
+def _run_with(rows):
+    """A run's JSON, with whichever rows the case is about."""
+    return {"dimensions": [{"title": "Made Up", "rows": rows}]}
+
+
+def case_an_abstention_does_not_become_a_number(t):
+    """The one thing the reading is not allowed to do.
+
+    Every other guard on this page keeps `could not judge` off it. This is the
+    last place it could get back on, and it is the worst place: a number on a
+    chart is indistinguishable from a measurement, so scoring an abstention
+    turns `we could not run your tests` into `your tests are bad` with nothing
+    in between.
+
+    An abstention and an ordinary fact share the `info` flag, which is why the
+    check is on the value."""
+    run = _run_with([
+        {"label": "an agent finding its way", "value": "not probed",
+         "flag": "info", "note": ""},
+        {"label": "documents that contradict each other",
+         "value": "1 candidate(s), not yet judged", "flag": "info", "note": ""},
+        {"label": "refused before they happen", "value": "3/6",
+         "flag": "warn", "note": ""},
+    ])
+    items, unmapped = review_mod.collect(run)
+    ids = [i["id"] for i in items]
+    if ids != ["1.1"]:
+        return "abstentions were handed over to be scored: " + repr(ids)
+    if unmapped:
+        return "an abstention was reported as an unmapped row: " + repr(unmapped)
+
+    text, _why = review_mod.brief(run)
+    for gone in ("finding its way", "contradict each other"):
+        if gone in text:
+            return f"the brief asked about an abstention: {gone!r}"
+    return None
+
+
+def case_a_score_for_something_nobody_measured_is_refused(t):
+    """The brief and the grader have to agree about what exists.
+
+    An agent that returns a number for a sub-item the brief did not ask about
+    has invented it, and the only reason to notice is that one function
+    decides what was measured. Refusing is louder than dropping: the run says
+    which id it threw away and why."""
+    run = _run_with([{"label": "refused before they happen", "value": "3/6",
+                      "flag": "warn", "note": ""}])
+    judged, why = review_mod.grade(run, {"items": [
+        {"id": "1.1", "score": 4, "why": "three of six are open"},
+        {"id": "2.2", "score": 9, "why": "invented -- nothing mutated here"},
+    ]})
+    if judged is None:
+        return f"nothing was graded at all: {why}"
+    if "2.2" in judged["items"]:
+        return "a score for an unmeasured sub-item was kept"
+    if not any(sid == "2.2" for sid, _ in judged["refused"]):
+        return "an invented sub-item was dropped silently instead of refused"
+    return None
+
+
+def case_a_number_off_the_scale_is_refused(t):
+    """Nothing downstream re-checks the range.
+
+    The radar maps a score straight onto a radius, so an 11 draws outside the
+    outer ring and a -1 draws through the centre and out the other side. Both
+    look like a rendering bug rather than a bad answer."""
+    run = _run_with([{"label": "refused before they happen", "value": "3/6",
+                      "flag": "warn", "note": ""},
+                     {"label": "floor — paid on every turn", "value": "~900",
+                      "flag": "ok", "note": ""}])
+    judged, _why = review_mod.grade(run, {"items": [
+        {"id": "1.1", "score": 11, "why": "off the top"},
+        {"id": "5.1", "score": 7, "why": "small and load-bearing"},
+    ]})
+    if judged is None:
+        return "a single bad number threw the whole reading away"
+    if "1.1" in judged["items"]:
+        return "a score of 11 was accepted"
+    if "5.1" not in judged["items"]:
+        return "the good answer was discarded along with the bad one"
+    return None
+
+
+def case_the_radar_puts_a_low_axis_nearer_the_centre(t):
+    """The chart is the only part anybody looks at first.
+
+    A polygon that does not move with the numbers is worse than no polygon:
+    it reads as a measurement and carries none. So this asserts the one
+    property the shape has to have, on the axis geometry rather than on a
+    pixel."""
+    import math
+    svg = review_mod.radar({"1": 1, "2": 9, "3": 5, "4": 5, "5": 5}, size=400)
+    body = svg.split('fill-opacity="0.17"')[0]
+    pts = body.rsplit('<polygon points="', 1)[1].split('"')[0].split()
+    if len(pts) != 5:
+        return f"the reading polygon does not have five corners: {pts!r}"
+    cx, cy = 200.0, 184.0
+    radii = []
+    for p in pts:
+        x, y = (float(v) for v in p.split(","))
+        radii.append(math.hypot(x - cx, y - cy))
+    if not radii[0] < radii[2] < radii[1]:
+        return ("the polygon does not follow the numbers: 1 scored 1, 3 scored "
+                "5, 2 scored 9, radii were " + repr([round(r) for r in radii]))
+    return None
+
+
 def _hooked(t, body):
     os.makedirs(os.path.join(t, ".claude"), exist_ok=True)
     with open(os.path.join(t, "everything.py"), "w", encoding="utf-8") as fh:
@@ -3817,6 +3926,14 @@ CASES = [
      case_only_a_shell_fence_is_a_documented_command),
     ("a CI step that is a template is not a command",
      case_a_ci_step_that_is_a_template_is_not_a_command),
+    ("an abstention does not become a number",
+     case_an_abstention_does_not_become_a_number),
+    ("a score for something nobody measured is refused",
+     case_a_score_for_something_nobody_measured_is_refused),
+    ("a number off the scale is refused",
+     case_a_number_off_the_scale_is_refused),
+    ("the radar puts a low axis nearer the centre",
+     case_the_radar_puts_a_low_axis_nearer_the_centre),
     ("a document nobody loads is not a context cost",
      case_a_document_nobody_loads_is_not_a_context_cost),
     ("a skill's reference is loaded and is counted",
