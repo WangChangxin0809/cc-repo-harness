@@ -380,7 +380,12 @@ class Python:
         rep = sh([sys.executable, "-m", "coverage", "json", "-o", out],
                  root, REPORT_TIMEOUT)
         if rep.returncode != 0:
-            return None, "coverage.py produced no report: " + rep.stderr[:200]
+            # `No data to report.` arrives on stdout, not stderr, so reading
+            # only stderr produced `produced no report: ` with nothing after
+            # the colon -- an abstention that does not say what happened.
+            said = (rep.stderr or "").strip() or (rep.stdout or "").strip()
+            return None, ("coverage.py produced no report: " +
+                          (said[:200] or "it said nothing"))
         return read_coveragepy_json(out), ""
 
 

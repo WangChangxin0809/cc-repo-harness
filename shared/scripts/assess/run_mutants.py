@@ -215,9 +215,20 @@ def covered_lines(root, cmd):
     formality: measured on `tenacity` with coverage unavailable, every one of
     the five survivors was in `doc/source/conf.py`, a Sphinx config no test
     executes and none should."""
+    # `coverage run` supplies the interpreter itself, so the command has to
+    # arrive without one. Handing it `python3 -m coverage run ... python3
+    # suite.py` asks coverage to execute the interpreter *as a Python script*:
+    # it exits 1 with `No data was collected`, and the report that follows is
+    # every file with an empty executed-line set.
+    if len(cmd) < 2:
+        return None
+    rest = cmd[1:]
+    if not rest:
+        return None
+
     probe = sh([sys.executable, "-c", "import coverage"], root, 60)
     if probe.returncode == 0:
-        sh([sys.executable, "-m", "coverage", "run", "--source=."] + cmd,
+        sh([sys.executable, "-m", "coverage", "run", "--source=."] + rest,
            root, TEST_TIMEOUT)
         rep = sh([sys.executable, "-m", "coverage", "json", "-o", "-"],
                  root, 120)
@@ -227,12 +238,18 @@ def covered_lines(root, cmd):
             except ValueError:
                 data = None
             if data and data.get("files"):
-                return {f: set(v.get("executed_lines") or [])
-                        for f, v in data["files"].items()}
+                got = {f: set(v.get("executed_lines") or [])
+                       for f, v in data["files"].items()}
+                # A report listing files and no executed lines is not a
+                # measurement that the suite covers nothing -- it is a run that
+                # did not happen. Returning it hands the caller `covered` sets
+                # that intersect nothing, and the mutation run abstains with
+                # `no mutable, covered, non-arid line`, which reads as a fact
+                # about the repository. Fall through to the route that works.
+                if any(got.values()):
+                    return got
 
     # The stdlib route takes `python -m <module>` or `python <script.py>`.
-    if len(cmd) < 2:
-        return None
     rest = cmd[2:] if cmd[1] == "-m" else cmd[1:]
     if not rest:
         return None

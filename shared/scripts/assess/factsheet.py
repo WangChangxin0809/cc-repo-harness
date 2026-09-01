@@ -366,6 +366,12 @@ def main():
                          "verdict on whether an agent can watch its own change "
                          "run here. Without it dimension 1 prints two rows "
                          "instead of three, rather than guessing the third.")
+    ap.add_argument("--legitimate-actions", default="",
+                    help="JSON from the agent that read `permitted_brief` — "
+                         "this repository's own legitimate work, fired at its "
+                         "hooks the way dimension 1 fires the destructive six. "
+                         "Without it the refusal count above has no "
+                         "denominator.")
     ap.add_argument("--mutant-answers", default="",
                     help="JSON from the agent that read `mutant_brief` and "
                          "said which uncaught changes were worth catching. "
@@ -452,6 +458,13 @@ def _run(a, root, work):
             with open(a.mutant_answers, encoding="utf-8") as fh:
                 judged = judge_mod.grade(r["mutants"], json.load(fh))
             r["mutants_judged"] = judged
+        if a.legitimate_actions and r.get("permitted"):
+            with open(a.legitimate_actions, encoding="utf-8") as fh:
+                fired, why = permitted_mod.fire(root, json.load(fh))
+            if fired is None:
+                print(f"  --legitimate-actions ignored: {why}\n")
+            else:
+                r["permitted"] = fired
         observed = None
         if a.observe_answers and r.get("observe"):
             with open(a.observe_answers, encoding="utf-8") as fh:

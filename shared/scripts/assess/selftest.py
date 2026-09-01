@@ -2776,10 +2776,22 @@ def case_an_uninstalled_tool_names_itself_and_how_to_get_it(t):
     And the row it produces is a finding about the repository, not about this
     file: a Python repository with no coverage tool installed has no coverage
     tool. Nothing here installs one, because installing one changes what the
-    subject contains."""
+    subject contains.
+
+    The absence is forced rather than borrowed from the machine. This case
+    passed for a year because the box it ran on happened not to have
+    `coverage`; installing it sent the fixture down the *available* path
+    instead, where the message says something else entirely, and the case
+    turned red for a reason that had nothing to do with the behaviour it
+    guards. A case that depends on what is installed is testing the box."""
     for i in range(3):
         _report(t, "pkg/mod%d.py" % i, "def f():\n    return 1\n")
-    r, why = cover_mod.assess(t, "pytest -q", os.path.join(t, "w"))
+    was = cover_mod.Python.available
+    cover_mod.Python.available = lambda self, root: False
+    try:
+        r, why = cover_mod.assess(t, "pytest -q", os.path.join(t, "w"))
+    finally:
+        cover_mod.Python.available = was
     if r:
         return "coverage was somehow produced with no tool and no report"
     if "coverage" not in why or "pip install" not in why:
@@ -2789,6 +2801,122 @@ def case_an_uninstalled_tool_names_itself_and_how_to_get_it(t):
         return "an abstention rendered as something other than an info row"
     return None
 
+
+
+
+def _traceable_repo(t):
+    """One file the suite executes and one line it only runs, plus the suite.
+
+    Deliberately not a git repository: `covered_lines` reads a tree, not a
+    history, and a fixture that needs `git init` to answer a question about
+    `sys.settrace` is claiming a dependency that is not there."""
+    put(t, "app.py",
+        "def add(a, b):\n"
+        "    return a + b\n\n"
+        "def describe(n):\n"
+        "    width = n * 2\n"
+        "    return 'n'\n")
+    put(t, "suite.py",
+        "import sys, os\n"
+        "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+        "from app import add, describe\n"
+        "assert add(2, 3) == 5\n"
+        "describe(4)\n"
+        "sys.exit(0)\n")
+    return [sys.executable, "suite.py"]
+
+
+class _Said:
+    def __init__(self, code=0, out="", err=""):
+        self.returncode, self.stdout, self.stderr = code, out, err
+
+
+def _intercept(seen, json_out):
+    """`run_mutants.sh`, with the two coverage calls answered from here.
+
+    Everything else is delegated to the real one, so the fallback route runs
+    for real. Stubbing the whole of `sh` would make the case pass without any
+    tracing happening at all."""
+    real = run_mod.sh
+
+    def fake(args, cwd, timeout=120, **kw):
+        argv = list(args)
+        seen.append(argv)
+        if argv[1:] == ["-c", "import coverage"]:
+            return _Said(0)
+        if argv[1:3] == ["-m", "coverage"] and "run" in argv:
+            return _Said(1, "", "No data was collected.")
+        if argv[1:3] == ["-m", "coverage"] and "json" in argv:
+            return _Said(0, json_out)
+        return real(args, cwd, timeout, **kw)
+    return fake
+
+
+def case_a_coverage_report_of_nothing_is_not_a_measurement(t):
+    """`{app.py: set()}` is a run that did not happen, not a tested nothing.
+
+    `coverage json` reports every source file it was pointed at whether or not
+    a single line ran, so a failed `coverage run` still yields a well-formed
+    report with empty executed-line sets. Returning it means every later
+    intersection is empty, mutation abstains with `no mutable, covered,
+    non-arid line`, and the page reads that as a fact about the repository:
+    nothing here is worth mutating. It is a fact about the run.
+
+    The tracer route is reached for real here -- only the two coverage calls
+    are answered from the fixture -- so the case fails if the fallthrough is
+    removed and also if the fallback itself stops working."""
+    cmd = _traceable_repo(t)
+    empty = ('{"files": {"app.py": {"executed_lines": []}, '
+             '"suite.py": {"executed_lines": []}}}')
+    was, seen = run_mod.sh, []
+    run_mod.sh = _intercept(seen, empty)
+    try:
+        got = run_mod.covered_lines(t, cmd)
+    finally:
+        run_mod.sh = was
+    if got is None:
+        return "the fallback route was not reached at all"
+    if not any(got.values()):
+        return ("an empty coverage report was returned as a measurement: "
+                + repr(got))
+    if not got.get("app.py"):
+        return f"the fallback ran but found nothing in app.py: {got!r}"
+    return None
+
+
+def case_coverage_run_is_not_handed_the_interpreter_twice(t):
+    """`coverage run` supplies the interpreter, so the command must not.
+
+    A test command arrives as `[python3, suite.py]` because that is what every
+    other caller needs. Passing it through unchanged builds `python3 -m
+    coverage run --source=. python3 suite.py`, which asks coverage to execute
+    the interpreter binary as a Python script. It exits 1, collects nothing,
+    and the report that follows is the empty one the case above is about --
+    which is how this stayed invisible: two bugs, and the second one hid the
+    first behind a plausible-looking abstention.
+
+    The tracer route strips the interpreter and always did. This asserts the
+    two routes are handed the same thing."""
+    cmd = _traceable_repo(t)
+    was, seen = run_mod.sh, []
+    run_mod.sh = _intercept(seen, '{"files": {}}')
+    try:
+        run_mod.covered_lines(t, cmd)
+    finally:
+        run_mod.sh = was
+    runs = [a for a in seen if a[1:3] == ["-m", "coverage"] and "run" in a]
+    if not runs:
+        return "the coverage route was never tried"
+    for argv in runs:
+        after = argv[argv.index("run") + 1:]
+        interpreters = [x for x in after
+                        if os.path.basename(x).startswith("python")]
+        if interpreters:
+            return ("`coverage run` was handed an interpreter to execute as a "
+                    "script: " + repr(after))
+        if "suite.py" not in after:
+            return f"the suite never reached `coverage run`: {after!r}"
+    return None
 
 
 def _workflow(t, name, body):
@@ -3382,6 +3510,10 @@ CASES = [
      case_lcov_carries_function_coverage),
     ("gcov is where MC/DC comes from",
      case_gcov_is_where_mcdc_comes_from),
+    ("a coverage report of nothing is not a measurement",
+     case_a_coverage_report_of_nothing_is_not_a_measurement),
+    ("coverage run is not handed the interpreter twice",
+     case_coverage_run_is_not_handed_the_interpreter_twice),
     ("a malformed report is an abstention, not a zero",
      case_a_malformed_report_is_an_abstention_not_a_zero),
     ("a report inside a dependency is not this repository's",
