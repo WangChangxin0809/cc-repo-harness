@@ -87,6 +87,21 @@ _REPAIR = re.compile(
     r"go(?:es)? (?:in|to)|lives? in|the (?:right|correct) place|"
     r"on purpose|deliberately|by design|which is why)\b", re.I)
 
+# A prohibition inside a relative clause whose main verb is a copula is not
+# addressed to anybody. `what must not leave the machine is a guard` names a
+# category of rule; `a rule that must not be missed is a guard` classifies one.
+# Both are sentences *about* prohibitions, and reading them as prohibitions is
+# the eighth time this project has met text about a thing read as the thing.
+#
+# Two halves, and both are required. A relative pronoun close in front of the
+# modal is what makes it a clause rather than a directive; a copula behind it
+# is what makes that clause the subject of a description. Either alone is
+# common in real instructions -- "Anything that fails must not be ignored" has
+# the first and is an instruction, and keeping it is the point of the second.
+_RELATIVE = re.compile(
+    r"\b(?:what|whatever|whichever|whoever|that|which|who)\b[^.;:]{0,30}$", re.I)
+_COPULA = re.compile(r"\b(?:is|are|was|were|becomes?|means?|remains?)\b", re.I)
+
 _LIST_ITEM = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\|)", re.M)
 # A markdown table row is data laid out in columns, not a sentence addressed to
 # anybody -- and a header cell reading "The thing you want to forbid" is a
@@ -156,11 +171,29 @@ def _snip(text, n=110):
 _CLAUSE = re.compile(r"[,;:]|--| -- |\u2014")
 
 
+# The subset of repairs that may be stated *before* the prohibition. A reason
+# ("it fails open on purpose") and a redirection ("instead", "rather than")
+# both read backwards; the verb-shaped repairs do not, because the head of a
+# sentence routinely names the very thing being ruled out -- "when you use the
+# API, do not hardcode the key" would suppress itself on `use`.
+_REPAIR_BEFORE = re.compile(
+    r"\b(?:on purpose|deliberately|by design|which is why|instead|"
+    r"rather than|the (?:right|correct) place)\b", re.I)
+
+
+def _describes(sent, match):
+    """True where the prohibition is a relative clause being described rather
+    than an instruction being given -> _RELATIVE."""
+    return bool(_RELATIVE.search(sent[:match.start()])
+                and _COPULA.search(sent[match.end():]))
+
+
 def _around(prev, sent, match, nxt):
     """The text a repair may legitimately live in, given a prohibition at
     `match` inside `sent`.
 
-    Everything except the prohibition's own clause. `use`, `write`, `put` and
+    Everything except the prohibition's own clause, plus whatever came before
+    it in the sentence that reads as a reason. `use`, `write`, `put` and
     `call` are how an alternative is usually phrased, and they are also the
     verbs prohibitions are built from: "do not **put** a rule in two places"
     suppressed itself, and so did every "do not use", "do not write" and "do
@@ -169,7 +202,9 @@ def _around(prev, sent, match, nxt):
     tail = sent[match.end():]
     cut = _CLAUSE.search(tail)
     same = tail[cut.end():] if cut else ""
-    return " ".join((prev, same, nxt))
+    head = sent[:match.start()]
+    before = head if _REPAIR_BEFORE.search(head) else ""
+    return " ".join((prev, before, same, nxt))
 
 
 def openings(unit):
@@ -199,6 +234,8 @@ def openings(unit):
             nxt = sents[i + 1] if i + 1 < len(sents) else ""
             prev = sents[i - 1] if i else ""
             m = _PROHIBITION.search(sent)
+            if m and _describes(sent, m):
+                m = None
             if m and not _REPAIR.search(_around(prev, sent, m, nxt)):
                 found.append({
                     "operation": "positive", "line": line_no,

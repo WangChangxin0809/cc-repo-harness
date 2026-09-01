@@ -4345,6 +4345,57 @@ def case_a_table_is_data_and_an_alternative_may_come_first(t):
 
 
 
+def case_a_sentence_about_a_prohibition_is_not_one(t):
+    """The eighth appearance of text *about* a thing read as the thing.
+
+    `what must not leave the machine is a guard` names a category of rule and
+    `a rule that must not be missed is a guard` classifies one. Neither tells
+    anybody to do anything, and both were reported as prohibitions leaving
+    their target unstated -- across three documents that were, in fact,
+    explaining how prohibitions get enforced here.
+
+    Both halves of the test are load-bearing. A relative pronoun in front of
+    the modal is not enough on its own: "anything that fails must not be
+    ignored" has one and is a real instruction, so a copula behind it is
+    required too, and that pair is what separates a description from an
+    order."""
+    def positives(text):
+        return [o["text"] for o in reframe_mod.openings(
+            {"path": "a.md", "kind": "skill", "text": text})
+            if o["operation"] == "positive"]
+
+    described = (
+        "The rules split three ways. What must not leave the machine is a "
+        "guard, what must not enter the tree is a gate.\n")
+    got = positives(described)
+    if got:
+        return "a category named by a relative clause was read as an order: " + got[0]
+
+    classified = "A rule that must not be missed is a guard.\n"
+    got = positives(classified)
+    if got:
+        return "a relative clause modifying a noun was read as an order: " + got[0]
+
+    # ...and the instruction that wears the same pronoun still comes back.
+    order = "Anything that fails must not be ignored.\n"
+    if not positives(order):
+        return "a real prohibition was silenced by the relative-clause rule"
+
+    # The reason for a prohibition, stated in the same sentence ahead of it.
+    # `_around` read only the tail, so the head that carried the reason was
+    # thrown away before the search for it.
+    reasoned = ("It fails open on purpose -- a broken guard must not become "
+                "an unbypassable wall.\n")
+    if positives(reasoned):
+        return "a reason given ahead of the prohibition was not counted"
+
+    # A head that merely names what is being ruled out is not a repair.
+    named = "When you use the API, do not hardcode the key.\n"
+    if not positives(named):
+        return "a verb in the head was mistaken for the alternative"
+    return None
+
+
 def case_a_guard_catching_no_ordinary_bug_is_the_right_outcome(t):
     """A threshold no repository can meet is not a measurement.
 
@@ -4406,6 +4457,8 @@ CASES = [
      case_a_guard_catching_no_ordinary_bug_is_the_right_outcome),
     ("a table is data and an alternative may come first",
      case_a_table_is_data_and_an_alternative_may_come_first),
+    ("a sentence about a prohibition is not one",
+     case_a_sentence_about_a_prohibition_is_not_one),
     ("coverage is given the command the replay found",
      case_coverage_is_given_the_command_the_replay_found),
     ("a description is not an unenforced rule",
