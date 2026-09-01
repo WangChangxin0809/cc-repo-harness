@@ -36,6 +36,7 @@
 | Know why the last pass is an agent's number and not a threshold | [0041](decisions/0041-two-states-cannot-say-which-one-to-fix-first.md) |
 | Know why the agent that tests a promise cannot read the repository | [0040](decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
+| See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed
 and checked by `check_docs_layout.py`. **Inside each one, organise however suits

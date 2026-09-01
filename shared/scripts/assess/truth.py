@@ -679,16 +679,24 @@ belongs to somebody else's tree.
 ## Answer
 
     {"candidates": [
-      {"id": 0, "real": false,
+      {"id": 0, "file": "skills/bootstrap-repo-harness/SKILL.md", "real": false,
        "why": "scripts/guards/ is what a scaffolded repository gets. It is
                correct that it is absent here -- ours live under shared/."},
-      {"id": 3, "real": true,
+      {"id": 3, "file": "README.md", "real": true,
        "why": "README says the report is committed. build.py writes it into
                docs/generated/, which is not tracked."}
     ]}
 
 Answer only the ids listed. One you leave out stays a candidate, which is
 honest -- an unread candidate and a dismissed one are different things.
+
+**`file` is not optional and it is not decoration.** The list is rebuilt from
+the tree on every run, so an id is a position in *this* run and nothing more.
+Fix one of these and the next run renumbers everything after it -- an answers
+file carrying ids alone would then attach yesterday's verdicts to today's
+candidates, quietly, in whichever direction the numbering shifted. So each
+answer names the document it is about, and one whose id and file disagree is
+matched by file or refused.
 
 ---
 
@@ -701,11 +709,47 @@ def brief(r):
         return ""
     out = [BRIEF]
     for i, row in enumerate(r["candidates"]):
-        out.append("## %d — T%d  %s\n" % (i, row["tier"], row["file"]))
+        out.append('## %d — T%d  %s\n' % (i, row["tier"], row["file"]))
         out.append("%s\n" % row["claim"])
         if row.get("why"):
             out.append("_why it was flagged_: %s\n" % row["why"])
     return "\n".join(out)
+
+
+def _locate(cands, item):
+    """Which candidate an answer is about, or None.
+
+    The id is a position in one run and the list is rebuilt from the tree on
+    every run, so acting on a candidate renumbers every candidate after it.
+    An answers file carrying ids alone would then hand yesterday's verdicts to
+    today's candidates -- silently, and in whichever direction the numbering
+    happened to shift. So the file an answer names is what identifies it, and
+    the id is only the fast path: it is used when it agrees, and ignored when
+    it does not."""
+    i, named = item.get("id"), item.get("file")
+    if isinstance(i, int) and 0 <= i < len(cands):
+        if not named or cands[i]["file"] == named:
+            return i
+    if not named:
+        # No file and no usable id. Refusing beats guessing: a verdict landing
+        # on the wrong candidate is worse than one that did not land.
+        return None
+    # Narrowing, in order, and each step is only taken when the one before it
+    # was ambiguous. The claim is the strongest identifier and the least
+    # stable: a T3 claim reads "5 commit(s) to what it points at", so it
+    # changes every time anything the document points at is touched -- which
+    # is the condition that produced the candidate. Tier and file survive that.
+    claim = (item.get("claim") or "").strip()
+    tier = item.get("tier")
+    same_file = [n for n, c in enumerate(cands) if c["file"] == named]
+    for narrower in (
+            lambda n: claim and cands[n]["claim"].strip() == claim,
+            lambda n: tier is not None and cands[n]["tier"] == tier,
+            lambda n: True):
+        hits = [n for n in same_file if narrower(n)]
+        if len(hits) == 1:
+            return hits[0]
+    return None
 
 
 def grade(r, answers):
@@ -717,23 +761,32 @@ def grade(r, answers):
     if not isinstance(answers, dict) or not isinstance(
             answers.get("candidates"), list):
         return None, "the answers are not {\"candidates\": [...]}"
-    total = len(r.get("candidates") or [])
-    real, dismissed, seen = [], [], set()
+    cands = r.get("candidates") or []
+    total = len(cands)
+    real, dismissed, seen, stale = [], [], set(), []
     for item in answers["candidates"]:
         if not isinstance(item, dict):
             continue
-        i = item.get("id")
-        if not isinstance(i, int) or not 0 <= i < total or i in seen:
-            # An id for a candidate that was never handed over is an invented
-            # answer, and the whole point of the id is that it cannot be.
+        i = _locate(cands, item)
+        if i is None:
+            # Either an id nobody was handed, or an answer about a document
+            # that is no longer a candidate -- usually because somebody acted
+            # on it. Both are recorded as stale rather than dropped: an
+            # answers file quietly losing entries is how a reading rots.
+            stale.append(item.get("file") or item.get("id"))
+            continue
+        if i in seen:
             continue
         seen.add(i)
         (real if item.get("real") else dismissed).append(
-            {**item, "candidate": r["candidates"][i]})
+            {**item, "candidate": cands[i]})
     if not seen:
-        return None, "no candidate was judged either way"
+        return None, ("no candidate was judged either way"
+                      + (" — %d answer(s) name nothing in this run, so the "
+                         "file is for an older tree" % len(stale)
+                         if stale else ""))
     return {"real": real, "dismissed": dismissed, "judged": len(seen),
-            "pending": max(0, total - len(seen))}, ""
+            "stale": stale, "pending": max(0, total - len(seen))}, ""
 
 
 def render(r):

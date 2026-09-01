@@ -120,8 +120,21 @@ violated goes in a guard.
  "command": "python3 scripts/context/<your hook>.py"}]}
 ```
 
-Receives the call and its result. The action already happened, so this is
-delivery, not judgment — a hook here should always exit 0.
+Receives the call and its result. Two different things live here, and mixing
+them up is how this moment goes wrong:
+
+- **Delivery.** The action already happened, so telling the agent something
+  about it is not a judgement, and a delivery hook exits 0 whatever it found.
+- **A check on what was just written.** Running the check that sits beside the
+  edited file is the `same-turn` rung of the catch ladder, and its whole value
+  is that a red one stops the turn — exit 2, with the output on stderr, while
+  the reasoning that produced the edit is still in front of the model.
+
+The line between them is whether anything *judged*. A check that returns 2, or
+times out, or cannot be started has not judged, and blocking on it traps the
+agent in a loop with no visible cause; those come back as `additionalContext`
+with exit 0, so the model is told the check did not run and is not stopped by
+it -> `shared/scripts/context/same_turn.py`
 
 **Return `hookSpecificOutput.additionalContext`, never plain stdout.** This is
 the single most expensive mistake available in this document. Plain stdout is
@@ -138,10 +151,17 @@ delivers nothing to the model. This harness shipped one for months.
 The unique thing this moment knows is what the agent *actually did* rather than
 what it said it would. That makes it the right home for **what a change just
 affected** — callers of an edited function, a config key read elsewhere, a
-document that may have just gone stale. Nothing is wired here by default, on
-purpose: such a hook always has something to say, and one that speaks after
-every edit stops being read. Give it a reason to stay quiet before you give it
-a voice.
+document that may have just gone stale.
+
+One hook is wired here by default: `same_turn.py`, which runs the `selftest.py`
+sitting in the edited file's own directory and nothing else. That rule is the
+reason it can be wired at all — a directory with no selftest has nothing to run
+and it stays silent, so it speaks on the edits where it has something to say
+and is absent on the rest.
+
+Anything you add beside it has to clear the same bar. A hook that always has
+something to say after every edit stops being read, and then so does the one
+next to it. Give it a reason to stay quiet before you give it a voice.
 
 Neither this moment nor moment 5 sees a file written by a subprocess. Nothing
 in Claude Code does — checkpointing, `/rewind` and path-scoped rules all draw
