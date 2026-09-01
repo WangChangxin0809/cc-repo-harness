@@ -35,10 +35,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --html assessment.html --json assessment.json
 ```
 
-Two outcomes are different and must not be reported the same way. *This
-repository has no tests* is a real finding, and one of the more important ones
-this page can produce. *A table did not recognise this repository's convention*
-is a fact about the table. Only report the first after you have looked.
+Two outcomes look identical here and are not. Report each as what it is:
+
+- *This repository has no tests* — a real finding, and one of the more
+  important ones this page produces. Say it, once you have looked and it holds.
+- *A table did not recognise this repository's convention* — a fact about the
+  table. Say that instead, and name the convention it missed.
 
 And do not write tests to make the number better. If a suite exists, run it. If
 none exists, the honest page says so.
@@ -57,10 +59,10 @@ Two traps when you read them:
   If the repository has several suites and you gave one, you have measured that
   suite against the whole tree. The row names the command; check it before you
   report a percentage as a finding.
-- **Do not read them upward.** High coverage is close to meaningless — its
+- **Read them downward only.** High coverage is close to meaningless — its
   correlation with actually finding bugs is weak for a single suite. Absence is
-  the finding. Quote the files with no executed line and the decisions only ever
-  taken one way; do not congratulate a repository for a percentage.
+  the finding: quote the files with no executed line and the decisions only ever
+  taken one way, and let the percentage stand as a denominator.
 
 ## The second pass, when mutation was asked for
 
@@ -90,13 +92,14 @@ and the change leaves the count entirely — that is the right outcome, not a
 concession. Say `productive` when the line encodes behaviour somebody depends
 on; it then lands at `never`, which is the most expensive row on the page.
 
-Judge the change in front of you. Do not go looking for other problems, and do
-not soften a verdict because the surrounding code is good.
+Judge the change in front of you, and only that. The verdict on it stands on
+its own evidence — the quality of the code around it is somebody else's
+finding, on somebody else's page.
 
-Read what it printed before you read anything else. **Do not recompute what it
-gave you.** You cannot count tokens, you will not give the same figure twice,
-and if the numbers come from you then re-measuring later compares two opinions
-instead of two measurements.
+Read what it printed before you read anything else, and **carry its figures
+through unchanged.** You cannot count tokens, you will not give the same figure
+twice, and if the numbers come from you then re-measuring later compares two
+opinions instead of two measurements.
 
 If it exits 2, say so and stop. Exit 2 is COULD NOT JUDGE and is never a pass.
 
@@ -111,10 +114,10 @@ If it exits 2, say so and stop. Exit 2 is COULD NOT JUDGE and is never a pass.
 | 5 | Context Economy | tokens are spent every turn on text that restates the code |
 
 A dimension earns a finding only when a low score names a **specific observable
-failure**. Never score a repository on whether it has adopted this project's
-conventions: a repository that stops destruction with a hand-written `bash`
-hook is fully protected, and a repository that keeps its checks in `tools/`
-keeps its checks.
+failure**. Score what a repository *achieves*, and stay indifferent to how it
+gets there: a repository that stops destruction with a hand-written `bash` hook
+is fully protected, and a repository that keeps its checks in `tools/` keeps
+its checks.
 
 ## Dimension 4, when it is asked for
 
@@ -140,11 +143,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/memory.py \
         --with-answers with.json --without-answers without.json
 ```
 
-**The difference between the two runs is the measurement.** Do not read the
-`with` run on its own and call it a score — that measures how legible the code
-is, not what the repository keeps. And do not answer the questions yourself:
-you have already read this repository, so you are the one agent in the building
-who cannot be the probe.
+**The difference between the two runs is the measurement.** Two rules follow
+from that, and both are about staying out of it:
+
+- Read the pair, not the `with` run. That run on its own measures how legible
+  the code is, which is a different thing from what the repository keeps.
+- Let the two probes answer. You have already read this repository, so you are
+  the one agent in the building who cannot be one.
 
 ## Do the documents keep their promises, when it is asked for
 
@@ -190,9 +195,9 @@ Three rules, and the first is the one that is easy to break by being helpful:
 - **An empty result is not a clean bill.** CASCADE reports recall 0.21: it
   finds about a fifth of what is there. "No inconsistency found" here means
   "none of the sentences that could be tested failed the experiment", and the
-  row says so. Do not upgrade it to "the docs are accurate".
-- **Do not fix what it finds.** A sentence the code contradicts is a proposal
-  in your reply, not an edit.
+  row says so. Report it as what it is: the claims that were tested, and how they came out.
+- **Leave what it finds in place.** A sentence the code contradicts is a
+  proposal in your reply, not an edit.
 
 ## Then read what the numbers cannot say
 

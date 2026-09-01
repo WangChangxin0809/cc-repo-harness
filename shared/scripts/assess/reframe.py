@@ -76,15 +76,22 @@ _PROHIBITION = re.compile(
     r"|\bno\s+\w+(?:\s+\w+)?\s+may\b"
     r"|(?:^|[.;:]\s+|\*\*)\s*(?:Never|Avoid|Do not|Don't)\b", re.M)
 
-# The repair: what to do instead, in this sentence or the next one. A
-# prohibition followed by `Instead, ...` is already reframed, and reading only
-# the sentence the negation is in called those findings too.
+# The repair: what to do instead, anywhere in the immediate neighbourhood. A
+# prohibition followed by `Instead, ...` is already reframed, and so is one
+# whose alternative came *first* -- "it fails open on purpose, so a broken
+# guard must not become a wall" states the behaviour before ruling out its
+# opposite. Reading only the sentence the negation sits in reported both.
 _REPAIR = re.compile(
     r"\b(?:instead|rather than|in its place|use\b|write\b|put\b|call\b|"
     r"prefer\b|the fix is|the remedy is|go through|belongs? in|"
-    r"go(?:es)? (?:in|to)|lives? in|the (?:right|correct) place)\b", re.I)
+    r"go(?:es)? (?:in|to)|lives? in|the (?:right|correct) place|"
+    r"on purpose|deliberately|by design|which is why)\b", re.I)
 
 _LIST_ITEM = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\|)", re.M)
+# A markdown table row is data laid out in columns, not a sentence addressed to
+# anybody -- and a header cell reading "The thing you want to forbid" is a
+# column label. Sixth in the family of things this project keeps rediscovering.
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$", re.M)
 _FENCE = re.compile(r"^```", re.M)
 _HEADING = re.compile(r"^#{1,6}\s", re.M)
 
@@ -124,6 +131,8 @@ def _blocks(text):
                 out.append((start, "\n".join(cur)))
                 cur = []
             continue
+        if _TABLE_ROW.match(line):
+            continue
         if not cur:
             start = i
         cur.append(line)
@@ -139,6 +148,28 @@ def _sentences(block):
 def _snip(text, n=110):
     flat = " ".join(text.split())
     return flat if len(flat) <= n else flat[:n - 1] + "…"
+
+
+# A clause boundary. The alternative to a prohibition lives on the far side of
+# one -- "do not commit it; write it into build/" -- and the prohibition's own
+# verb lives on the near side.
+_CLAUSE = re.compile(r"[,;:]|--| -- |\u2014")
+
+
+def _around(prev, sent, match, nxt):
+    """The text a repair may legitimately live in, given a prohibition at
+    `match` inside `sent`.
+
+    Everything except the prohibition's own clause. `use`, `write`, `put` and
+    `call` are how an alternative is usually phrased, and they are also the
+    verbs prohibitions are built from: "do not **put** a rule in two places"
+    suppressed itself, and so did every "do not use", "do not write" and "do
+    not call" in the tree. The clause the negation sits in is exactly the part
+    that cannot count."""
+    tail = sent[match.end():]
+    cut = _CLAUSE.search(tail)
+    same = tail[cut.end():] if cut else ""
+    return " ".join((prev, same, nxt))
 
 
 def openings(unit):
@@ -162,10 +193,13 @@ def openings(unit):
 
         sents = _sentences(block)
         for i, sent in enumerate(sents):
-            # The sentence after a prohibition is where `Instead, ...` lives,
-            # so a repair there counts as one.
+            # The sentences either side of a prohibition are where the
+            # alternative lives -- `Instead, ...` after it, or the behaviour it
+            # is ruling out the opposite of, before it.
             nxt = sents[i + 1] if i + 1 < len(sents) else ""
-            if _PROHIBITION.search(sent) and not _REPAIR.search(sent + " " + nxt):
+            prev = sents[i - 1] if i else ""
+            m = _PROHIBITION.search(sent)
+            if m and not _REPAIR.search(_around(prev, sent, m, nxt)):
                 found.append({
                     "operation": "positive", "line": line_no,
                     "why": "states what not to do, and not what to do instead",

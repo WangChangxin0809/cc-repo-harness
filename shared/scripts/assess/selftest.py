@@ -4298,7 +4298,51 @@ def case_coverage_is_given_the_command_the_replay_found(t):
     return None
 
 
+
+def case_a_table_is_data_and_an_alternative_may_come_first(t):
+    """Two precision failures, both found by turning it on real documents.
+
+    A markdown table row is columns of data, and a header cell reading "the
+    thing you want to forbid" is a column label -- sixth in the family this
+    project keeps rediscovering. And the alternative to a prohibition is as
+    often stated *before* it as after: "it fails open on purpose, so a broken
+    guard must not become a wall" gives the behaviour first and rules out its
+    opposite second. Reading only forwards reported both as unreframed."""
+    # A table butted against prose joined it into one block, and the sentence
+    # split then handed back a *cell* as the text of the finding.
+    table = {"path": "a.md", "kind": "skill", "text": (
+        "Do not put a rule in two places.\n"
+        "| The thing you want to forbid | Where it belongs |\n"
+        "|---|---|\n"
+        "| An action that destroys work | A guard |\n")}
+    got = reframe_mod.openings(table)
+    if not got:
+        return "the prohibition beside the table was lost with the table"
+    cells = [o["text"] for o in got if "|" in o["text"]]
+    if cells:
+        return "a table cell was reported as the instruction: " + cells[0]
+
+    before = {"path": "b.md", "kind": "skill", "text":
+              "It fails open on purpose. A broken guard must not become an "
+              "unbypassable wall.\n"}
+    got = [o for o in reframe_mod.openings(before)
+           if o["operation"] == "positive"]
+    if got:
+        return ("an alternative stated before the prohibition was missed: "
+                + got[0]["text"])
+
+    # ...and a bare prohibition with nothing either side still comes back.
+    bare = {"path": "c.md", "kind": "skill", "text":
+            "A broken guard must not become an unbypassable wall.\n"}
+    if not [o for o in reframe_mod.openings(bare)
+            if o["operation"] == "positive"]:
+        return "widening the window silenced a real candidate"
+    return None
+
+
 CASES = [
+    ("a table is data and an alternative may come first",
+     case_a_table_is_data_and_an_alternative_may_come_first),
     ("coverage is given the command the replay found",
      case_coverage_is_given_the_command_the_replay_found),
     ("a description is not an unenforced rule",
