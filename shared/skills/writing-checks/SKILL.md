@@ -221,10 +221,13 @@ order from `.claude/guards.json`, walks imports, and reports each edge that
 points the wrong way with both file paths. Prose describing a layering is
 followed for about a month; a gate is followed indefinitely.
 
-Two things this gate must not do: judge on a maximum (variance across identical
-runs is real, and the maximum is the noisiest statistic available), and live in
-only the packages it validates. Cross-package rules belong in a third place that
-always runs — otherwise testing only the packages you changed never sees it.
+Two things decide whether this gate works:
+
+1. **Judge on a median, not a maximum.** Variance across identical runs is
+   real, and the maximum is the noisiest statistic available.
+2. **Put it in a third place that always runs.** A cross-package rule living
+   inside the packages it validates is never seen by a run that tests only the
+   packages you changed.
 
 ## Run gates in a clean worktree
 

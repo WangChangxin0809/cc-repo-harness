@@ -73,10 +73,14 @@ and is paid every turn, so it stays short; `ARCHITECTURE.md` is read on demand,
 so it can be long.
 
 **`SECURITY.md` holds almost nothing.** It says how to report a vulnerability.
-The rules split three ways — what must not leave the machine is a guard, what
-must not enter the tree is a gate, and why the boundary sits where it does is a
-decision record. Security prose that is only prose is the clearest case of a
-rule with no reading trigger.
+The rules split three ways, and each half goes where it runs:
+
+- what must not leave the machine is a guard
+- what must not enter the tree is a gate
+- why the boundary sits where it does is a decision record
+
+Security prose that is only prose is the clearest case of a rule with no
+reading trigger.
 
 **`docs/decisions/0001-agent-conventions.md` is the closing act.** It records why
 the repository has this shape. Without it the conventions survive as folklore,
