@@ -4119,7 +4119,30 @@ def case_an_entry_point_that_predates_the_commit_is_not_a_red_suite(t):
     return None
 
 
+
+def case_exit_two_is_not_a_failing_suite(t):
+    """This repository's own rule, which the instrument was breaking.
+
+    `CLAUDE.md` says exit 2 means COULD NOT JUDGE and is never a pass. The
+    mirror of that is that it is never a fail either, and `run` was reading it
+    as red -- so a suite that refused to start because a tool was missing
+    counted against the repository exactly like a broken one. It is also
+    pytest's code for a usage error and for an interrupted run."""
+    put(t, "say.py", "import sys\nprint('could not judge: no linter here')\n"
+                     "sys.exit(2)\n")
+    verdict, _ = eco_mod.run(t, ["python3", "say.py"])
+    if verdict != "could-not-run":
+        return "exit 2 was read as %r rather than could-not-run" % verdict
+    put(t, "fail.py", "import sys\nprint('1 failed, 3 passed')\n"
+                      "sys.exit(1)\n")
+    verdict, _ = eco_mod.run(t, ["python3", "fail.py"])
+    if verdict != "red":
+        return "a suite that actually failed was read as %r" % verdict
+    return None
+
+
 CASES = [
+    ("exit two is not a failing suite", case_exit_two_is_not_a_failing_suite),
     ("an entry point that predates the commit is not a red suite",
      case_an_entry_point_that_predates_the_commit_is_not_a_red_suite),
     ("a repository that documents its own suite is not invisible",

@@ -343,6 +343,11 @@ def run(path, cmd):
     detail = tail[-1][:160] if tail else f"exit {out.returncode}"
     if out.returncode == 0:
         return "green", detail
-    if out.returncode in (5, 124, 127) or unusable(detail):
+    # 2 is this repository's own convention for COULD NOT JUDGE, stated in
+    # `CLAUDE.md` and honoured by every check it ships -- and it was read as
+    # red here, which is the same rule broken in the other direction. It is
+    # also pytest's code for a usage error or an interrupted run, and a suite
+    # that never started is not a suite that failed.
+    if out.returncode in (2, 5, 124, 127) or unusable(detail):
         return "could-not-run", detail
     return "red", detail
