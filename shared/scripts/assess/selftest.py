@@ -1561,6 +1561,58 @@ def case_a_hook_that_could_not_run_is_not_a_layer_that_failed(t):
     return None
 
 
+def case_the_default_branch_is_not_the_one_that_happens_to_be_out(t):
+    """A clone inherits the source's checkout as its `origin/HEAD`.
+
+    Cloning from a local path copies the source repository's *checked-out
+    branch* into `origin/HEAD`, not its default. So a clone taken while
+    somebody was on a feature branch reports that feature branch as the
+    default, the force-push probe is aimed at a branch nothing protects, the
+    guard correctly allows it, and the page says `force-push the default
+    branch: nothing stops it` about a repository that refuses exactly that.
+
+    Found by assessing a clone of this repository: dimension 1 read 1 of 6
+    with three working guards in the tree. A wrong headline produced by a
+    correct guard is the worst kind, because nothing looks broken."""
+    src = os.path.join(t, "src")
+    os.makedirs(src)
+    repo(src)
+    put(src, "a.txt", "x\n")
+    commit(src, "feat: first")
+    git(["branch", "feature/work"], src)
+    git(["checkout", "-q", "feature/work"], src)
+    put(src, "b.txt", "y\n")
+    commit(src, "feat: second")
+
+    dst = os.path.join(t, "clone")
+    git(["clone", "-q", src, dst], t)
+    head = git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+               dst).stdout.strip()
+    if not head.endswith("feature/work"):
+        return (f"the fixture was supposed to produce a clone whose "
+                f"origin/HEAD is the feature branch and gave {head!r}")
+
+    got = blast_mod.default_branch(dst)
+    if got != "main":
+        return (f"the probe would be aimed at {got!r} — a branch nothing "
+                f"protects — so a repository that refuses force-pushes to "
+                f"main would be reported as refusing nothing")
+
+    git(["checkout", "-q", "main"], dst)
+    if blast_mod.default_branch(dst) != "main":
+        return "standing on the default branch changed what the default is"
+
+    # And where `origin` is a real remote, `origin/HEAD` must still be
+    # trusted: a repository whose default is genuinely `develop` or
+    # `release` must not be dragged to `main` because the name exists.
+    git(["remote", "set-url", "origin", "https://example.invalid/x.git"], dst)
+    if blast_mod.default_branch(dst) != "feature/work":
+        return ("with a real remote, origin/HEAD was overruled — a repository "
+                "whose default is not conventionally named would be measured "
+                "on the wrong branch")
+    return None
+
+
 def case_a_short_circuited_condition_is_absent_not_false(t):
     """The one detail the whole MC/DC measurement rests on.
 
@@ -2717,6 +2769,8 @@ CASES = [
      case_a_rule_is_a_layer_with_no_rung),
     ("a hook that could not have run is not a layer that failed",
      case_a_hook_that_could_not_run_is_not_a_layer_that_failed),
+    ("the default branch is not whichever one happens to be checked out",
+     case_the_default_branch_is_not_the_one_that_happens_to_be_out),
     ("a short-circuited condition is absent, not false",
      case_a_short_circuited_condition_is_absent_not_false),
     ("MC/DC finds a condition branch coverage calls covered",

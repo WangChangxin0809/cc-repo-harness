@@ -78,17 +78,54 @@ REWRITE = "git rebase -i --root && git push --force-with-lease origin {branch}"
 def default_branch(root):
     """The branch a force-push would actually damage.
 
-    `origin/HEAD` when the clone knows it, then the conventional names, then
-    `main` as a last resort -- never the current branch, which is the whole
-    point of the comment above."""
-    out = subprocess.run(
-        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    Never the current branch -- a probe whose verdict moves with the checkout
+    is not a measurement, which is what the comment above `FORCE_PUSH` is
+    about.
+
+    **`origin/HEAD` is authoritative only when `origin` is a real remote.**
+    Cloning from a local *path* copies the source repository's checkout into
+    `origin/HEAD`, so a clone taken while somebody was on a feature branch
+    names that feature branch as the default. Measured: assessing a clone of
+    this repository aimed the force-push probe at `repository-memory`, the
+    guard correctly allowed it, and the page reported `force-push the default
+    branch: nothing stops it` about a repository that refuses exactly that. A
+    wrong headline produced by a correct guard is the worst kind, because
+    nothing looks broken.
+
+    So the test is what `origin` *is*, not what it says: a URL is trusted, a
+    directory on this disk is not. That is precise rather than heuristic, and
+    it leaves a repository with a genuinely unconventional default -- `develop`,
+    `release` -- correctly measured, which guessing at conventional names
+    first would not."""
+    url = subprocess.run(["git", "config", "--get", "remote.origin.url"],
+                         cwd=root, capture_output=True, text=True,
+                         timeout=60).stdout.strip()
+    local_origin = bool(url) and os.path.isdir(
+        os.path.join(os.path.abspath(os.path.join(root, url)))
+        if not os.path.isabs(url) else url)
+
+    named = ""
+    if not local_origin:
+        head = subprocess.run(
+            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+            cwd=root, capture_output=True, text=True, timeout=60)
+        # Split ONCE: `origin/HEAD` prints `origin/feature/work`, and taking
+        # the last segment turns that into `work`, a branch that does not
+        # exist. The remote name is the first component; the rest is the
+        # branch, slashes and all.
+        if head.returncode == 0 and "/" in head.stdout:
+            named = head.stdout.strip().split("/", 1)[-1]
+    if named:
+        return named
+
+    remote = subprocess.run(
+        ["git", "branch", "-r", "--format=%(refname:short)"],
         cwd=root, capture_output=True, text=True, timeout=60)
-    if out.returncode == 0 and out.stdout.strip():
-        return out.stdout.strip().split("/")[-1]
-    known = subprocess.run(["git", "branch", "--format=%(refname:short)"],
+    have = {b.split("/", 1)[-1] for b in remote.stdout.split()
+            if "/" in b and not b.endswith("HEAD")}
+    local = subprocess.run(["git", "branch", "--format=%(refname:short)"],
                            cwd=root, capture_output=True, text=True, timeout=60)
-    have = set(known.stdout.split())
+    have |= set(local.stdout.split())
     for name in ("main", "master", "trunk"):
         if name in have:
             return name
