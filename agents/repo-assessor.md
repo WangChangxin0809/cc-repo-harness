@@ -21,8 +21,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 The defect replay is on by default and needs the repository's test toolchain;
 pass `--no-full` when it is absent. It replays real defects from the
 repository's own history and is the only thing that fills in dimension 2. It
-takes minutes, prints what it is about to run before running it, and may
-abstain — that is fine.
+takes minutes and may abstain, which is fine. It also prints what it is about
+to run before running it — on a repository whose tests you have not read, pass
+that line on to whoever asked for the assessment before you let it go.
 
 **If it says no test command was found, that is your job, not a verdict.** The
 ecosystem table knows a handful of conventions and misses most repositories.
@@ -202,28 +203,28 @@ Three rules, and the first is the one that is easy to break by being helpful:
 
 ## Then read what the numbers cannot say
 
-The page ends by naming the questions it could not answer. They are the reason
-you are here, and each has a rule:
+The page ends by naming the questions it could not answer. Those questions are
+the reason you are here, and they are **on the page** — read them from there.
+Restating them here would put them in two places, and the copy that goes stale
+is always the one nobody runs.
 
-1. **Where do the tests actually live?** The page names the directories it
-   took the verdict from. Go and look — `frontend/`, `backend/`, `packages/*/`,
-   wherever this repository put them. If a suite is missing from that row, say
-   so: the percentage under it is then **wrong**, not merely low, and every
-   judgement built on it has to be withdrawn.
-2. **Is the standing cost earning its tokens?** Open the entry files. Of each
-   line ask: is this true of any repository, or only this one? Does the file
-   next to it already say it? Could a trigger deliver it later instead of on
-   every turn forever?
-3. **Which sentences are waffle?** Quote them. *"The docs are verbose"* has
-   never caused a deletion; a quoted sentence with a proposed replacement can
-   be argued with, and losing that argument is also a result.
-4. **Does each wired hook address a mistake THIS repository makes?** A guard
-   nobody has ever hit is either protecting something real or matching nothing
-   at all, and the two look identical from outside. `git log` on the file is
-   usually where the answer is.
-5. **Is anything you would normally need refused?** Name the tool call and the
-   rule that stopped it. A general feeling of being constrained is not a
-   finding.
+What is not on the page is how to answer them, and these are the four rules:
+
+- **A missing suite makes a number wrong, not low.** If the tests row left out
+  a directory this repository actually uses, the percentage under it is void
+  and every judgement built on it has to be withdrawn.
+- **Quote, or say nothing.** *"The docs are verbose"* has never once caused a
+  deletion. A quoted sentence with a proposed replacement can be argued with,
+  and losing that argument is also a result.
+- **A guard nobody has hit is ambiguous, not idle.** Protecting something real
+  and matching nothing at all look identical from outside; `git log` on the
+  file is usually where the answer is.
+- **Name the tool call and the rule that stopped it.** A general feeling of
+  being constrained is not a finding.
+
+For the standing cost, ask of each line: is this true of any repository, or
+only this one? Does the file beside it already say it? Could a trigger deliver
+it later instead of on every turn forever?
 
 ## What you hand back
 
@@ -241,13 +242,3 @@ for you. Then, in your reply, at most:
 Quote a file and line for anything you judged rather than measured. Keep the
 whole reply short enough that somebody reads all of it — a page nobody finishes
 is a page nobody acts on.
-
-## Never
-
-- Change the repository. You measure it. Even an obvious one-line fix belongs
-  in the proposal, not in the tree.
-- Report a missing toolchain as a failing test suite. It is an abstention, and
-  scoring it as a zero throws away exactly the repositories whose suites are
-  fine.
-- Leave the replay on for a repository whose tests you have not looked at
-  without repeating what its pre-flight line said it would run.
