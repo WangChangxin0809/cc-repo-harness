@@ -1440,12 +1440,16 @@ def case_a_wired_layer_that_caught_nothing_is_not_an_absent_one(t):
     knowing what stands behind it. Measured on this repository the day the row
     was added: two PreToolUse hooks wired, zero of 26 injected defects caught
     by either."""
-    silent = _layer_row({"PreToolUse": 2, "PostToolUse": 0},
+    # `same-turn` rather than `before-write`, deliberately. A PostToolUse hook
+    # runs the repository's checks, so one that catches nothing while defects
+    # walk past it is exactly the finding this row exists for. `before-write`
+    # cannot be read that way and has a case of its own below.
+    silent = _layer_row({"PreToolUse": 0, "PostToolUse": 2},
                         {"local-suite": 14})
     if "2 hook(s), 0 of 14 caught" not in silent["value"]:
         return (f"a wired hook that caught nothing is not reported as wired: "
                 f"{silent['value']!r}")
-    if "same-turn: none wired" not in silent["value"]:
+    if "before-write: none wired" not in silent["value"]:
         return "a moment with no hooks is not reported as unwired"
     if silent["flag"] != "bad":
         return ("a layer that is wired and silent is not flagged — that is "
@@ -1454,7 +1458,7 @@ def case_a_wired_layer_that_caught_nothing_is_not_an_absent_one(t):
 
     absent = _layer_row({"PreToolUse": 0, "PostToolUse": 0},
                         {"local-suite": 14})
-    if "before-write: none wired" not in absent["value"]:
+    if "same-turn: none wired" not in absent["value"]:
         return f"an absent layer is reported as present: {absent['value']!r}"
     if absent["flag"] == "bad":
         return ("a repository with nothing wired is flagged as harshly as one "
@@ -4340,7 +4344,34 @@ def case_a_table_is_data_and_an_alternative_may_come_first(t):
     return None
 
 
+
+def case_a_guard_catching_no_ordinary_bug_is_the_right_outcome(t):
+    """A threshold no repository can meet is not a measurement.
+
+    The defects this ladder walks are ordinary bugs out of a repository's own
+    history. A guard is a *destructive-action* layer: `rm -rf $TARGET`, a force
+    push, a credential. It is structurally incapable of catching a logic
+    defect, and a guard that blocked one would be a false block -- which
+    dimension 1 counts *against* a repository.
+
+    So `before-write: N hook(s), 0 of M caught` is the correct outcome for
+    every repository, however good its guards, and flagging it red made the
+    ladder unsatisfiable. Whether the guards work is dimension 1's question,
+    asked there properly by firing destructive actions at them -> 0038"""
+    row = _layer_row({"PreToolUse": 2, "PostToolUse": 0}, {"local-suite": 14})
+    if "before-write: 2 hook(s), 0 of 14 caught" not in row["value"]:
+        return "the inventory stopped saying what stands behind the rung"
+    if row["flag"] == "bad":
+        return ("guards catching no ordinary defect was flagged as a failure "
+                "— no repository can ever clear that")
+    if "Dimension 1" not in (row["note"] or ""):
+        return "nothing tells the reader where the guards are actually judged"
+    return None
+
+
 CASES = [
+    ("a guard catching no ordinary bug is the right outcome",
+     case_a_guard_catching_no_ordinary_bug_is_the_right_outcome),
     ("a table is data and an alternative may come first",
      case_a_table_is_data_and_an_alternative_may_come_first),
     ("coverage is given the command the replay found",

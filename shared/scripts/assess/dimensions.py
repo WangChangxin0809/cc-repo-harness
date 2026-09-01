@@ -614,7 +614,17 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
 
     empty = [b.split(":")[0] for b in bits if "none wired" in b]
     silent = [b.split(":")[0] for b in bits if " of " in b
-              and b.endswith(" caught") and ", 0 of " in b]
+              and b.endswith(" caught") and ", 0 of " in b
+              # ...except the guards. They are a *destructive-action* layer,
+              # and the defects walked past them here are ordinary bugs out of
+              # this repository's own history. A guard that blocked one would
+              # be a false block, which dimension 1 counts against a
+              # repository -- so `before-write: 0 of N` is the correct
+              # outcome, and flagging it red is a threshold no repository can
+              # ever meet however good its guards are. Whether they work is
+              # dimension 1's question and it is asked there properly, by
+              # firing destructive actions at them -> 0038
+              and not b.startswith("before-write")]
     return {
         "label": "what could have caught it",
         "value": " · ".join(bits),
@@ -624,6 +634,11 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
                  "below prints the same 0 for both. A rung nothing reached "
                  "is neither: the walk stops at the first red"
                  + (f". Wired and silent: {', '.join(silent)}" if silent else "")
+                 + (". `before-write` catching none of these is the right "
+                    "outcome, not a silence: these are ordinary defects, and "
+                    "a guard that blocked one would be a false block. "
+                    "Dimension 1 is where the guards are fired at"
+                    if pre else "")
                  + (f". Not wired at all: {', '.join(empty)}" if empty else "")
                  + (". `rule` has no rung because a document cannot be fired "
                     "at — it is a layer nobody can show working"
