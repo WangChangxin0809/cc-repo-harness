@@ -146,6 +146,54 @@ is, not what the repository keeps. And do not answer the questions yourself:
 you have already read this repository, so you are the one agent in the building
 who cannot be the probe.
 
+## Do the documents keep their promises, when it is asked for
+
+Off by default, and the dearest thing on the page: two agent rounds and up to
+two runs per claim. It is the only dimension-4 row that decides a
+document/code disagreement by **experiment** rather than by comparison, and
+the naive comparison it replaces measures at 0.53 precision
+-> [0036](../docs/decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md)
+
+```bash
+# what is testable at all, and the brief for round one
+python3 -c "import json;print(json.load(open('assessment.json'))['promises_brief'])" > round1.md
+```
+
+Spawn **one** `repo-promise-tester` agent, hand it `round1.md`, and tell it
+where to write `tests.json`. Then:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" --promise-tests tests.json \
+        --json assessment.json --html assessment.html
+```
+
+Claims whose tests all passed are done — that is a real result and costs
+nothing further. Anything left `pending` gets round two, and only then:
+
+```bash
+python3 -c "import json;print(json.load(open('assessment.json'))['promises_brief2'])" > round2.md
+# a NEW repo-promise-tester agent, the same blind, writing impls.json
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --root . --test-command "<...>" \
+        --promise-tests tests.json --promise-impls impls.json \
+        --json assessment.json --html assessment.html
+```
+
+Three rules, and the first is the one that is easy to break by being helpful:
+
+- **Spawn the agent, do not answer for it.** You have read this repository, so
+  you are the one agent in the building who cannot write these tests — the
+  same reason you cannot be the `repo-probe`. `repo-promise-tester` has
+  `Write` and nothing else, which is what makes the blind a fact rather than a
+  request.
+- **An empty result is not a clean bill.** CASCADE reports recall 0.21: it
+  finds about a fifth of what is there. "No inconsistency found" here means
+  "none of the sentences that could be tested failed the experiment", and the
+  row says so. Do not upgrade it to "the docs are accurate".
+- **Do not fix what it finds.** A sentence the code contradicts is a proposal
+  in your reply, not an edit.
+
 ## Then read what the numbers cannot say
 
 The page ends by naming the questions it could not answer. They are the reason

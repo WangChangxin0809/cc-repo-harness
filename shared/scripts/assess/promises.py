@@ -71,6 +71,10 @@ something executable and assert something checkable about it. This finds the
 ones that do, so an agent is spent writing tests for claims that can have
 tests rather than reading prose to discover that most cannot.
 
+A smaller one: a test that does not parse is dropped before it runs, so no
+claim reaches the expensive second round on the strength of a typo. That is
+the paper's compile-and-repair step minus the repair -> `runnable`.
+
 ## What this costs, and why it is off by default
 
 Two agent rounds and up to two suite runs per claim, against mutation's one
@@ -197,7 +201,7 @@ def claims(root):
 
 
 BRIEF_ONE = """\
-# Round one: write a test from the document, without reading the code
+# Round one: write tests from the document, without reading the code
 
 Below are sentences from this repository's own documentation that name
 something executable and assert something checkable about it.
@@ -207,20 +211,43 @@ experiment. A test written after reading the code tests the code; a test
 written from the document alone tests the promise, and only the second can
 show that the two have come apart.
 
-For each claim you can test, write **several small tests, not one** -- five to
-twenty, around eight is typical. This is not thoroughness for its own sake:
-the decision at the end is arithmetic across the set, and a single test cannot
-produce it. Tests that pass on the real code are as necessary as the ones that
-fail, because they are what will catch an implementation that satisfies the
-sentence by breaking everything else.
+## Two stages, and the first one is not a formality either
 
+**Stage one — say what the sentence promises**, as a list of `if <condition>
+then <result>` statements. Take the sentence exactly as written and nothing
+past it: an edge case the document does not mention is not a behaviour, and
+neither is anything about speed, memory or style. Where a sentence genuinely
+reads two ways, write down both readings instead of picking one — a promise
+two readings disagree about is a finding about the sentence, and you should
+say so rather than test one of them.
+
+Doing this first is what produces eight tests instead of two. An agent asked
+straight for tests writes the one it thought of; an agent asked first for the
+behaviours writes one per behaviour.
+
+**Stage two — one test per behaviour.** Five to twenty per claim, around eight
+typical. The count is not thoroughness for its own sake: the decision at the
+end is arithmetic across the set, and a single test cannot produce it. Tests
+you expect to *pass* are as necessary as the ones you expect to fail — they
+are what will catch an implementation that satisfies the sentence by breaking
+everything around it.
+
+Write each one to **fail unless the code conforms exactly to the sentence**.
 Each test is a self-contained Python file that
 
 * exercises **one** thing the sentence promises, not what you assume around it,
 * exits **0** when that holds and **non-zero** when it does not,
 * imports or invokes the named thing by the path the document gives,
 * prints one line saying what it checked, so a person reading the run can see
-  what the exit code meant.
+  what the exit code meant,
+* **parses on its own.** A file with a syntax error is dropped before it runs,
+  and a claim whose every test is dropped is reported as untested — which
+  costs the claim, not the repository.
+
+An import that resolves to nothing is a different matter, and you should not
+avoid it. If the document names something the code does not have, the test
+that reaches for it is *supposed* to blow up; round two is what decides
+whether that was the document's fault or yours.
 
 Skip any claim you cannot test from the document alone -- a sentence too vague
 to test is a finding about the sentence, and saying so is more useful than a
@@ -239,11 +266,17 @@ nothing, and neither does an implementation that only looks right.
 
     {"tests": [{"claim_id": 1,
                 "targets": "path/to/the/file/the/claim/is/about.py",
+                "behaviours": ["if the tree is dirty then it exits 2",
+                               "if the tree is clean then it exits 0"],
                 "cases": [{"name": "exits_two_when_it_cannot_see",
                            "source": "...the whole file..."},
                           {"name": "exits_zero_on_a_clean_tree",
                            "source": "..."}]},
                {"claim_id": 2, "skip": "why it cannot be tested from prose"}]}
+
+`behaviours` is stage one and is kept with the result, so a person reading a
+verdict later can see what the sentence was taken to mean. One `cases` entry
+per behaviour.
 
 `targets` is the file an implementation would replace in round two. Get it
 from the document, not from the tree.
@@ -260,7 +293,18 @@ failed it**. That is not yet a finding: the test may be wrong.
 So write the implementation the sentence describes, from the sentence alone,
 still without reading the real one. Your test then runs against yours.
 
-Two conditions decide it, and the second is the one worth writing for:
+## What you are building from
+
+**The document is the ground truth, even where a name contradicts it.** If the
+sentence says the thing writes nothing and the function it names is called
+`apply`, implement the sentence. You are not reconstructing what the author
+meant to build; you are building what they wrote down, because the whole
+question is whether that was buildable.
+
+**Take it as literally as it goes, and no further.** Whatever the sentence
+does not settle, settle in the least surprising way and keep it small.
+
+## Two conditions decide it
 
 * some test must go **fail-to-pass** -- the document described something the
   real code does not do and yours does;
@@ -303,6 +347,34 @@ def brief(cs, header=BRIEF_ONE, limit=40):
                           c.get("targets", "?"),
                           (c.get("output") or "(no output)")[:900]))
     return "".join(out)
+
+
+def runnable(cases):
+    """The tests that parse, and the ones that never got a chance to run.
+
+    CASCADE gets this free from the Java compiler: a test class that will not
+    compile is repaired up to three times and then the claim returns negative,
+    because a test that never ran is not evidence about anything. Python has
+    no compile step, so a test with a syntax error would instead exit non-zero
+    on both runs, land in `f2f`, and arrive at the same verdict -- after a
+    second agent round had already been spent on it. Parsing it here is free
+    and reaches the answer before the bill.
+
+    **Only a syntax error.** An import that resolves to nothing, or a call to
+    a function the document promised and the code does not have, is not
+    dropped: that failure may be the finding itself, and the document's own
+    implementation in round two is what decides which. Dropping those would
+    delete exactly the inconsistencies this is looking for."""
+    ok, dropped = [], []
+    for case in cases:
+        name = str(case.get("name") or "case%d" % (len(ok) + len(dropped) + 1))
+        try:
+            compile(case.get("source", ""), "<%s>" % name, "exec")
+        except (SyntaxError, ValueError) as exc:
+            dropped.append({"name": name, "why": str(exc)[:200]})
+            continue
+        ok.append(case)
+    return ok, dropped
 
 
 def _run_many(work, root, label, replace, cases):
@@ -354,6 +426,16 @@ def check(root, cs, tests, work):
         if not t or t.get("skip") or not cases:
             c["verdict"] = "not tested"
             c["why"] = (t or {}).get("skip", "no test was written")
+            out.append(c)
+            continue
+        cases, dropped = runnable(cases)
+        if dropped:
+            c["dropped"] = dropped
+        if not cases:
+            c["verdict"] = "not tested"
+            c["why"] = ("no test written for this claim parses: "
+                        + "; ".join("%s (%s)" % (d["name"], d["why"])
+                                    for d in dropped[:3]))
             out.append(c)
             continue
         codes, output = _run_many(work, root, "real-%d" % c["id"], None, cases)

@@ -72,17 +72,27 @@ the loudest candidates were 0031 against 0033, which is the system working.
 
 When two documents disagree, something has to say which one to believe, or
 the finding is only *these two differ* and the reader has to go and look
-anyway. The paper scores source credibility. Ours are three signals a
-repository already has: which was written last, which one is on the floor
-(paid for on every turn, so its claim reaches the agent whether or not anybody
-opened it), and which one the code agrees with. None of them decides; all
-three are handed over with the pair.
+anyway. The paper scores source credibility with Entropy-TOPSIS over five
+criteria a model pulls out of prose. That arithmetic is copied here whole --
+it is the only part of that paper needing no model at all -- over the three
+criteria a repository already has: which was written last, which one is on
+the floor (paid for on every turn, so its claim reaches the agent whether or
+not anybody opened it), and which one the code agrees with.
+
+Entropy weighting earns its place on the second of those. `on_floor` is false
+on every candidate in most repositories, and a signal that never varies is
+one the reader has to skip past by hand on every pair. Weighting it to zero
+is the same fact, stated once.
+
+**They select a source with the score. We do not** -- it is handed over with
+the pair, and the agent still decides. See `rank`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -305,7 +315,7 @@ def _code_says(root, token, values):
     Not authoritative -- a value can appear in code for unrelated reasons --
     and it is the only one of the three signals that looks outside the
     documents at all, which is why it is worth the grep."""
-    hits = {}
+    hits, counts = {}, {}
     for value in values:
         r = subprocess.run(
             ["git", "grep", "-l", "--fixed-strings", "-e", str(value),
@@ -314,8 +324,13 @@ def _code_says(root, token, values):
             cwd=root, capture_output=True, text=True)
         files = [f for f in (r.stdout or "").split() if f]
         if files:
+            # Three is how many a reader will look at; it is not how strong
+            # the signal is. Ranking on the truncated list read a value in
+            # fifty files and a value in three as the same evidence, and the
+            # criterion weighted itself to zero for saying so.
             hits[str(value)] = files[:3]
-    return hits
+            counts[str(value)] = len(files)
+    return hits, counts
 
 
 def narrow(root, docs=None):
@@ -383,15 +398,158 @@ def narrow(root, docs=None):
             pair[side]["last_changed"] = _recency(root, pair[side]["path"])
             pair[side]["on_floor"] = _on_floor(pair[side]["path"])
         if pair["kind"] == "different number":
-            pair["code_says"] = _code_says(
+            pair["code_says"], pair["code_says_count"] = _code_says(
                 root, pair["subject"],
                 set(pair["a"]["value"]) | set(pair["b"]["value"]))
+
+    weights = rank(pairs[:40])
 
     return {"documents": len(docs),
             "possible_pairs": len(docs) * (len(docs) - 1) // 2,
             "excluded_by_supersession": len(excluded),
             "candidates": pairs[:40],
+            "criterion_weights": weights,
             "candidates_total": len(pairs)}, ""
+
+
+# --------------------------------------------------------------- ranking
+# Entropy-TOPSIS, after ConflictRAG III-C. Their five criteria (authority,
+# recency, relevance, specificity, consistency) are pulled out of prose by a
+# model; ours are the three a repository already has. The arithmetic is
+# theirs unchanged, and it is the one part of that paper that needs no model
+# at all -- entropy weighting and TOPSIS are both closed form -- which is why
+# this is here and the embedding classifier is not.
+
+CRITERIA = ("recency", "on_floor", "code_agrees")
+
+
+def _raw_rows(pairs):
+    """One row per side of every candidate: the decision matrix's input.
+
+    Two alternatives per pair, because that is what a conflict offers: the
+    document on each side of it."""
+    rows = []
+    for pair in pairs:
+        counts = pair.get("code_says_count") or {}
+        for side in ("a", "b"):
+            s = pair[side]
+            n = sum(counts.get(str(value), 0)
+                    for value in (s.get("value") or []))
+            rows.append([float(s.get("last_changed") or 0),
+                         1.0 if s.get("on_floor") else 0.0,
+                         float(n)])
+    return rows
+
+
+def _minmax(rows):
+    """To [0,1] per column, because entropy on raw values is not entropy.
+
+    Commit timestamps inside one repository differ in the fourth significant
+    figure. Feed them in raw and every p_ij is uniform to within a rounding
+    error, so recency comes out with the entropy of a constant and a weight
+    near zero -- the signal is silently dropped and nothing says so.
+    Normalising first is what makes a weight mean *how much this criterion
+    separated the candidates in this run*.
+
+    A column that does not vary is left at zero on purpose: it carries no
+    information, and the entropy step is about to say so."""
+    if not rows:
+        return rows
+    n = len(rows[0])
+    out = [[0.0] * n for _ in rows]
+    for j in range(n):
+        col = [r[j] for r in rows]
+        lo, hi = min(col), max(col)
+        if hi - lo <= 0:
+            continue
+        for i, v in enumerate(col):
+            out[i][j] = (v - lo) / (hi - lo)
+    return out
+
+
+def _entropy_weights(rows):
+    """w_j = (1 - E_j) / sum_k (1 - E_k),  E_j = -1/ln(m) * sum_i p_ij ln p_ij
+
+    Their formula, and the property worth having: a criterion every candidate
+    scores alike has maximum entropy and earns weight zero. In a run where no
+    disputed value appears anywhere in the code, `code_agrees` stops being
+    asked about, instead of being asked and answered "neither" every time.
+
+    Equal weights when nothing separates anything -- that is the honest
+    reading of a matrix with no information in it, not a failure."""
+    m = len(rows)
+    n = len(rows[0]) if rows else len(CRITERIA)
+    if m < 2:
+        return [1.0 / n] * n
+    ent = []
+    for j in range(n):
+        col = [r[j] for r in rows]
+        total = sum(col)
+        if total <= 0:
+            ent.append(1.0)
+            continue
+        acc = 0.0
+        for v in col:
+            p = v / total
+            if p > 0:
+                acc += p * math.log(p)
+        ent.append(min(1.0, max(0.0, -acc / math.log(m))))
+    spread = sum(1.0 - e for e in ent)
+    if spread <= 0:
+        return [1.0 / n] * n
+    return [(1.0 - e) / spread for e in ent]
+
+
+def _topsis(rows, weights):
+    """C* = D- / (D+ + D-), with every criterion a benefit criterion.
+
+    Later, on the floor, and agreed with by the code all point the same way,
+    so there is no cost criterion here and no sign to flip.
+
+    0.5 where the criteria cannot separate the two sides at all. A tie is a
+    tie; breaking it by column order would invent a finding."""
+    if not rows:
+        return []
+    n = len(rows[0])
+    norm = [[0.0] * n for _ in rows]
+    for j in range(n):
+        denom = math.sqrt(sum(r[j] * r[j] for r in rows))
+        if denom <= 0:
+            continue
+        for i, r in enumerate(rows):
+            norm[i][j] = weights[j] * r[j] / denom
+    best = [max(r[j] for r in norm) for j in range(n)]
+    worst = [min(r[j] for r in norm) for j in range(n)]
+    out = []
+    for r in norm:
+        dp = math.sqrt(sum((r[j] - best[j]) ** 2 for j in range(n)))
+        dm = math.sqrt(sum((r[j] - worst[j]) ** 2 for j in range(n)))
+        out.append(0.5 if dp + dm <= 0 else dm / (dp + dm))
+    return out
+
+
+def rank(pairs):
+    """Attach a credibility score to each side, and return what it weighed.
+
+    **It ranks; it does not decide.** ConflictRAG selects a source with this
+    number and generates from it. Here it is handed to the agent alongside
+    the three signals it is computed from, and the agent still answers
+    `believe`. The divergence is not timidity: theirs answers a query nobody
+    will check, ours is read by somebody who can open both files in a second
+    -- and a diagnostic that started picking winners would have stopped being
+    a diagnostic.
+
+    So the number is worth exactly one thing: it says which side the three
+    signals *lean* toward, and the weights say how much any of them leaned."""
+    rows = _minmax(_raw_rows(pairs))
+    if not rows:
+        return {}
+    weights = _entropy_weights(rows)
+    close = _topsis(rows, weights)
+    for i, pair in enumerate(pairs):
+        for k, side in enumerate(("a", "b")):
+            pair[side]["credibility"] = round(close[2 * i + k], 3)
+    return {c: round(w, 3) for c, w in zip(CRITERIA, weights)}
 
 
 BRIEF = """\
@@ -421,6 +579,13 @@ Three signals come with the pair and none of them decides:
   The strongest of the three and still not proof: a value can be in the code
   for an unrelated reason
 
+**leans** is those same three signals put through entropy weighting and
+TOPSIS -- higher is the side they point at, 0.5 is a tie they could not
+break. The weights printed with the run say how much each signal actually
+separated *these* candidates: a signal that came out the same on every pair
+is weighted to zero rather than repeated at you. It is a summary of the
+three, not a fourth signal and not an answer. You still say `believe`.
+
 ## What to answer
 
     {"pairs": [{"subject": "...", "a": "path", "b": "path",
@@ -444,14 +609,20 @@ def brief(r):
     if r["excluded_by_supersession"]:
         out.append(", %d pair(s) excluded as supersession"
                    % r["excluded_by_supersession"])
+    if r.get("criterion_weights"):
+        out.append("\nsignal weights this run: " + ", ".join(
+            "%s %.2f" % (k, v)
+            for k, v in sorted(r["criterion_weights"].items())))
     out.append("\n")
     for i, p in enumerate(r["candidates"], 1):
         out.append("\n### %d. `%s` -- %s\n\n" % (i, p["subject"], p["kind"]))
         for side in ("a", "b"):
             s = p[side]
-            out.append("- **%s** says %s%s\n  > %s\n"
+            out.append("- **%s** says %s%s%s\n  > %s\n"
                        % (s["path"], ", ".join(str(v) for v in s["value"]),
                           "  *(on the floor)*" if s.get("on_floor") else "",
+                          "  *(leans %.2f)*" % s["credibility"]
+                          if s.get("credibility") is not None else "",
                           s["says"].replace("\n", " ")[:180]))
         if p.get("code_says"):
             out.append("- the code contains: %s\n" % "; ".join(
@@ -494,6 +665,10 @@ def render(r, judged=None):
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
     for kind in sorted(kinds):
         out.append("     %-22s %d" % (kind, kinds[kind]))
+    if r.get("criterion_weights"):
+        out.append("  which signal separated them: " + ", ".join(
+            "%s %.2f" % (k, v)
+            for k, v in sorted(r["criterion_weights"].items())))
     if judged:
         out.append("  judged: %d real, %d dismissed, %d could not be resolved"
                    % (len(judged["real"]), len(judged["dismissed"]),

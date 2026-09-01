@@ -1267,16 +1267,32 @@ def repository_memory(root, log, check_dirs=(), probe=None, truth=None,
             key = c.get("verdict", "not run")
             counts[key] = counts.get(key, 0) + 1
         bad = counts.get("inconsistent", 0)
+        # A claim the real code *failed* is not a claim the real code passed.
+        # It is waiting for the round that decides whether the document or the
+        # test was wrong, and reporting it under an `ok` alongside "the code
+        # passed it" is wrong in the one direction this page cannot afford.
+        pending = counts.get("pending", 0)
+        untested = counts.get("not tested", 0) + counts.get("not run", 0)
+        if bad:
+            note = "; ".join(c["doc"] + ": " + c["says"][:70]
+                             for c in promises
+                             if c.get("verdict") == "inconsistent")
+        elif pending:
+            note = ("%d claim(s) undecided: the real code failed a test and "
+                    "round two — which decides whether the document or the "
+                    "test was wrong — has not run. Pass --promise-impls"
+                    % pending)
+        elif untested:
+            note = ("no claim was contradicted, but %d got no runnable test "
+                    "at all, so they were not asked" % untested)
+        else:
+            note = ("each one had a test written from the document alone, and "
+                    "the code passed it")
         rows.append({
             "label": "promises the code does not keep",
             "value": "%d of %d testable claim(s)" % (bad, len(promises)),
-            "flag": "bad" if bad else "ok",
-            "note": ("; ".join(c["doc"] + ": " + c["says"][:70]
-                               for c in promises
-                               if c.get("verdict") == "inconsistent")
-                     if bad else
-                     "each one had a test written from the document alone, and "
-                     "the code passed it")
+            "flag": "bad" if bad else "info" if (pending or untested) else "ok",
+            "note": note
                     + ". Recall is low by construction — CASCADE reports 0.21 "
                       "on method-level documentation, and this reads prose "
                       "across a whole repository, so nothing found here is a "

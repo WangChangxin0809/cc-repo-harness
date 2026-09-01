@@ -377,6 +377,19 @@ def main():
                          "said which uncaught changes were worth catching. "
                          "Without it those mutants are reported pending, not "
                          "parked at `never`")
+    # The two rounds of 4.3. They are separate flags rather than one because
+    # the second brief cannot be written until the first has run: which claims
+    # need an implementation is decided by which tests the real code failed.
+    ap.add_argument("--promise-tests", default="",
+                    help="JSON from the agent that read `promises_brief` and "
+                         "wrote tests from the documents alone. They are run "
+                         "against the real code, in a clone. Without this, "
+                         "dimension 4.3 does not print at all.")
+    ap.add_argument("--promise-impls", default="",
+                    help="JSON from the same agent given `promises_brief2`: "
+                         "one implementation per claim whose test the real "
+                         "code failed. Without it those claims stay pending, "
+                         "which is a finding in neither direction.")
     ap.add_argument("--work", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
@@ -430,13 +443,17 @@ def preflight(root, a, work):
                      f"already execute, one at a time, and running that "
                      f"command again for each — so up to {a.mutate + 3} more "
                      f"runs of it")
+    if a.promise_tests:
+        lines.append("  and running an agent's own tests, written from this "
+                     "repository's documents, in a clone -- never in the "
+                     "repository itself")
     lines.append("  --no-full skips all of it"
                  + ("" if a.mutate else "; --mutate adds the second injection"))
     print("\n".join(lines) + "\n", file=sys.stderr)
 
 
 def _run(a, root, work):
-    if a.full or a.mutate:
+    if a.full or a.mutate or a.promise_tests:
         preflight(root, a, work)
     r = gather(root, a.full, a.instances, work,
                a.test_command or None, a.mutate)
@@ -445,6 +462,27 @@ def _run(a, root, work):
               file=sys.stderr)
         return 2
     r["root"] = root
+
+    # Round one, then -- only if its answers arrived -- round two. Both run
+    # the agent's own code, which is why both happen in a throwaway clone
+    # under `work` and never in the subject. A claim the real code passes
+    # ends here and never costs a second round.
+    if a.promise_tests and r.get("promises"):
+        with open(a.promise_tests, encoding="utf-8") as fh:
+            r["promises"] = promises_mod.check(
+                root, r["promises"], json.load(fh),
+                os.path.join(work, "promises"))
+        pending = [c for c in r["promises"] if c.get("verdict") == "pending"]
+        r["promises_brief2"] = promises_mod.brief(pending,
+                                                  promises_mod.BRIEF_TWO)
+        if a.promise_impls and pending:
+            with open(a.promise_impls, encoding="utf-8") as fh:
+                r["promises"] = promises_mod.grade(
+                    root, r["promises"], json.load(fh),
+                    os.path.join(work, "promises"))
+    elif a.promise_impls:
+        print("  --promise-impls ignored: it grades round one, which was "
+              "not run. Pass --promise-tests as well.\n")
 
     if a.flat:
         print(render_flat(r))

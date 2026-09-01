@@ -380,12 +380,28 @@ false positives per 71 real ones
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/promises.py --root .
 ```
 
+*A blind agent judges.* The rounds are driven through the factsheet's
+`--promise-tests` and `--promise-impls`, and the agent that answers them is
+`repo-promise-tester`, which is given `Write` and **no way to read the
+repository at all**. That is not a rule it is asked to respect: a test written
+after reading the implementation agrees with it by construction, so the
+crossing would report `p2p` on everything and find nothing, silently, forever.
+The assessor cannot answer for it either, having already read the tree — the
+same disqualification as 4.1's probe
+-> [0040](../docs/decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md)
+
+Two numbers travel with the row: **precision 0.88, recall 0.21**. Seven of
+eight findings are real, and a fifth of what is there is found — so a `bad` row
+is worth acting on and an empty one is not a clean bill.
+
 ### 4.4 Do the documents agree with each other? (ConflictRAG)
 
 Two documents naming the same thing with two different values will send two
 agents in two directions. Method after
 [ConflictRAG](https://arxiv.org/abs/2605.17301): a cheap filter first, an
-expensive reader only on what survives.
+expensive reader only on what survives. Their code and prompts are promised
+"upon acceptance" and the paper is still only submitted, so what is here is a
+reimplementation of a described method, not a library being followed.
 
 The filter is lexical and deliberately harsh — one rule, not three. Its own
 author's repository produced 553 candidates before it was narrowed, and a filter
@@ -400,6 +416,15 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/conflict.py --root .
 values are as often an example beside a default. Supersession — a decision record
 that deliberately overrules an older one — is contradiction on purpose and is
 excluded before the filter runs.
+
+Each surviving pair carries three signals — which was written last, which is
+on the floor, which value the code contains — put through the paper's
+**Entropy-TOPSIS** (§III-C), the one part of it needing no model at all. The
+run prints what each signal was worth: a criterion that came out the same on
+every candidate is weighted to zero rather than repeated at the reader. It
+**ranks and does not decide** — the agent still says which to believe, because
+a diagnostic that picks winners has stopped being a diagnostic
+-> [0021](../docs/decisions/0021-the-repository-keeps-the-harness-the-plugin-keeps-the-instrument.md)
 
 ---
 
@@ -460,7 +485,7 @@ claude doctor                         # installation health; /doctor in-session 
 `claude plugin details` is the one worth running before reading anything below
 it: it prints **always-on** and **on-invoke** cost per skill and per agent,
 straight from the party that does the loading. On this repository it reports
-~568 always-on tokens across five components — a number nobody here had to
+~670 always-on tokens across six components — a number nobody here had to
 estimate. `/skill-doctor` reports on skills from inside a session.
 
 What those do not cover, and what dimension 5 is therefore for, is the

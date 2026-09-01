@@ -34,6 +34,7 @@
 | Know why the refusal count is read against the repository's own work | [0038](decisions/0038-a-guard-that-refuses-everything-scores-full-marks.md) |
 | Know which changes owe a test, and which are counted anyway | [0039](decisions/0039-tidying-is-not-an-untested-change.md) |
 | Know why the last pass is an agent's number and not a threshold | [0041](decisions/0041-two-states-cannot-say-which-one-to-fix-first.md) |
+| Know why the agent that tests a promise cannot read the repository | [0040](decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 
 The top level — `decisions/`, `how-to/`, `reference/`, `exec-plans/` — is fixed

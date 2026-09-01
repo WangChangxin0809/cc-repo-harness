@@ -77,11 +77,67 @@ one is currently doing damage, since a claim on the floor reaches the agent
 whether or not anybody opened the file; and which of the disputed values the
 code contains, the strongest and still not proof.
 
+**Their Entropy-TOPSIS ranks those three, and does not pick between them.**
+III-C of the paper is the one part of it that needs no model: entropy
+weighting and TOPSIS are both closed form, so the arithmetic is copied whole
+rather than approximated. Their five criteria are pulled out of prose by an
+LLM; ours are the three signals above, already numeric.
+
+The entropy step is what earns its passage, and `on_floor` is the reason.
+That criterion is false on every candidate in most repositories, and a reader
+skipping past the same "neither is on the floor" on every pair is doing by
+hand what a weight of zero says once. `E_j = -1/ln(m) · Σ p_ij ln p_ij`, then
+`w_j = (1-E_j)/Σ(1-E_k)`: a criterion that does not vary has maximum entropy
+and drops out. On this repository the run now reports `on_floor 0.00,
+recency 0.50, code_agrees 0.50` — two signals did the work and the third said
+so itself.
+
+**The matrix is min-maxed before the entropy, and that is not cosmetic.**
+Commit timestamps inside one repository agree to four significant figures.
+Raw, every `p_ij` is uniform to a rounding error, recency comes out with the
+entropy of a constant, and the signal is dropped with nothing saying it was.
+It survives the bug when it is the only criterion that varies — a lone
+non-degenerate column normalises to the whole weight however little it
+discriminates — which is why the selftest has to make it compete.
+
+## The divergence: it ranks, it does not decide
+
+ConflictRAG **selects a source** with `C*` and generates the answer from it.
+Here the number is handed over with the pair as `leans`, and the agent still
+answers `believe`.
+
+Not timidity. Theirs answers a query whose asker cannot check it; ours is read
+by somebody who can open both files in a second, and the pair usually is not a
+conflict at all — two documents giving one number two values are as often an
+example beside a default. A score that picked winners would also be this
+plugin's rule 4 broken from the inside: a diagnostic that starts fixing what
+it finds has stopped being a diagnostic -> 0021.
+
+`case_the_score_ranks_and_does_not_decide` is the guard, and it fails if
+`rank` ever writes `believe`, `real`, `verdict` or `winner` into a candidate.
+
+**What the numbers are worth here.** The paper's 62% cost reduction and 90.8%
+accuracy are measured at `K=5` retrieved documents — ten pairs per query. This
+runs over a whole repository: 64 documents, 2016 pairs. The shape transfers;
+those two numbers do not, and are not claimed.
+
 ## Rejected
 
 **Embeddings.** The paper's cheap stage, and unavailable: `shared/` installs
 nothing and runs offline. Ours misses conflicts phrased without a shared
-token, which is a real loss and the price of the constraint.
+token, which is a real loss and the price of the constraint. The same
+constraint rules out every released implementation in this area — MiniCheck,
+SeCon-RAG and RAMDocs all want `torch`, `transformers` and weights, and
+ConflictRAG has released nothing at all: its code and prompts are promised
+"upon acceptance", and it is still only submitted to IEEE SMC 2026.
+
+**Their conflict taxonomy.** The 4-class head sorts conflicts into factual,
+temporal, opinion and none. Opinion does not exist between a repository's own
+documents, and temporal is what supersession already handles by construction.
+Two live categories is not a taxonomy worth the output field.
+
+**Their type-adaptive resolution, and conflict-aware generation.** Stages 3
+and 4 of the pipeline end in a written answer. This module reports and stops.
 
 **Reporting the candidate count as a finding.** A candidate is not a conflict.
 The row says "not yet judged" until an agent has read them, exactly as
@@ -108,3 +164,9 @@ documents.
 | A cloned repository's documents are not ours | **checked** — planted dot-directory walking |
 | The two cut rules were not salvageable | **measured** — 772 and 552 candidates on this tree, against 1 for the rule kept |
 | One candidate is the right number | **argued** — one repository, and the filter's recall is untested because nobody has planted a conflict in a real tree and watched it be found |
+| A criterion that never varies is weighted to zero | **checked** — planted equal weighting in |
+| Raw timestamps collapse the recency weight | **checked** — planted the min-max out, against a competing criterion |
+| A truncated grep is not the strength of the signal | **checked** — planted the display cap back into the ranking |
+| The score ranks and does not decide | **checked** — planted `believe` into `rank` |
+| A tie is a tie, not a column order | **checked** — planted an index-dependent tiebreak |
+| Entropy-TOPSIS ranks better than the three signals raw | **untested** — the paper measures 82.7% against 78.3% for LLM direct selection; this repository has one candidate, which is no sample at all |
