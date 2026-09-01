@@ -48,6 +48,22 @@ A candidate you leave out stays pending, and pending is printed. That is the
 honest state: an unread candidate and a considered one are different things,
 and only one of them is a decision.
 
+## scores.json — the last pass
+
+`review.py` ends the assessment by asking an agent to put every sub-item
+somewhere on a ten. `scores.json` is that reading, with the commit it was of,
+because a number without the tree it measured is not a measurement:
+
+```bash
+python3 shared/scripts/assess/review.py --brief run.json      # what to score
+python3 shared/scripts/assess/review.py --grade run.json \
+        --answers docs/readings/scores.json --html radar.html
+```
+
+The number carries **order, not precision**. There is no rubric behind an 8
+against a 7, and the only thing anybody does with the page is decide what to
+fix first -> [0041](../decisions/0041-two-states-cannot-say-which-one-to-fix-first.md)
+
 **A dismissal is worth writing down.** Twenty-three of the twenty-four here are
 dismissals, and they are the reason nobody has to read those twenty-three
 again. The two that were real are in the file with what was wrong and the
