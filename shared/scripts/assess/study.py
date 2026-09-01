@@ -59,7 +59,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import mutate as mutate_mod  # noqa: E402
-from arid import RULES, arid_line  # noqa: E402
+from arid import arid_line  # noqa: E402
 
 # The paper's own figures, so a comparison is against something written down
 # rather than against a memory of it.

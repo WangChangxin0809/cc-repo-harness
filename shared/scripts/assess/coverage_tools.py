@@ -336,7 +336,7 @@ class Python:
                 "requirements.txt", "tox.ini")):
             return True
         seen = 0
-        for base, dirs, names in os.walk(root):
+        for _base, dirs, names in os.walk(root):
             dirs[:] = [d for d in dirs
                        if d not in ("node_modules", "vendor", ".git", "venv",
                                     ".venv", "target", "dist", "build")]

@@ -580,7 +580,7 @@ def tier4(root, documents, limit=12):
                 key = (kind, tuple(sorted(set(words))[:4]))
                 keyed.setdefault(key, []).append((rel, s, tuple(sorted(nums))))
     rows = []
-    for (kind, words), hits in keyed.items():
+    for (kind, _words), hits in keyed.items():
         if len(hits) < 2:
             continue
         values = {h[2] for h in hits}

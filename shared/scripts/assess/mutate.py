@@ -89,15 +89,13 @@ from __future__ import annotations
 
 import argparse
 import ast
-import json
 import os
-import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from arid import arid_line, arid_lines, why_arid  # noqa: E402
+from arid import arid_lines  # noqa: E402
 
 # --------------------------------------------------------------------------
 # the five operators, exactly as published
@@ -339,7 +337,7 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--json", default="")
     ap.add_argument("--limit", type=int, default=40)
-    a = ap.parse_args()
+    ap.parse_args()
     print("mutate.py: generation only so far; the runner lands next",
           file=sys.stderr)
     return 2

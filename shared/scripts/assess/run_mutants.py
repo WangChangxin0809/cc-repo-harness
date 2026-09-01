@@ -62,7 +62,6 @@ import argparse
 import ast
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -158,7 +157,7 @@ class _Rewrite(ast.NodeTransformer):
         # which is A.1.12's own prescription -- "in Python a block with `pass`"
         # -- and is what keeps the deletion from changing the indentation
         # structure into something that will not parse.
-        for field, value in ast.iter_fields(node):
+        for _field, value in ast.iter_fields(node):
             if not isinstance(value, list):
                 continue
             for i, item in enumerate(value):

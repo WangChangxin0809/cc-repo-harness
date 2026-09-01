@@ -24,7 +24,6 @@ hundred tokens a turn. Both are cases here now.
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import os
 import shutil
@@ -47,7 +46,6 @@ import arid as arid_mod            # noqa: E402
 import judge as judge_mod          # noqa: E402
 import mutate as mutate_mod        # noqa: E402
 import run_mutants as run_mod      # noqa: E402
-import factsheet as fact_mod       # noqa: E402
 import coverage_tools as cover_mod  # noqa: E402
 import observe as observe_mod      # noqa: E402
 import merge as merge_mod          # noqa: E402

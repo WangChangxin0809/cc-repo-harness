@@ -1519,7 +1519,6 @@ def context_economy(root, probe, blast=None, value=None, units=None):
     ]
     if value:
         pro, req = value["prohibitions"], value["requirements"]
-        total = pro + req or 1
         rows.append({
             "label": "what the floor is spent on",
             "value": f"{pro} prohibition(s) · {req} requirement(s) · "
