@@ -3699,6 +3699,30 @@ def case_a_reading_of_the_candidates_can_be_recorded(t):
         if truth_mod.grade(r, bad)[0] is not None:
             return what + " was accepted as a judgement"
 
+    # A tier-3 reading expires when the document it was about changes, and
+    # only then. Its claim counts commits to what the document *points at*, so
+    # it moves whenever somebody else's file is touched -- keying the answer to
+    # it would expire every verdict on every commit. Keying it to nothing would
+    # apply a reading of last week's document to this week's.
+    moved = {"candidates": [
+        {"tier": 3, "file": "d.md", "claim": "2 commit(s) ...", "moved": 100}]}
+    answer = [{"id": 0, "file": "d.md", "tier": 3, "moved": 100,
+               "real": False, "why": "the churn is its subjects working"}]
+    got, _why = truth_mod.grade(moved, {"candidates": answer})
+    if not got or len(got["dismissed"]) != 1:
+        return "a reading of an unchanged document did not stand"
+
+    churned = {"candidates": [dict(moved["candidates"][0],
+                                   claim="9 commit(s) ...")]}
+    got, _why = truth_mod.grade(churned, {"candidates": answer})
+    if not got or len(got["dismissed"]) != 1:
+        return "a reading expired because somebody else committed"
+
+    rewritten = {"candidates": [dict(moved["candidates"][0], moved=200)]}
+    got, why = truth_mod.grade(rewritten, {"candidates": answer})
+    if got is not None:
+        return "a reading of a document that has since changed was still applied"
+
     # ...and the questions have to carry the ids the answers use.
     text = truth_mod.brief(r)
     for n in ("## 0", "## 1", "## 2"):

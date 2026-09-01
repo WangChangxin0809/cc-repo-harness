@@ -22,7 +22,8 @@
    "why": "CONTRIBUTING.md points at SECURITY.md for where to report and at shared/scripts/index/ as a place contributions are welcome. Neither claim depends on what changed inside them; the commits are to their contents, not to their existence or role.",
    "file": "CONTRIBUTING.md",
    "claim": "11 commit(s) to what it points at (SECURITY.md, shared/scripts/index) in the 4 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1787907609
   },
   {
    "id": 3,
@@ -46,7 +47,8 @@
    "why": "SECURITY.md points at .claude/settings.json and hooks/run_repo_guards.py as where the refusals live. Both still live there; the commits changed which guards are wired, which is what the document says varies.",
    "file": "SECURITY.md",
    "claim": "6 commit(s) to what it points at (.claude/settings.json, hooks/run_repo_guards.py) in the 4 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1787920002
   },
   {
    "id": 6,
@@ -70,7 +72,8 @@
    "why": "eval/README.md describes the corpus harness. The commits are to the workflow that drives it and to .work/ and results/, which are outputs the document names as outputs -- their changing is the document being right.",
    "file": "eval/README.md",
    "claim": "4 commit(s) to what it points at (.github/workflows/nim-agent.yml, eval/.work, eval/results/latest.json …) in the 3 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1788026969
   },
   {
    "id": 9,
@@ -93,7 +96,8 @@
    "tier": 3,
    "file": "guide/2-checklist.md",
    "real": false,
-   "why": "guide/2-checklist.md points at the tech-debt tracker, docs/index.md and its own neighbour as places a finding lands. The commits added entries to them, which is those documents working rather than this one going stale."
+   "why": "guide/2-checklist.md points at the tech-debt tracker, docs/index.md and its own neighbour as places a finding lands. The commits added entries to them, which is those documents working rather than this one going stale.",
+   "moved": 1788177813
   },
   {
    "id": 12,
@@ -117,7 +121,8 @@
    "why": "guide/3-decide.md points at .claude/settings.json and decision 0022 as examples of the shape a decision takes. Both still say what it quotes them for.",
    "file": "guide/3-decide.md",
    "claim": "5 commit(s) to what it points at (.claude/settings.json, docs/decisions/0022-one-assessment-step-that-may-end-in-nothing.md, docs/index.md …) in the 1 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1788177813
   },
   {
    "id": 15,
@@ -141,7 +146,8 @@
    "why": "guide/4-do-the-work.md links its neighbours 3-decide and 5-re-measure as the steps either side of it. They changed; their being the neighbours did not.",
    "file": "guide/4-do-the-work.md",
    "claim": "2 commit(s) to what it points at (guide/3-decide.md, guide/5-re-measure.md) in the 1 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1788187346
   },
   {
    "id": 18,
@@ -165,7 +171,8 @@
    "why": "repo-index/SKILL.md cites decision 0001 for retrieval being measured rather than argued. The decision still says that; the commit was to its wording.",
    "file": "shared/skills/repo-index/SKILL.md",
    "claim": "1 commit(s) to what it points at (docs/decisions/0001-retrieval-is-measured-not-argued.md, docs/generated) in the 1 days since this was touched",
-   "tier": 3
+   "tier": 3,
+   "moved": 1788185084
   },
   {
    "id": 21,
@@ -187,8 +194,9 @@
    "id": 23,
    "tier": 3,
    "file": "skills/bootstrap-repo-harness/SKILL.md",
-   "real": true,
-   "why": "Real, through its moments.md reference: moment 6 said nothing is wired at PostToolUse by default and that a hook there should always exit 0. Both stopped being true when same_turn.py shipped -- it is wired by scaffold.py and it exits 2 on a red check on purpose. Fixed in this change."
+   "real": false,
+   "why": "Read, and it found something: moments.md, which this SKILL points at for the seven delivery moments, told people that nothing is wired at PostToolUse by default and that a hook there should always exit 0. Both stopped being true when same_turn.py shipped -- scaffold.py wires it, and a red check exits 2 on purpose. moments.md is fixed. SKILL.md itself says nothing that has gone stale, so this candidate is dismissed: what moved was under it, not in it.",
+   "moved": 1788283509
   }
  ]
 }

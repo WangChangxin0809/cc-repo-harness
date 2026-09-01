@@ -26,9 +26,16 @@ direction the shift went.
 
 So `id` is the fast path, used when it agrees with `file` and ignored when it
 does not, and an answer that cannot be matched to exactly one candidate is
-reported as stale rather than applied to a near miss. The tier-3 claims move
-on their own — "5 commit(s) to what it points at" changes whenever anything
-that document points at is touched — which is why `tier` is carried too.
+reported as stale rather than applied to a near miss.
+
+Tier 3 needs one more thing, because its claim is not a property of the
+document at all. *"5 commit(s) to what it points at"* changes whenever anything
+that document points at is touched — by anyone, for any reason — so an answer
+keyed to the claim would expire on somebody else's commit, and an answer keyed
+to nothing would apply last week's reading to this week's document. Each tier-3
+candidate therefore carries `moved`, the moment the document itself last
+changed, and the answer copies it. The reading stands while the document does
+and expires when it does not, which is exactly as long as it was true for.
 
 ## Answering, and re-answering
 

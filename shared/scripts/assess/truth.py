@@ -529,6 +529,14 @@ def tier3(root, documents, now, limit=8):
             continue
         named = ", ".join(subjects[:3]) + (" …" if len(subjects) > 3 else "")
         rows.append({"tier": 3, "file": rel,
+                     # When the document itself last moved. A reading of a
+                     # tier-3 candidate is a reading of *this* document, and
+                     # it stands for as long as the document does -- however
+                     # much churn goes on around it. The claim cannot carry
+                     # that: it counts commits to the subjects, so it changes
+                     # every time one of them is touched, and an answer keyed
+                     # to it would expire on somebody else's commit.
+                     "moved": int(moved),
                      "claim": f"{churn} commit(s) to what it points at "
                               f"({named}) in the {days:.0f} days since this "
                               f"was touched",
@@ -698,6 +706,13 @@ candidates, quietly, in whichever direction the numbering shifted. So each
 answer names the document it is about, and one whose id and file disagree is
 matched by file or refused.
 
+A T3 candidate additionally carries `moved`, the moment the document itself
+last changed. Copy it into the answer. A T3 claim counts commits to what the
+document points at, so it moves whenever *somebody else's* file is touched --
+but the reading was of this document, and it stands for as long as this
+document does. When the document itself changes the answer expires, because
+what was read is no longer what is there.
+
 ---
 
 """
@@ -726,10 +741,19 @@ def _locate(cands, item):
     happened to shift. So the file an answer names is what identifies it, and
     the id is only the fast path: it is used when it agrees, and ignored when
     it does not."""
+    def unexpired(n):
+        """The candidate, unless the document has changed under the answer.
+
+        Only tier 3 carries `moved`, and only tier 3 needs it: the other
+        claims are properties of the document, and this one is a measurement
+        of how far its subjects have run ahead of it."""
+        was, now = item.get("moved"), cands[n].get("moved")
+        return n if now is None or was == now else None
+
     i, named = item.get("id"), item.get("file")
     if isinstance(i, int) and 0 <= i < len(cands):
         if not named or cands[i]["file"] == named:
-            return i
+            return unexpired(i)
     if not named:
         # No file and no usable id. Refusing beats guessing: a verdict landing
         # on the wrong candidate is worse than one that did not land.
@@ -748,7 +772,7 @@ def _locate(cands, item):
             lambda n: True):
         hits = [n for n in same_file if narrower(n)]
         if len(hits) == 1:
-            return hits[0]
+            return unexpired(hits[0])
     return None
 
 
