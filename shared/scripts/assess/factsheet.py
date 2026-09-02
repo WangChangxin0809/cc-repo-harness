@@ -269,12 +269,42 @@ def repo_name(root):
     return os.path.basename(root.rstrip("/")) or root
 
 
+# (name, the key the brief sits under, the key its answer lands in)
+BRIEFS = (("observe", "observe", "observe_judged"),
+          ("permitted", "permitted", None),
+          ("mutants", "mutants", "mutants_judged"),
+          ("truth", "truth", "truth_judged"),
+          ("conflict", "conflict", "conflict_judged"))
+
+
+def unanswered(r):
+    """Briefs the instrument left that nobody has answered.
+
+    Row by row a page with no readers is honest: an unanswered brief is an
+    absent row, not a zero. As a page it is not, because nothing at the top
+    said the readers never came, and the instrument's half was handed over
+    as the whole. The header names what is still open."""
+    out = []
+    for name, key, judged in BRIEFS:
+        left = r.get(key)
+        if not left:
+            continue
+        if key == "permitted":
+            done = isinstance(left, dict) and bool(left.get("fired"))
+        else:
+            done = bool(r.get(judged))
+        if not done:
+            out.append(name)
+    return out
+
+
 def head_of(r):
     p = r["probe"]
     return {"name": repo_name(p["root"]),
             "root": p["root"],
             "tracked": p["tracked_files"], "source": p["source_files"],
-            "tier": p["tier"]}
+            "tier": p["tier"],
+            "unanswered": unanswered(r)}
 
 
 def dimensions_of(r, judged=None, observed=None):
@@ -608,10 +638,12 @@ def _run(a, root, work):
         print(render_flat(r))
     else:
         judged = None
+        applied = []
         if a.mutant_answers and r.get("mutants"):
             with open(a.mutant_answers, encoding="utf-8") as fh:
                 judged = judge_mod.grade(r["mutants"], json.load(fh))
             r["mutants_judged"] = judged
+            applied.append("--mutant-answers")
         if a.legitimate_actions and r.get("permitted"):
             with open(a.legitimate_actions, encoding="utf-8") as fh:
                 fired, why = permitted_mod.fire(root, json.load(fh))
@@ -619,6 +651,7 @@ def _run(a, root, work):
                 print(f"  --legitimate-actions ignored: {why}\n")
             else:
                 r["permitted"] = fired
+                applied.append("--legitimate-actions")
         if a.truth_answers and r.get("truth"):
             with open(a.truth_answers, encoding="utf-8") as fh:
                 tj, why = truth_mod.grade(r["truth"], json.load(fh))
@@ -626,6 +659,7 @@ def _run(a, root, work):
                 print(f"  --truth-answers ignored: {why}\n")
             else:
                 r["truth_judged"] = tj
+                applied.append("--truth-answers")
         if a.conflict_answers and r.get("conflict"):
             with open(a.conflict_answers, encoding="utf-8") as fh:
                 cj, why = conflict_mod.grade(r["conflict"], json.load(fh))
@@ -633,12 +667,15 @@ def _run(a, root, work):
                 print(f"  --conflict-answers ignored: {why}\n")
             else:
                 r["conflict_judged"] = cj
+                applied.append("--conflict-answers")
         observed = None
         if a.observe_answers and r.get("observe"):
             with open(a.observe_answers, encoding="utf-8") as fh:
                 observed, why = observe_mod.grade(json.load(fh))
             if observed is None:
                 print(f"  --observe-answers ignored: {why}\n")
+            else:
+                applied.append("--observe-answers")
             r["observe_judged"] = observed
         head, dims = head_of(r), dimensions_of(r, judged, observed)
         print(report_mod.text(head, dims, CANNOT_SAY))
@@ -646,10 +683,18 @@ def _run(a, root, work):
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)
             print(f"  page written to {where}\n")
         r["dimensions"] = dims
-    if a.json:
-        with open(a.json, "w") as fh:
+        # What this pass applied, so the run says which answers it carries.
+        r["applied"] = sorted(set((r.get("applied") or []) + applied))
+    # The run is the record. A second pass that changes what the page says
+    # writes it back, or the record says less than the page: the first
+    # pass's JSON had three rows in dimension 1 and the page five, and the
+    # two were read as a mismatch.
+    target = a.json or a.from_run
+    if target:
+        with open(target, "w") as fh:
             json.dump(r, fh, indent=2, ensure_ascii=False)
-        print(f"  written to {a.json}\n")
+        print(f"  written to {target}"
+              + (" — the run, updated in place" if not a.json else "") + "\n")
     return 0
 
 

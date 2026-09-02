@@ -126,7 +126,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 
 Pass only the flags whose file exists. `--from` reads the run back and
 applies the answers to it; nothing is re-measured and the suite does not run
-again, so this takes about a second. Promise claims left `pending` get round
+again, so this takes about a second. `--json` may be left out: the run is
+written back in place, and its `applied` list says which answers it carries,
+so the record never says less than the page. The page's header names any
+brief still unanswered and any dimension not judged; a page that carries
+that line is the instrument's half, not the assessment. Promise claims left `pending` get round
 two: a **new** promise tester, `promises_brief2` from the JSON, and its
 `W/impls.json` back through `--promise-impls` on the same command.
 

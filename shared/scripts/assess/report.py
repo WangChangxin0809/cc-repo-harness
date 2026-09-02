@@ -40,12 +40,34 @@ MARK = {"ok": "ok  ", "warn": "warn", "bad": "BAD ", "info": "·   "}
 
 # -- text --------------------------------------------------------------------
 
+def still_open(head, dims):
+    """One line naming what this page does not yet hold, or empty.
+
+    A fact sheet taken with nobody answering its briefs is honest row by
+    row and dishonest as a page: the instrument's half passes for the whole
+    of it. So the header says which questions are still unanswered and
+    which dimensions could not be judged, and a partial page cannot be
+    handed over as a full one."""
+    parts = []
+    left = head.get("unanswered") or []
+    if left:
+        parts.append(f"{len(left)} question(s) unanswered: {', '.join(left)}")
+    abstained = [str(d["n"]) for d in dims if d.get("state") == "abstained"]
+    if abstained:
+        parts.append("not judged: dimension " + ", ".join(abstained))
+    return "instrument only — " + " · ".join(parts) if parts else ""
+
+
 def text(head, dims, cannot_say):
     out = ["", f"  {head['name']}",
            f"  {head['tracked']} tracked · {head['source']} source · "
            f"tier {head['tier']}"
            + (f" · {head['scope']}" if head.get("scope") else ""),
            ""]
+    open_line = still_open(head, dims)
+    if open_line:
+        out.insert(3, f"  {open_line}")
+        out.insert(4, "")
     for d in dims:
         if d["state"] == "abstained":
             out.append(f"  {d['n']}. {d['name']} — COULD NOT JUDGE: "
@@ -112,6 +134,7 @@ h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em;
 .sub{color:var(--dim);font-size:13px;
      font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:0 14px}
 .sub b{font-weight:600;color:var(--ink)}
+.partial{margin-top:8px;color:var(--warn);font-size:13px;font-weight:600}
 .eyebrow{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
          letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
          margin:0 0 9px}
@@ -174,7 +197,11 @@ def html_page(head, dims, cannot_say):
              f"<span><b>{head['source']}</b> source</span>",
              f"<span>tier <b>{e(head['tier'])}</b></span>",
              f"<span>{datetime.date.today().isoformat()}</span>",
-             "</div></header>", '<div class="gap"></div>']
+             "</div>"]
+    open_line = still_open(head, dims)
+    if open_line:
+        parts.append(f'<div class="partial">{e(open_line)}</div>')
+    parts += ["</header>", '<div class="gap"></div>']
 
     for d in dims:
         parts.append("<section>")
