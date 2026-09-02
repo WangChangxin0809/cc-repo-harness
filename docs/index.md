@@ -6,6 +6,7 @@
 
 | I want to | Read first |
 |---|---|
+| Know how the whole thing works before knowing what to ask | [ARCHITECTURE.md](../ARCHITECTURE.md) |
 | Know why `docs/` is shaped this way, and what the evidence was | [0019](decisions/0019-constrain-the-top-level-not-the-shape.md) |
 | Know whether the retrieval layer is worth its cost | [0001](decisions/0001-retrieval-is-measured-not-argued.md) |
 | Know what this plugin is and is not, and why it is named that | [0002](decisions/0002-the-name-states-the-scope.md), [0045](decisions/0045-the-name-says-which-product-it-reads.md) |
@@ -42,6 +43,7 @@
 | Know which kind of nothing is measured and which abstains | [0047](decisions/0047-absence-in-the-repository-is-measured-absence-on-the-machine-is-not.md) |
 | Know how the assessment's agents are split, and why the second pass reads a run back | [0048](decisions/0048-the-assessment-agents-live-under-agents-assess-and-the-second-pass-does-not-re-run-the-suite.md) |
 | Know why a probe reaches only the hooks Claude Code would run, and why the matcher names every tool a guard judges | [0049](decisions/0049-the-instrument-asks-a-hook-only-what-claude-code-would-and-the-matcher-names-every-tool-a-guard-judges.md) |
+| Know why the second pass writes the run back, and why a page without its readers says so | [0051](decisions/0051-the-run-is-the-record-and-the-header-says-what-is-still-open.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 

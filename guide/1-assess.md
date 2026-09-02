@@ -21,7 +21,9 @@ The [`repo-assessor`](../agents/repo-assessor.md) agent does all of this,
 including the reading. It never changes the repository. The reading is done
 by [`assess-reader`](../agents/assess/reader.md), one per dimension, and
 their answers go back onto the page through `--from`, which reads a run back
-without running the suite again.
+without running the suite again and writes it back in place, so the run and
+the page never disagree. A page whose header says *instrument only* is
+missing its readers, and says which questions are still open.
 
 ## Three rules that shape every row
 
