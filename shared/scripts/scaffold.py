@@ -38,6 +38,11 @@ SKILL_SRC = os.path.join(os.path.dirname(HERE), "skills")
 # here, the repository that wants it pays for it, its teammates get it without
 # installing anything, and everyone else pays nothing.  -> docs/decisions/0024
 AGENT_SRC = os.path.join(os.path.dirname(HERE), "agents")
+# `shared/rules/`. Every rule here declares `paths:`, so none of them is charged
+# at launch -- they arrive only when Claude reads a file they match, and
+# check_context_budget.py bounds each one at 40 lines. A rule without `paths:`
+# would be a permanent context charge and does not belong in payload at all.
+RULE_SRC = os.path.join(os.path.dirname(HERE), "rules")
 
 CLAUDE_MD = """\
 # <project>
@@ -577,16 +582,6 @@ PLAN = [
 # ran this script.
 DIRS = [
     ("docs/how-to", "A"),
-    # A `.gitkeep` and never a `.md`. Every `.md` in here is a rule, and one
-    # without `paths:` frontmatter loads at launch at the same priority as
-    # `.claude/CLAUDE.md` -- so a README explaining the directory would be a
-    # permanent context charge for a note aimed at whoever opened the folder.
-    #
-    # The directory ships empty because the cost of filling it is now visible:
-    # check_context_budget.py counts unscoped rules against the same cap as
-    # CLAUDE.md and reports scoped ones separately. Without that feedback this
-    # would be a bypass with a welcome mat.
-    (".claude/rules", "B"),
     ("docs/reference", "A"),
 ]
 
@@ -615,6 +610,14 @@ COPY = [
 # the reach-back the payload rule exists to prevent.
 AGENTS = [
     ("repo-explorer.md", "C"),
+]
+
+# Rules true of any repository, which is the whole bar for shipping one. The
+# comment rule is tier A because code is what tier A has; the public-face rule
+# is tier B, with the README and CONTRIBUTING it is about.
+RULES = [
+    ("comments.md", "A"),
+    ("for-a-person.md", "B"),
 ]
 
 SKILLS = [
@@ -784,6 +787,9 @@ def main():
             if at_least(a.tier, floor)]
     dirs = [d for d, floor in DIRS if at_least(a.tier, floor)]
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
+    rules = [name for name, floor in RULES
+             if at_least(a.tier, floor) and os.path.isfile(
+                 os.path.join(RULE_SRC, name))]
     agents = [name for name, floor in AGENTS
               if at_least(a.tier, floor) and os.path.isfile(
                   os.path.join(AGENT_SRC, name))]
@@ -813,6 +819,8 @@ def main():
             print(f"  {'COPY':<14} .claude/skills/{name}/")
         for name in agents:
             print(f"  {'COPY':<14} .claude/agents/{name}")
+        for name in rules:
+            print(f"  {'COPY':<14} .claude/rules/{name}")
         # Driven by the same list as the real run. A preview whose only job is
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
@@ -869,6 +877,16 @@ def main():
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy(os.path.join(HERE, "context", name), target)
         os.chmod(target, 0o755)
+        made.append(("NEW", rel, ""))
+
+    for name in rules:
+        target = os.path.join(root, ".claude", "rules", name)
+        rel = os.path.relpath(target, root)
+        if os.path.exists(target):
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(RULE_SRC, name), target)
         made.append(("NEW", rel, ""))
 
     for name in agents:

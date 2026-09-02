@@ -202,6 +202,36 @@ def case_the_brief_names_the_plan_in_flight():
         shutil.rmtree(repo, ignore_errors=True)
 
 
+def case_every_shipped_rule_is_scoped():
+    """A rule with no `paths:` is loaded at launch, at the same priority as
+    `.claude/CLAUDE.md`, in every session that repository ever has.
+
+    So an unscoped rule in payload is a permanent context charge levied on
+    somebody who never asked for it, and it is invisible: the file looks like
+    every other rule, and `check_context_budget.py` only notices once the sum
+    crosses the cap. One rule of twenty lines never crosses it, and is paid
+    forever.
+    """
+    repo = fresh_repo()
+    try:
+        scaffold(repo, "B")
+        rules = os.path.join(repo, ".claude", "rules")
+        found = sorted(f for f in os.listdir(rules)) if os.path.isdir(rules) else []
+        shipped = [f for f in found if f.endswith(".md")]
+        if not shipped:
+            return f"no rules were installed at tier B; found {found}"
+        for name in shipped:
+            with open(os.path.join(rules, name), encoding="utf-8") as fh:
+                head = fh.read(600)
+            if not re.search(r"^paths:", head, re.M):
+                return (f".claude/rules/{name} declares no `paths:`, so it "
+                        "loads at launch in every session of every repository "
+                        "this is copied into")
+        return None
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+
 def case_tier_a_ships_working_guards():
     """Tier A has no ci.sh, so the case above cannot see it at all.
 
@@ -601,6 +631,8 @@ CASES = [
      case_hooks_survive_the_working_directory_moving),
     ("the session brief names the plan in flight, and only that one",
      case_the_brief_names_the_plan_in_flight),
+    ("every rule shipped into a repository declares paths:",
+     case_every_shipped_rule_is_scoped),
     ("personal permission grants cannot be committed",
      case_personal_permission_grants_cannot_be_committed),
     ("scaffolding twice changes nothing the second time",
