@@ -143,7 +143,7 @@ Full reasoning, including what the ubiquity filter does to the numbers in both
 directions, is in `docs/decisions/0001-retrieval-is-measured-not-argued.md` in
 this repository.
 
-**Deliberate** — the `repo-explorer` subagent (`${CLAUDE_PLUGIN_ROOT}/agents/repo-explorer.md`).
+**Deliberate** — the `repo-explorer` subagent (`.claude/agents/repo-explorer.md`).
 Given a question, it queries the graph, reads what the graph pointed at,
 follows edges the graph got wrong, and returns a conclusion with citations. It
 runs on a cheap model and in its own context, so the twenty files it read never

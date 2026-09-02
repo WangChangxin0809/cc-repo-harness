@@ -37,9 +37,10 @@ Three identities, one tree. Every file is exactly one of them.
 | Directory | Holds | Talks to |
 |---|---|---|
 | `.claude-plugin/` | manifest, marketplace entry; `agents` lists every agent file, and the list *replaces* the default directory | the plugin validator, `release.yml`, which tags whenever the manifest changes on main |
-| `skills/bootstrap-repo-harness/` | the one skill that stays in the plugin: how a person arrives | every session on the machine, ~173 tokens a turn (0024) |
-| `agents/` | `repo-explorer`, and `assess/` (the reader, the blind promise tester) | spawned by `commands/assess.md`; they read a run and write answers or a reading, never the repository |
+| `skills/bootstrap-repo-harness/` | the one skill that stays in the plugin: how a person arrives | every session on the machine, ~54 tokens a turn (0024); the whole plugin is capped at 150 by `check_plugin_structure.py` |
+| `agents/` | `assess/` only: the reader, and the blind promise tester | spawned by `commands/assess.md`; they read a run and write answers or a reading, never the repository |
 | `hooks/` | `first_look.py` on SessionStart; `run_repo_guards.py`, which runs a *subject* repository's own `scripts/guards/` until it wires them itself | the subject repository's tree; nothing here changes what it does |
+| `shared/agents/` **payload, copied** | `repo-explorer`, copied to `.claude/agents/` at tier C beside the `repo-index` skill that names it | the repository that asked for it; nothing is charged to the ones that did not |
 | `shared/scripts/guards/` **payload, copied** | one file per rule; `dispatch.py` runs them all and fails open; `selftest.py` proves each can refuse and checks the wiring names every tool a guard judges | `.claude/settings.json` PreToolUse, matcher `Bash\|Write\|Edit\|MultiEdit\|NotebookEdit` |
 | `shared/scripts/gates/` **payload, copied** | checks over the worktree at CI time, each with a selftest that plants its own defect | `ci.sh` / `ci.yml`; `scripts/check.py` runs them locally |
 | `shared/scripts/context/` **payload, copied** | `before_write.py` delivers `Governs:` documents and the rules the native loader misses; `same_turn.py` runs the selftest beside an edited file; `on_stop.py`; `session_brief.py` is generated per repository | PreToolUse, PostToolUse, Stop, SessionStart |

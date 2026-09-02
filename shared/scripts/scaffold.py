@@ -32,6 +32,12 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 # `shared/skills/`, a sibling of this directory: skills are payload too.
 SKILL_SRC = os.path.join(os.path.dirname(HERE), "skills")
+# `shared/agents/`, its sibling. Same argument as skills and the same decision:
+# an agent that lives in the plugin is listed in context in EVERY repository on
+# the machine, whether or not that repository has anything for it to do. Copied
+# here, the repository that wants it pays for it, its teammates get it without
+# installing anything, and everyone else pays nothing.  -> docs/decisions/0024
+AGENT_SRC = os.path.join(os.path.dirname(HERE), "agents")
 
 CLAUDE_MD = """\
 # <project>
@@ -573,6 +579,13 @@ COPY = [
 # `bootstrap-repo-harness` is the exception and stays in the plugin: it is how
 # somebody arrives at any of this, and a skill nobody can discover teaches
 # nobody.  -> docs/decisions/0024
+# Subagents, copied whole. Tier C alongside `repo-index`, the skill that names
+# this one -- a skill pointing at an agent its tier did not install is exactly
+# the reach-back the payload rule exists to prevent.
+AGENTS = [
+    ("repo-explorer.md", "C"),
+]
+
 SKILLS = [
     ("writing-docs", "A"),
     ("writing-checks", "B"),
@@ -739,6 +752,9 @@ def main():
             if at_least(a.tier, floor)]
     dirs = [d for d, floor in DIRS if at_least(a.tier, floor)]
     copies = [(src, dst) for src, dst, floor in COPY if at_least(a.tier, floor)]
+    agents = [name for name, floor in AGENTS
+              if at_least(a.tier, floor) and os.path.isfile(
+                  os.path.join(AGENT_SRC, name))]
     skills = [name for name, floor in SKILLS
               if at_least(a.tier, floor) and os.path.isdir(
                   os.path.join(SKILL_SRC, name))]
@@ -763,6 +779,8 @@ def main():
             print(f"  {'COPY':<14} {dst}/  ({n} files)")
         for name in skills:
             print(f"  {'COPY':<14} .claude/skills/{name}/")
+        for name in agents:
+            print(f"  {'COPY':<14} .claude/agents/{name}")
         # Driven by the same list as the real run. A preview whose only job is
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
@@ -819,6 +837,16 @@ def main():
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy(os.path.join(HERE, "context", name), target)
         os.chmod(target, 0o755)
+        made.append(("NEW", rel, ""))
+
+    for name in agents:
+        target = os.path.join(root, ".claude", "agents", name)
+        rel = os.path.relpath(target, root)
+        if os.path.exists(target):
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(AGENT_SRC, name), target)
         made.append(("NEW", rel, ""))
 
     for src, dst in lone_scripts:
