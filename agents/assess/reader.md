@@ -30,17 +30,21 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/briefs.py \
         --run RUN --dimension N --out DIR
 ```
 
-It writes one file per question this dimension left open and prints, for
-each, where the answer goes and which flag on `factsheet.py` the answer
-feeds. Dimensions 3 and 5 usually leave nothing; say so in one line and stop.
+It creates `DIR` if it is not there, writes one file per question this
+dimension left open, and prints, for each, where the answer goes and which
+flag on `factsheet.py` the answer feeds. Dimensions 3 and 5 usually leave
+nothing; say so in one line and stop.
 
 For each brief: read it whole. It carries its own answer schema and its own
 rules, and they differ — the mutant brief asks whether a test for this line
 would be worth having, the truth brief asks whether a sentence is still true
 of this tree. Then open the repository and look at what the brief points at.
-Every id in a brief gets a verdict or an explicit `skip`; an id you leave out
-is pending, which counts in neither direction, and pending is not the same as
-dismissed. Write the JSON to the `answer ->` path exactly as printed.
+Where a brief numbers its items, every id gets a verdict or an explicit
+`skip`; an id you leave out is pending, which counts in neither direction,
+and pending is not the same as dismissed. Where it asks for a list — the
+legitimate actions — the list is the answer, and a near-miss that should
+pass is worth more on it than a tenth ordinary command. Write the JSON to
+the `answer ->` path exactly as printed.
 
 Reply with one line per brief: the answer path and the flag it feeds. That
 line is how your work reaches the page; a path you spell differently reaches
@@ -49,7 +53,7 @@ nothing.
 ## Phase `read`: the number and what would move it
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/review.py \
+mkdir -p DIR && python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/review.py \
         --brief RUN --dimension N > DIR/reading.md
 ```
 

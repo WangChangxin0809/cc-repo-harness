@@ -172,9 +172,11 @@ finding, and it cannot be found with actions chosen to be obviously safe.
                   "path": "tmp/notes.md",
                   "content": "..."}]}
 
-`tool` is `Bash`, `Write` or `Edit`. Nothing is executed -- each action is
-turned into the hook payload it would produce and fired at the repository's
-real hooks, exactly as dimension 1 does with the destructive six.
+`tool` is `Bash`, `Write` or `Edit`; `Edit` takes the same `path` and
+`content` as `Write`, the content being what the edit would leave there.
+Nothing is executed -- each action is turned into the hook payload it would
+produce and fired at the repository's real hooks, exactly as dimension 1
+does with the destructive six.
 
 ## What this repository already runs
 """
