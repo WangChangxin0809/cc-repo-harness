@@ -3314,6 +3314,58 @@ def case_a_run_is_read_back_instead_of_re_measured(t):
     return None
 
 
+def case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped(t):
+    """One string, two consumers, and only one of them could use it.
+
+    The replay is right to run `for f in ...; do python3 "$f"; done` as
+    written. No coverage tool wraps a shell loop, so 2.1 abstained on every
+    repository whose suite was a shell line -- this one included. Coverage
+    now takes its own plain command when given one, and the replay keeps
+    the loop."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "factsheet", os.path.join(HERE, "factsheet.py"))
+    fs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs)
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    put(t, "tests/test_a.py", "from src.a import f\n\ndef test_f():\n"
+                              "    assert f() == 2\n")
+    commit(t, "feat: a")
+    seen = {}
+
+    def fake_cover(bench, command, work):
+        seen["command"] = command
+        return None, "cannot judge: stubbed"
+
+    def fake_catch(root, instances, work, command=None):
+        seen["replay"] = command
+        return None, "cannot judge: stubbed"
+
+    real_cover, real_catch = fs.cover_mod.assess, fs.catch_mod.assess
+    fs.cover_mod.assess, fs.catch_mod.assess = fake_cover, fake_catch
+    try:
+        loop = 'for f in tests/*.py; do python3 "$f" || exit 1; done'
+        fs.gather(t, True, 1, os.path.join(t, ".work"), loop, 0,
+                  coverage_command="pytest -q")
+    finally:
+        fs.cover_mod.assess, fs.catch_mod.assess = real_cover, real_catch
+    if seen.get("replay") != loop:
+        return f"the replay did not get the suite as written: {seen}"
+    if seen.get("command") != ["pytest", "-q"]:
+        return f"coverage did not get its own command: {seen.get('command')}"
+    # Without one, coverage gets what the replay got.
+    seen.clear()
+    fs.cover_mod.assess, fs.catch_mod.assess = fake_cover, fake_catch
+    try:
+        fs.gather(t, True, 1, os.path.join(t, ".work2"), "pytest -q", 0)
+    finally:
+        fs.cover_mod.assess, fs.catch_mod.assess = real_cover, real_catch
+    if seen.get("command") != "pytest -q":
+        return f"without its own command coverage lost the suite's: {seen}"
+    return None
+
+
 def case_the_blind_agent_cannot_read_the_repository(t):
     """The tool list is the experiment, not a sentence in the prompt.
 
@@ -5196,6 +5248,8 @@ CASES = [
      case_briefs_are_written_by_dimension_and_name_their_flag),
     ("a run is read back instead of re-measured",
      case_a_run_is_read_back_instead_of_re_measured),
+    ("coverage takes its own command when the suite cannot be wrapped",
+     case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped),
     ("a document nobody loads is not a context cost",
      case_a_document_nobody_loads_is_not_a_context_cost),
     ("a skill's reference is loaded and is counted",
