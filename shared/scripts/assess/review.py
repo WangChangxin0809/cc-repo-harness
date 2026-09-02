@@ -94,6 +94,17 @@ SUBITEMS = (
      ("can the verification be skipped", "steps that could turn a red run green",
       "CI runs the suite")),
 
+    # Not "did it adopt our layout" -- 0025 refused that and still does. The
+    # places counted here are Claude Code's own, and there is no other way to
+    # get their effect: a repository with no `PreToolUse` hook has not chosen
+    # a different way of refusing actions -> 0043
+    ("4.0", "the surface it uses",
+     "which of the ways of reaching an agent have anything at them",
+     ("the surface it uses", "no entry file", "no nested entry file",
+      "no path-scoped rule", "no SessionStart hook", "no UserPromptSubmit hook",
+      "no PreToolUse hook or deny rule", "no PostToolUse hook",
+      "no Stop or SubagentStop hook", "no skill of its own", "no subagent",
+      "no slash command", "no MCP server")),
     ("4.1", "what is written down",
      "the kinds of memory that exist, and whether their references hold",
      ("what it writes down", "references that do not resolve",

@@ -197,6 +197,55 @@
    "real": false,
    "why": "Read, and it found something: moments.md, which this SKILL points at for the seven delivery moments, told people that nothing is wired at PostToolUse by default and that a hook there should always exit 0. Both stopped being true when same_turn.py shipped -- scaffold.py wires it, and a red check exits 2 on purpose. moments.md is fixed. SKILL.md itself says nothing that has gone stale, so this candidate is dismissed: what moved was under it, not in it.",
    "moved": 1788283509
+  },
+  {
+   "id": 1,
+   "tier": 2,
+   "file": "guide/1-assess.md",
+   "claim": "scripts/gates/",
+   "real": false,
+   "why": "The guide names `scripts/gates/` as the example of a *convention* -- the thing 4.0 refuses to score a repository on, because a tree keeping its checks in `tools/` keeps its checks. It is quoted to be rejected, and ours live under shared/."
+  },
+  {
+   "id": 6,
+   "tier": 1,
+   "file": "guide/1-assess.md",
+   "claim": "Six skills",
+   "real": false,
+   "why": "'Six skills are the same coverage as one' is the rule that 4.0 is coverage rather than a count. It is prose about counting, not a count of anything in the tree."
+  },
+  {
+   "id": 9,
+   "tier": 1,
+   "file": "guide/1-assess.md",
+   "claim": "two\nagents",
+   "real": false,
+   "why": "'will send two agents in two directions' is the 4.4 section explaining what a document conflict costs a reader. Compared against agents/, which holds three agent definitions and is a different subject."
+  },
+  {
+   "id": 7,
+   "tier": 2,
+   "file": "README.md",
+   "claim": "docs/generated/index-report.md",
+   "real": false,
+   "why": "Written by scripts/index/build.py and generated rather than committed; the README says so. Correct that the path resolves nowhere in a fresh clone."
+  },
+  {
+   "id": 22,
+   "tier": 2,
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/baselines/",
+   "real": false,
+   "why": "A scaffolded repository's layout, at tier C. Correct that it is absent from the repository doing the scaffolding."
+  },
+  {
+   "id": 23,
+   "tier": 3,
+   "file": "README.md",
+   "claim": "3 commit(s) to what it points at (.claude-plugin/marketplace.json, .claude/settings.json, CONTRIBUTING.md …) in the 0 days since this was touched",
+   "moved": 1788289325,
+   "real": false,
+   "why": "The README points at marketplace.json, .claude/settings.json and CONTRIBUTING.md as things that exist and where to find them. The commits changed what is inside each; none changed what the README says about them."
   }
  ]
 }

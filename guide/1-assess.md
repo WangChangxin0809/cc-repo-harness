@@ -330,10 +330,53 @@ a page that improves on a rerun has spent its credibility
 -> [0042](../docs/decisions/0042-a-measurement-noisier-than-its-effect-is-not-a-measurement.md)
 
 **So this dimension no longer claims to know whether the memory works.** It
-asks the question a single deterministic read can answer: is what is written
-down still true, and is it worth what it costs to keep? What is lost is the
-positive claim — *this `CLAUDE.md` is carrying an agent* — and nothing here
-replaces it.
+asks the questions a single deterministic read can answer: is what is written
+down still true, is it worth what it costs to keep, and — the row below —
+are the places for writing it down being used at all.
+
+### 4.0 The surface it uses
+
+Counting *files* is refused above and stays refused. Counting **mechanisms**
+is a different thing, and the line between them is a test you can apply:
+*is there another way to get this effect?*
+
+`scripts/gates/` fails that test — a repository that keeps its checks in
+`tools/` keeps its checks, and marking it down is marking it down for
+disagreeing with us. A `PreToolUse` hook passes it. There is no other place a
+tool call can be refused before it happens, so a repository without one has
+not chosen a different way of refusing actions; it has no way of refusing
+actions, and the reason is usually that nobody knew the moment existed.
+
+So this row reads Claude Code's own surface — the seven delivery moments, plus
+scoped rules, subagents, slash commands, MCP servers, and the end of a turn —
+and for each empty place says **what therefore cannot happen**:
+
+```
+  the surface it uses    6 of 12 — no path-scoped rule, UserPromptSubmit hook, …
+    no PreToolUse hook or deny rule   .claude/settings.json
+      no action can be refused before it happens, and a destructive one is
+      complete the moment it runs
+```
+
+Three rules keep it from becoming the thing 0025 rejected:
+
+- **Coverage, never a count.** Six skills are the same coverage as one, so
+  0024 — which deleted five and cut the standing cost by 81% — does not move
+  this row.
+- **The repository's own, never the machine's.** A skill a plugin installed is
+  on somebody's laptop, and a teammate without that plugin gets nothing. This
+  repository scores 6 of 12 for exactly that reason: its skills and agents are
+  the plugin's.
+- **Every absence says what it costs.** A list of what is missing, without
+  what is lost, is a scold.
+
+*Agent judges.* An absent mechanism is a candidate, not a verdict — a
+repository can be right to have no MCP server and no subagents
+-> [0043](../docs/decisions/0043-a-mechanism-is-not-a-convention.md)
+
+What is *not* here is the claim 0042 removed — *this `CLAUDE.md` is carrying
+an agent*. That needs a difference between two runs. This says only that a
+place exists and is empty, which is a fact about a file and holds still.
 
 ### 4.1 Dimensions
 
