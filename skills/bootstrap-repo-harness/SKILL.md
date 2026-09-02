@@ -303,7 +303,7 @@ If the plan moved a rule, or added a check:
 | `references/moments.md` | Wiring a hook and needing the exact contract |
 
 Related skills: `writing-docs` (what goes in `docs/`), `writing-checks` (gates
-and guards), `writing-github-docs` (README and the community health files),
+and guards), `github-surface` (README, the community health files, and CI),
 `repo-index` (retrieval at tier C), `consolidating-notes`.
 
 These five are **not installed with this plugin** — you copy them into the
