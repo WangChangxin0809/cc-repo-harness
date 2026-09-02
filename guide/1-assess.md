@@ -232,6 +232,11 @@ there at all**, and the ladder prints the same character for both. This row is
 the inventory, printed above the ladder
 -> [0032](../docs/decisions/0032-a-rung-cannot-be-read-without-the-layer-behind-it.md)
 
+Each replayed defect is fired at the hooks its **own commit** wired, not at
+what HEAD wires today; a hook added last month cannot have caught a defect
+from March, and the row says *replayed before it was wired* for those. A hook
+whose script cannot start is reported as broken, never as a catch.
+
 The shapes the layers usually take, as a starting point for the reading rather
 than a checklist:
 

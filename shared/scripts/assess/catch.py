@@ -121,12 +121,25 @@ def applicable(hooks, tool_name):
     return [h for h in hooks if matches(h.get("matcher", ""), tool_name)]
 
 
+_DID_NOT_START = re.compile(
+    r"can't open file|No such file or directory|command not found|: not found\b",
+    re.IGNORECASE)
+
+
 def fire_ex(root, hooks, payload):
     """(blocked, which command, what it said, [hooks that ran and broke]).
 
     A hook blocks by exiting 2, or by saying so in JSON on stdout. Both
     spellings are honoured because both are in use, and a probe that knew only
     one would report a working guard as absent.
+
+    Exit 2 is also what `python3 missing.py` and `sh: foo: not found` exit
+    with, and a hook that could not start has refused nothing. Read as a
+    refusal, it credited this repository with catching every replayed defect
+    at `before-write` -- by scripts that did not exist at those commits -- and
+    then marked every row a false block because the same absent script
+    "refused" the fix. So an exit 2 whose stderr says the interpreter never
+    found its script goes to the fourth value, never the first.
 
     The fourth value is the state this probe used to lose. Claude Code treats
     any other non-zero exit as a non-blocking error: the action proceeds. So a
@@ -143,6 +156,9 @@ def fire_ex(root, hooks, payload):
             env={**os.environ, "CLAUDE_PROJECT_DIR": root},
         )
         said = (proc.stderr or proc.stdout or "").strip().replace("\n", " ")
+        if proc.returncode == 2 and _DID_NOT_START.search(proc.stderr or ""):
+            broke.append((h, f"exit 2: {said[:120]}"))
+            continue
         if proc.returncode == 2:
             return True, h, said[:160], broke
         try:
@@ -347,8 +363,12 @@ def ci_seconds(root):
 # one instance, down the ladder
 # --------------------------------------------------------------------------
 
-def rung(repo, row, pre, post, cmd, ci, ci_secs=None):
+def rung(repo, row, pre, post, cmd, ci, ci_secs=None, broke=None):
     """(rung, detail, hook, seconds) for the first rung that fires.
+
+    `broke`, when a list is passed, collects the hooks that ran and could not
+    -- see `fire_ex`. They are not a rung: a layer that is wired and cannot
+    start is the finding, and it is not "0 of N caught".
 
     Rungs are asked cheapest first and the walk stops at the first red, because
     the measurement is *when it is first caught* -- a defect that a PreToolUse
@@ -370,11 +390,13 @@ def rung(repo, row, pre, post, cmd, ci, ci_secs=None):
     The seconds are what make the cliff between L2 and L3 legible. A rung name
     says the order; only the seconds say that the order spans four orders of
     magnitude."""
+    broke = broke if broke is not None else []
     t0 = time.monotonic()
     for p in row["source"]:
         before, after = blob(repo, row["sha"] + "^", p), blob(repo, row["sha"], p)
-        blocked, h, said = fire(repo, pre,
-                                edit_payload(repo, "PreToolUse", p, after, before))
+        blocked, h, said, bad = fire_ex(
+            repo, pre, edit_payload(repo, "PreToolUse", p, after, before))
+        broke.extend(bad)
         if blocked:
             return ("before-write", f"{h['command'][:60]} — {said}", h,
                     time.monotonic() - t0)
@@ -383,8 +405,9 @@ def rung(repo, row, pre, post, cmd, ci, ci_secs=None):
 
     t1 = time.monotonic()
     for p in row["source"]:
-        blocked, h, said = fire(repo, post, edit_payload(
+        blocked, h, said, bad = fire_ex(repo, post, edit_payload(
             repo, "PostToolUse", p, "", blob(repo, row["sha"] + "^", p)))
+        broke.extend(bad)
         if blocked:
             return ("same-turn", f"{h['command'][:60]} — {said}", h,
                     time.monotonic() - t1)
@@ -478,8 +501,14 @@ def assess(root, instances, work, command=None):
     # Only the hooks that would actually run for the payload the ladder
     # sends. The ladder edits files, so a Bash-only guard is not a layer that
     # failed to catch this -- it is a layer that was never asked.
-    pre = applicable(wired(root, "PreToolUse"), "Edit")
-    post = applicable(wired(root, "PostToolUse"), "Edit")
+    #
+    # These are what HEAD wires, and they are reported as such. They are not
+    # what gets fired: each instance is fired at the hooks wired in the
+    # *parked* tree, read below. Firing HEAD's wiring at a bench parked
+    # before those scripts existed credited this repository with three
+    # `before-write` catches by hooks that were not there.
+    pre_head = applicable(wired(root, "PreToolUse"), "Edit")
+    post_head = applicable(wired(root, "PostToolUse"), "Edit")
     ci = ci_command(repo)
     # Asked of the subject, not the clone: the clone has no remote history.
     ci_secs = ci_seconds(root)
@@ -495,6 +524,13 @@ def assess(root, instances, work, command=None):
     at_head, eco_at_head = cmd, eco
     for row in rows:
         park(repo, row["sha"])
+        # The wiring that was there. The bench is a clone, so this reads only
+        # `settings.json` as committed at the fix: a `settings.local.json`
+        # in the subject's working tree protects its author and nobody who
+        # was here at this commit, which is the right answer.
+        pre = applicable(wired(repo, "PreToolUse"), "Edit")
+        post = applicable(wired(repo, "PostToolUse"), "Edit")
+        at_commit = {"PreToolUse": len(pre), "PostToolUse": len(post)}
         # ...and only then. Re-detecting unconditionally picks whatever the
         # parked tree happens to offer, which is not always the same
         # ecosystem: a commit from before the `tests/` directory existed falls
@@ -515,19 +551,25 @@ def assess(root, instances, work, command=None):
             continue
         wrong = false_block(repo, row, pre, post)
         park(repo, row["sha"])
+        broke = []
         got, detail, _h, secs = rung(repo, row, pre, post, scoped, ci,
-                                     ci_secs)
+                                     ci_secs, broke)
         park(repo, row["sha"])
         prior = prior_suite(repo, row, cmd, eco.did_not_run) if got else None
         park(repo, row["sha"])
         out.append({"sha": row["sha"][:10], "subject": row["subject"],
                     "rung": got, "detail": detail, "false_block": wrong,
                     "seconds": secs, "tests": tests,
-                    "source": row["source"], "prior_suite": prior})
+                    "source": row["source"], "prior_suite": prior,
+                    "hooks": at_commit,
+                    "broke": [f"{h['command'][:60]} — {why}"
+                              for h, why in broke]})
     return {"ecosystem": eco.name, "command": display(cmd),
             "ci": " ".join(ci) if ci else "", "ci_seconds": ci_secs,
+            # What HEAD wires. Each row carries what was wired at its own
+            # commit, which is what it was fired at.
             "hooks": {
-                "PreToolUse": len(pre), "PostToolUse": len(post)},
+                "PreToolUse": len(pre_head), "PostToolUse": len(post_head)},
             "rows": out}, ""
 
 
@@ -550,13 +592,23 @@ def render(r):
         if row.get("false_block"):
             lines.append(f"      !! FALSE BLOCK — it refuses the fix too: "
                          f"{row['false_block'][:80]}")
+        at = row.get("hooks") or {}
+        if at and at != r["hooks"]:
+            lines.append(f"      hooks at this commit  PreToolUse:"
+                         f"{at.get('PreToolUse', 0)}  PostToolUse:"
+                         f"{at.get('PostToolUse', 0)}  (HEAD wires "
+                         f"{r['hooks']['PreToolUse']}/"
+                         f"{r['hooks']['PostToolUse']})")
+        for b in row.get("broke") or []:
+            lines.append(f"      !! BROKE — a wired hook could not run: {b[:90]}")
     lines += [
         "",
         "  ladder   " + "  ".join(f"{k}:{counts[k]}" for k in LADDER)
         + (f"  unusable:{unusable}" if unusable else ""),
         f"  suite    {r['command']}   ci: {r['ci'] or 'none found'}",
         f"  hooks    PreToolUse:{r['hooks']['PreToolUse']}  "
-        f"PostToolUse:{r['hooks']['PostToolUse']}",
+        f"PostToolUse:{r['hooks']['PostToolUse']}   (at HEAD; each row is "
+        f"fired at what its own commit wired)",
         "",
     ]
     late = counts["ci"] + counts["never"]

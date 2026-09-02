@@ -43,12 +43,15 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --json W/run.json --html W/facts.html
 ```
 
-It runs through a shell, so `cd app && flutter test` works. Everything it
-names must be tracked by git and must exist at the older commits the replay
-parks at; a `scripts/check.py` added last week is not there in March. When
-the command is a shell line no coverage tool can wrap — a loop, a `cd` —
-pass the plain single-suite equivalent as `--coverage-command` as well, or
-2.1 abstains while 2.3 measures.
+Three conditions on the command you pass:
+
+- It runs through a shell, so `cd app && flutter test` works.
+- Everything it names must be tracked by git and must exist at the older
+  commits the replay parks at; a `scripts/check.py` added last week is not
+  there in March.
+- When the command is a shell line no coverage tool can wrap — a loop, a
+  `cd` — pass the plain single-suite equivalent as `--coverage-command` as
+  well, or 2.1 abstains while 2.3 measures.
 
 Two outcomes look identical here and are not:
 
@@ -88,8 +91,8 @@ and replies with the answer paths and the flags they feed. A reader that
 reports nothing to answer is a normal result — dimension 2 has nothing
 without `--mutate`.
 
-**Do not answer the briefs yourself.** You are about to score the page they
-change.
+**The readers answer the briefs; you score the page they change.** Spawning
+them is what keeps the two apart.
 
 ## 3. Do the documents keep their promises — when it is asked for
 

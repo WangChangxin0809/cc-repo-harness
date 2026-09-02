@@ -543,6 +543,94 @@ def case_no_hooks_and_a_real_defect_lands_on_the_suite(t):
                 f"{[str(row['detail'])[:70] for row in r['rows']]}")
     return ""
 
+def case_a_hook_wired_after_the_defect_did_not_catch_it(t):
+    """The hooks were read once, from the subject at HEAD, and fired in a
+    bench parked at commits from before those hook scripts existed. Python
+    exits 2 for `can't open file`, the probe read 2 as a refusal, and this
+    repository reported every replayed defect caught at `before-write` -- by
+    a hook that was not there -- with a `false_block` on every row, because
+    the same absent script "refused" the fix too.
+
+    The wiring that counts is the one in the parked tree. A hook committed
+    after the defect is absent at the defect, and the defect has to walk on
+    to the suite."""
+    repo(t)
+    put(t, "app/__init__.py", "")
+    put(t, "app/calc.py", "def add(a, b):\n    return a - b\n")
+    put(t, "test_calc.py",
+        "import sys, os\n"
+        "sys.path.insert(0, os.path.dirname(__file__))\n"
+        "from app.calc import add\n"
+        "sys.exit(0 if add(2, 3) == 5 else 1)\n")
+    commit(t, "feat: a calculator")
+    put(t, "app/calc.py", "def add(a, b):\n    return a + b\n")
+    put(t, "test_calc.py",
+        open(os.path.join(t, "test_calc.py")).read()
+        + "sys.exit(0 if add(1, 1) == 2 else 1)\n")
+    fix = commit(t, "fix: add was subtracting")
+    # Wired at HEAD only, through the variable Claude Code sets, so the
+    # command resolves inside whatever tree it is fired in.
+    put(t, "hooks/no.py", BLOCKER)
+    put(t, ".claude/settings.json", json.dumps({
+        "hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+            {"type": "command",
+             "command": 'python3 "${CLAUDE_PROJECT_DIR}/hooks/no.py"'}]}],
+                  "PostToolUse": [{"matcher": "*", "hooks": [
+            {"type": "command",
+             "command": 'python3 "${CLAUDE_PROJECT_DIR}/hooks/no.py"'}]}]}}))
+    commit(t, "chore: a guard, long after the fix")
+
+    r, why = catch_mod.assess(t, 1, os.path.join(t, ".work"),
+                              command=[sys.executable, "test_calc.py"])
+    if r is None:
+        return f"could not run the ladder: {why}"
+    if [row["sha"] for row in r["rows"]] != [fix[:10]]:
+        return f"the replay picked {[row['sha'] for row in r['rows']]}"
+    row = r["rows"][0]
+    if row["rung"] in ("before-write", "same-turn"):
+        return (f"a hook that did not exist at the defect's commit was "
+                f"credited with catching it at {row['rung']}: {row['detail']}")
+    if row["rung"] not in ("local-suite", "ci", "never"):
+        return f"the defect landed on {row['rung']!r}: {row['detail']}"
+    if row.get("false_block"):
+        return (f"an absent hook was reported as refusing the fix: "
+                f"{row['false_block']}")
+    at = row.get("hooks") or {}
+    if at.get("PreToolUse", 1) or at.get("PostToolUse", 1):
+        return f"the row counts hooks the parked tree does not wire: {at}"
+    if r["hooks"]["PreToolUse"] != 1 or r["hooks"]["PostToolUse"] != 1:
+        return f"the HEAD count is no longer honest either: {r['hooks']}"
+    return None
+
+
+def case_a_hook_whose_script_is_missing_broke_and_did_not_block(t):
+    """`python3 missing.py` exits 2, and 2 is the exit code of a refusal. A
+    hook that could not start has not refused anything; it goes with the
+    ones that crashed, where the report can say so."""
+    repo(t)
+    put(t, ".claude/settings.json", json.dumps({
+        "hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+            {"type": "command",
+             "command": f'python3 "{os.path.join(t, "hooks/missing.py")}"'}]}]}}))
+    pre = catch_mod.wired(t, "PreToolUse")
+    blocked, _h, said, broke = catch_mod.fire_ex(
+        t, pre, {"tool_name": "Edit", "tool_input": {}})
+    if blocked:
+        return f"a hook whose script is absent was read as a block: {said!r}"
+    if len(broke) != 1:
+        return f"the absent script was not reported as a hook that broke: {broke}"
+    if "open file" not in broke[0][1] and "No such file" not in broke[0][1]:
+        return f"the report does not say what went wrong: {broke[0][1]!r}"
+    # ...and a script that is there and refuses is still a refusal.
+    hook_script(t, "hooks/no.py", BLOCKER)
+    blocked, _h, _said, broke = catch_mod.fire_ex(
+        t, catch_mod.wired(t, "PreToolUse"), {"tool_name": "Edit",
+                                              "tool_input": {}})
+    if not blocked or broke:
+        return "a genuine exit-2 refusal stopped being read as a block"
+    return None
+
+
 
 # --------------------------------------------------------------------------
 # blast: and the false block, which is the whole reason early is not free
@@ -3375,22 +3463,36 @@ def case_shipping_is_read_from_the_default_branch(t):
     open work; a reader of this repository's own page called the row
     noise, and it was. Shipping now reads the default branch."""
     repo(t)
+
+    def tag(name, day):
+        # Annotated, with a tagger date: two lightweight tags made in the
+        # same second tie on creatordate and "latest" is then whichever git
+        # lists first, which made this case pass and fail by the clock.
+        subprocess.run(["git", "tag", "-a", name, "-m", name], cwd=t,
+                       capture_output=True, text=True, timeout=60,
+                       env={**os.environ,
+                            "GIT_COMMITTER_DATE": f"2026-01-0{day}T00:00:00",
+                            "GIT_COMMITTER_NAME": "t",
+                            "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+
     put(t, "src/app.py", "x = 1\n")
     put(t, ".claude-plugin/plugin.json",
         json.dumps({"name": "p", "version": "1.0.0"}))
     put(t, ".github/workflows/ci.yml", WORKFLOW % ("", "      - run: pytest\n"))
     commit(t, "feat: app")
-    git(["tag", "v1.0.0"], t)
-    # A feature branch raises the version; main also gains a tag after the
-    # branch was cut.
+    tag("v1.0.0", 1)
+    # A feature branch raises the version; main also releases a patch after
+    # the branch was cut, bumping its own manifest and tagging it.
     git(["checkout", "-q", "-b", "feature"], t)
     put(t, ".claude-plugin/plugin.json",
         json.dumps({"name": "p", "version": "1.1.0"}))
     commit(t, "feat: bump")
     git(["checkout", "-q", "main"], t)
     put(t, "src/app.py", "x = 2\n")
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "1.0.1"}))
     commit(t, "fix: x")
-    git(["tag", "v1.0.1"], t)
+    tag("v1.0.1", 2)
     git(["checkout", "-q", "feature"], t)
     rows = pipeline_rows(t)
     row = rows.get("the latest tag is on this branch")
@@ -5543,6 +5645,10 @@ CASES = [
      case_the_surface_is_coverage_not_a_count),
     ("a record of mistakes nobody reads is not scored as learning",
      case_a_record_nobody_reads_is_not_scored_as_learning),
+    ("a hook wired after the defect did not catch it",
+     case_a_hook_wired_after_the_defect_did_not_catch_it),
+    ("a hook whose script is missing broke and did not block",
+     case_a_hook_whose_script_is_missing_broke_and_did_not_block),
 ]
 
 

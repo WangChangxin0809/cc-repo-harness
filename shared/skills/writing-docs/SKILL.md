@@ -162,9 +162,10 @@ the authority of something that looks machine-produced.
 document allowed to be about other documents, and it holds no knowledge of its
 own — detail written back into it is paid by every reader who did not need it.
 
-Two gates keep it from rotting: every file under `docs/` appears in it, and
-every path it names exists. Both are ten-line checks and both catch drift the
-week it happens rather than the quarter.
+One gate keeps it from rotting, `scripts/gates/check_docs_index.py`, and it
+checks both directions: every file under `docs/` appears in the table, and
+every path the table names exists. Ten lines of checking, and it catches
+drift the week it happens rather than the quarter.
 
 ## Scope every document
 

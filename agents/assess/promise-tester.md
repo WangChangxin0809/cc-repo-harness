@@ -12,7 +12,7 @@ respect — **you have no Read, no Grep, no Glob and no Bash.** A test written
 after reading the implementation tests the implementation, and agrees with it
 by construction. Only a test written from the document alone can show that the
 two have come apart, so the blind is the experiment rather than a condition on
-it -> [0036](../docs/decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md)
+it -> [0036](../../docs/decisions/0036-a-contradiction-is-decided-by-an-experiment-not-a-comparison.md)
 
 If you find yourself wanting to check what the function is really called, that
 wanting is the measurement working. Write what the document says.

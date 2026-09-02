@@ -38,6 +38,12 @@ script that becomes `exit 0`.
 **It gains a swallow.** `|| true`, `continue-on-error: true`, `--no-verify`,
 `pytest.mark.skip`, `it.skip(`, `xit(`, `t.Skip(`. These keep the failure path
 and route around it, which reads identically from outside.
+
+A swallow is looked for on code lines only. A comment that *names* one -- a
+workflow header saying no step may use `|| true` -- is the rule being written
+down, not broken, and a guard that refuses the edit beneath it is a guard that
+gets turned off. A line is a comment when its first non-blank character is
+`#`, which is what YAML, shell and Python share; strings are not parsed.
 """
 
 from __future__ import annotations
@@ -111,6 +117,12 @@ def _name(path: str) -> str:
     return os.path.basename((path or "").replace("\\", "/")) or path
 
 
+def _code_lines(body: str) -> str:
+    """The body with `#` comment lines removed; line layout is otherwise kept."""
+    return "\n".join(
+        line for line in body.splitlines() if not line.lstrip().startswith("#"))
+
+
 def check(tool_name: str, tool_input: dict) -> str | None:
     # An Edit replaces what is there. A Write may be a first draft, and
     # everybody's first commit of a check is a stub.
@@ -123,8 +135,9 @@ def check(tool_name: str, tool_input: dict) -> str | None:
     if body is None:
         return None
 
+    code = _code_lines(body)
     for pattern, what in _SWALLOWS:
-        if pattern.search(body):
+        if pattern.search(code):
             return REASON_SWALLOW.format(what=what, name=_name(path))
 
     # The mute rule does not apply to a workflow. A YAML step does not raise
@@ -171,6 +184,16 @@ CASES = [
      False),
     ("Edit", {"file_path": ".github/workflows/ci.yml", "old_string": "",
               "new_string": "      - run: pytest -q\n"}, False),
+    # A comment may *mention* a swallow. This repository's own ci.yml header
+    # says no step may use `|| true`, and editing a step beneath it was refused.
+    ("Edit", {"file_path": ".github/workflows/ci.yml", "old_string": "",
+              "new_string": "# Exit 2 is never a pass, which is the reason no\n"
+                            "# step is allowed to swallow a status with `|| true`.\n"
+                            "      - run: python3 scripts/check.py\n"}, False),
+    # ...but a comment does not launder the code line beneath it.
+    ("Edit", {"file_path": ".github/workflows/ci.yml", "old_string": "",
+              "new_string": "# never `|| true` here\n"
+                            "      - run: kill $PID || true\n"}, True),
     # The probe's own twin: an ordinary source edit.
     ("Edit", {"file_path": "src/main.py", "old_string": "",
               "new_string": "# an ordinary change\n"}, False),
