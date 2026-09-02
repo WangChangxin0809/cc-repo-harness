@@ -1,6 +1,6 @@
 ---
 description: Measure this repository as a place for an agent to work — five dimensions, one page, nothing changed
-argument-hint: "[path] [--no-full] [--test-command CMD] [--mutate N] [--promises]"
+argument-hint: "[path] [--no-full] [--test-command CMD] [--coverage-command CMD] [--mutate N] [--promises] [--once]"
 allowed-tools: Bash, Read, Grep, Glob, Task
 ---
 
@@ -11,86 +11,109 @@ page a person can act on.
 findings is a separate step, done by a person holding what you wrote. An
 assessment that ends in *nothing here is worth changing* is a result.
 
-## Run the instrument, then hold its numbers
+Work in a directory outside the repository — `mktemp -d` — and call it `W`
+below. Everything the run writes goes there; the repository gets nothing.
+
+## 1. Run the instrument, and hold its numbers
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
-        --root "${1:-.}" --html assessment.html --json assessment.json
+        --root "${1:-.}" --json W/run.json --html W/facts.html
 ```
 
-The replay runs by default: it takes real defects from the repository's own
-history and finds how late each one is caught. It costs minutes and it runs
-that repository's tests, so the command is printed before it runs. Pass
-`--no-full` only if the caller asked to skip it.
+The replay runs by default: real defects from the repository's own history,
+put back, and how late each one is caught. It costs minutes, runs that
+repository's tests, and prints the command before it runs. `--no-full` only
+if the caller asked.
 
-Dimension 2 opens with coverage — statements, branches and conditions the
-suite never exercises. It is the ladder's denominator, not a score: absence is
-the finding, and a high percentage means very little. If the figures look
-catastrophic, check that the command you supplied runs all of the repository's
-suites and not one of them.
+If it says **no test command was found**, that is a fact about a table, not
+about the repository. Read the CI file and pass what you find as
+`--test-command`. It runs through a shell, so `cd app && flutter test` works;
+everything it names must be tracked by git and exist at older commits. When
+that command cannot be wrapped by a coverage tool — a loop, a `cd` — pass the
+plain equivalent as `--coverage-command` too. *No tests exist* is a finding
+and stays one; a table that missed a convention is not.
 
-`--mutate N` is off by default and adds a second source of defects: one line
-the tests already execute, changed, walking the same ladder. It runs the suite
-once per mutant, so pass it only when the caller asked or when the suite is
-fast. The changes nothing caught come back as `pending` — read
-`mutant_brief` in the JSON, judge each one, and feed the verdicts back with
-`--mutant-answers`. Unjudged, they are counted neither way.
-
-If the page says no test command was found, that is a fact about the ecosystem
-table, not about the repository. Read the CI file yourself and pass what you
-find as `--test-command`. *No tests exist* is a real finding and must still be
-reported as one; *a table did not recognise this convention* is not.
+`--mutate N` is opt-in and runs the suite once per mutant. Pass it only when
+asked or when the suite is fast.
 
 Exit 2 means COULD NOT JUDGE. Say so and stop.
 
-**Do not recompute what the page gave you.** You cannot count tokens, you will
-not give the same figure twice, and if the numbers come from you then
+**Do not recompute what it gave you.** You cannot count tokens, you will not
+give the same figure twice, and if the numbers come from you then
 re-measuring later compares two opinions instead of two measurements.
 
-`--promise-tests` is the other opt-in, and the dearest one. Dimension 4.3
-decides whether the documents are still true by experiment: an agent writes
-tests from a document alone, they run against the real code, and anything
-failing gets a second round where the same agent writes the implementation the
-document describes. A contradiction is reported only when a test goes
-fail-to-pass and none goes pass-to-fail.
+## 2. Answer what it could not — one reader per dimension, in parallel
 
-Spawn a `repo-promise-tester` for it — it has `Write` and nothing else, and
-that is the point: you have read this repository, so you cannot write these
-tests. Feed it `promises_brief` from the JSON, pass its answer back as
-`--promise-tests`, then `promises_brief2` and `--promise-impls` if anything is
-left pending. Without the first flag the row does not print, which is correct:
-an unrun experiment is not a clean bill, and neither is an empty one — the
-method finds about a fifth of what is there.
+The run leaves questions only a reader of the repository can answer: whether
+an agent can watch its own change run, which of the repository's own actions
+are legitimate, which uncaught mutants matter, which document candidates are
+real. Each is a brief with a flag on `factsheet.py` for feeding the answer
+back.
 
-## Then answer what it could not
+Spawn an `assess-reader` for dimensions **1**, **2** and **4** at once, each
+with `RUN=W/run.json`, its `N`, `DIR=W/dN`, `PHASE=answer`. Dimensions 3 and
+5 leave nothing to answer. Each reader replies with the answer paths and the
+flags they feed; a reader that says it had nothing is a normal result.
 
-The page ends by naming its own blind spots. Those are the reason a person is
-running this rather than a cron job:
+If `--promises` was asked for, also spawn **one** `assess-promise-tester`
+with the round-one brief — `promises_brief` in the JSON — and a path to
+write `W/tests.json`. It has `Write` and nothing else; you have read this
+repository and are the one agent who cannot write those tests.
 
-1. Where do the tests actually live? The page names the directories it read
-   the verdict from — go and look, including under `frontend/` and `backend/`.
-   A suite missing from that row makes the percentage under it wrong, not low.
-2. Is the standing cost earning its tokens, or restating the code?
-3. Which sentences in the docs are waffle? **Quote them.**
-4. Does each wired hook address a mistake THIS repository makes?
-5. Is anything you would normally need refused? Name the tool call and the rule.
+## 3. Put the answers on the page without running the suite again
 
-The most valuable findings usually are not on the page at all. The probes fire
-six *generic* destructive actions; a repository's most dangerous action is
-often a command in its own README. Read the quick-start, the seed and migration
-scripts, and the CI config, and ask what each would do to a database or a branch
-that somebody cares about.
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
+        --from W/run.json \
+        --observe-answers W/d1/observe.answers.json \
+        --legitimate-actions W/d1/permitted.answers.json \
+        --mutant-answers W/d2/mutants.answers.json \
+        --truth-answers W/d4/truth.answers.json \
+        --conflict-answers W/d4/conflict.answers.json \
+        --promise-tests W/tests.json \
+        --json W/run.json --html W/facts.html
+```
 
-Score the repository on what it achieves, not on which conventions it reached
-for. A repository that stops destruction with a hand-written `bash` hook is
-fully protected.
+Pass only the flags whose file exists. `--from` reads the run back and
+applies the answers; nothing is re-measured, so this takes a second. If
+promise claims are left `pending`, a **new** promise tester gets
+`promises_brief2` and its `impls.json` goes back through `--promise-impls`.
 
-## Hand back
+## 4. The reading — every dimension, twice unless `--once`
 
-Point at `assessment.html` — that is the artefact, and it is for the person.
-Then, briefly: the worst thing you found in one sentence, the rows worth acting
-on with evidence and a proposed change each, and what you are deliberately
-**not** proposing and why.
+Spawn an `assess-reader` for each of the five dimensions with `PHASE=read`,
+`DIR=W/rN`. Each writes `W/rN/reading.json`: a score out of ten per sub-item,
+why in this repository's terms, and the one change that would move it.
+
+Then, unless `--once` was passed, spawn five more with `DIR=W/sN`. The second
+reading is what makes a number worth anything: two readers more than two
+points apart on one row saw different repositories, and the page says which
+rows those were instead of averaging them quietly.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/review.py \
+        --grade W/run.json \
+        --answers W/r1/reading.json --answers W/r2/reading.json ... \
+        --answers W/s1/reading.json --answers W/s2/reading.json ... \
+        --html W/reading.html --json W/reading.json
+```
+
+Every file is pooled. A sub-item scored twice carries both numbers.
+
+## 5. Hand back
+
+Point at `W/reading.html`. It opens with *what would move the number, lowest
+first* — that list is the artefact, and it is for the person. `W/facts.html`
+is the measurement behind it. Then, briefly:
+
+- the worst thing on the page, in one sentence, in the repository's terms
+- the rows where the two readings disagreed, and which reading you believe
+- anything the page could not see: the most dangerous action in this
+  repository is usually a command in its own README, and the six generic
+  probes never fire it. Read the quick-start, the seed and migration
+  scripts, and ask what each would do to a branch somebody cares about
+- what you are deliberately **not** proposing, and why
 
 For a longer or unattended run, delegate the whole thing to the
 `repo-assessor` agent instead.

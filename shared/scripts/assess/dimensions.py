@@ -530,6 +530,25 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                     "note": (unusable[0].get("detail") or "")[:150]
                             + " — these are outside the count above, not "
                               "inside it as successes"})
+    elif not defects["shallow"] and not defects["has_test_files"]:
+        # Absent in the repository, not on this machine. `no runnable test
+        # command` covers two situations that must never share a row: a
+        # toolchain this machine lacks, which is an abstention, and a
+        # repository with no test file anywhere in it, which is the finding.
+        # The history has already been read for this and it cost nothing, so
+        # it is measured even under --no-full -> 0047
+        state = "measured"
+        headline = ("no suite: nothing here can catch a defect before the "
+                    "session ends")
+        rows.append({
+            "label": "a suite in the repository",
+            "value": "none — no test file anywhere in the tree",
+            "flag": "bad",
+            "note": "the local-suite rung does not exist, so every defect "
+                    "an agent writes is caught by a hook before it is "
+                    "written, by CI after the session is gone, or never. "
+                    "This is a fact about the repository, not about this "
+                    "machine: nothing was skipped for want of a toolchain"})
     elif catch_why:
         state = "abstained"
         headline = catch_why.replace("cannot judge: ", "")
@@ -1090,6 +1109,19 @@ def reliable_delivery(root, log, check_dirs=(), gate=None, pipeline=None):
     # and the conventions -- matrix, cache, job count -- are not read -> 0044
     if pipeline:
         rows += _pipeline_rows(pipeline)
+    elif not ci_files:
+        # No pipeline of any host. `pipeline.py` reads one host and abstains
+        # on the others, which is right when there is a Jenkinsfile it cannot
+        # read; it is wrong when there is nothing, because nothing is a
+        # measurement. One row, under 3.3: every change runs no check -> 0047
+        rows.append({
+            "label": "changes that run no check",
+            "value": "all of them — no pipeline",
+            "flag": "bad",
+            "note": "no workflow, Jenkinsfile or pipeline file of any host "
+                    "is in the tree, so no change to this repository is "
+                    "checked by anything but whoever runs it by hand. "
+                    "Absent in the repository, not unread"})
 
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
@@ -1434,14 +1466,23 @@ def repository_memory(root, log, check_dirs=(), truth=None,
 
     if truth is not None:
         t = truth["thickness"]
+        kinds = "  ".join(f"{k}:{v}" for k, v in t.items() if v)
         rows.append({
             "label": "what it writes down",
-            "value": "  ".join(f"{k}:{v}" for k, v in t.items() if v),
-            "flag": "info",
-            "note": "the denominator every row below is read against: "
-                    "adding files cannot "
-                    "raise anything on this page, because a repository is not "
-                    "better for having adopted somebody else's conventions"})
+            "value": kinds or "nothing — no entry file, no document of any "
+                              "kind an agent is pointed at",
+            # An empty value was dropped as an abstention, so a repository
+            # with nothing written down was the one repository this row
+            # never scored. Nothing is a measurement here -> 0047
+            "flag": "info" if kinds else "bad",
+            "note": ("the denominator every row below is read against: "
+                     "adding files cannot "
+                     "raise anything on this page, because a repository is "
+                     "not better for having adopted somebody else's "
+                     "conventions") if kinds else
+                    ("a newcomer, human or agent, starts from the code alone "
+                     "and repeats whatever the last one learned. Absent in "
+                     "the repository, not unread")})
 
         proven = truth["proven"]
         rows.append({

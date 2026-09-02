@@ -310,6 +310,41 @@ CASES = [
     ),
     dict(
         gate="check_plugin_structure.py",
+        why="an agents list that drops the agent at the top level",
+        needle="leaves out agents/helper.md",
+        # A listed path replaces the default directory. The manifest names
+        # the new agent and forgets the old one, and the loader says nothing.
+        plant=lambda t: (write(t, "agents/assess/reader.md",
+                               "---\nname: reader\ndescription: Reads one "
+                               "thing.\n---\n\nYou read.\n"),
+                         write(t, ".claude-plugin/plugin.json",
+                               json.dumps({"name": "demo-plugin",
+                                           "version": "0.1.0",
+                                           "description": "A demo plugin.",
+                                           "agents": ["./agents/assess/reader.md"]},
+                                          indent=2) + "\n")),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="an agents list naming a file that is not there",
+        needle="does not exist",
+        plant=lambda t: write(t, ".claude-plugin/plugin.json",
+                              json.dumps({"name": "demo-plugin",
+                                          "version": "0.1.0",
+                                          "description": "A demo plugin.",
+                                          "agents": ["./agents/helper.md",
+                                                     "./agents/gone.md"]},
+                                         indent=2) + "\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
+        why="an agent in a subdirectory with no description",
+        needle="agents/assess/reader.md frontmatter has no `description`",
+        plant=lambda t: write(t, "agents/assess/reader.md",
+                              "---\nname: reader\n---\n\nYou read.\n"),
+    ),
+    dict(
+        gate="check_plugin_structure.py",
         why="the variable itself, which must NOT be reported",
         needle=None,
         plant=lambda t: write(t, "skills/demo/SKILL.md",
