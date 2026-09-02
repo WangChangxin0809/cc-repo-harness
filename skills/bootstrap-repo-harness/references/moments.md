@@ -83,7 +83,7 @@ cap, this is the first place to look — most of what is there is local.
 ## 5 · Before an action — `PreToolUse`
 
 ```json
-{"matcher": "Bash", "hooks": [{"type": "command",
+{"matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command",
  "command": "python3 scripts/guards/dispatch.py"}]}
 ```
 

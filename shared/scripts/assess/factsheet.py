@@ -45,6 +45,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -115,14 +116,38 @@ def a_source_file(root):
     return ""
 
 
+# A way for a file to say no. The silence probe replaces the file it is aimed
+# at with a body that returns success, and the guard refuses that only when the
+# file could fail before -- so a probe aimed at an empty `__init__.py`, taken
+# because it sorted first, is a probe the guard correctly allows, and the page
+# says `nothing stops it` about a repository that stops exactly this.
+_CAN_FAIL = re.compile(
+    r"\braise\b|\bassert\b|sys\.exit\(\s*(?![0O]\s*\))|\breturn\s+[1-9]"
+    r"|\bexit\s*\(\s*[1-9]|\bpytest\.fail\b|\bexpect\(")
+
+
 def a_check_file(probe, root):
+    """One check the silence probe can be aimed at: a file that can fail.
+
+    Helpers, `__init__.py` and `conftest.py` sort first and cannot be
+    silenced; among the rest, the first with a failure path in it."""
+    fallback = ""
     for d in probe["discipline"].get("check_dirs") or []:
         full = os.path.join(root, d)
-        if os.path.isdir(full):
-            for f in sorted(os.listdir(full)):
-                if f.endswith(".py"):
-                    return os.path.join(d, f)
-    return ""
+        if not os.path.isdir(full):
+            continue
+        for f in sorted(os.listdir(full)):
+            if not f.endswith(".py") or f.startswith("_") or f == "conftest.py":
+                continue
+            rel = os.path.join(d, f)
+            fallback = fallback or rel
+            try:
+                with open(os.path.join(full, f), encoding="utf-8") as fh:
+                    if _CAN_FAIL.search(fh.read()):
+                        return rel
+            except (OSError, ValueError):
+                continue
+    return fallback
 
 
 def gather(root, full, instances, work, command=None, mutate=0,

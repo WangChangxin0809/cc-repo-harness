@@ -242,13 +242,16 @@ from a number that stopped being true weeks ago.
 ## Wiring
 
 ```json
-{"hooks": {"PreToolUse": [{"matcher": "Bash",
+{"hooks": {"PreToolUse": [{"matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
   "hooks": [{"type": "command", "command": "python3 scripts/guards/dispatch.py"}]}]}}
 ```
 
 One line, one script. `.claude/` holds wiring; the judgment lives in `scripts/`
 where it is reviewable, testable, and portable. The dispatcher discovers every
-`*.py` in its directory, so adding a rule is adding a file.
+`*.py` in its directory, so adding a rule is adding a file. The matcher names
+every tool a guard judges, and `selftest.py` fails when a guard can refuse a
+tool the matcher never shows it -- behind the wrong matcher, a guard is a file
+that never runs, and a dispatcher that fails open never says so.
 
 A broken guard **fails open** — deliberately. One syntax error in one module
 must not become a wall nobody can get past, in a mechanism that runs before

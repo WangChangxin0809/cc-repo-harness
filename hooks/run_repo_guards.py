@@ -48,7 +48,8 @@ hook stays out of the way, and everything keeps working with the plugin gone.
 
 ## Cost
 
-This runs before every Bash call in every repository the plugin is enabled for.
+This runs before every Bash, Write and Edit call in every repository the plugin
+is enabled for.
 A Python interpreter start is ~45 ms and cannot be optimised away from inside;
 in the trusted-but-unwired window there is a second one for the dispatcher,
 ~85 ms total. If that matters to you, wire the dispatcher into the repo (above)
@@ -185,13 +186,13 @@ cc-repo-harness: {root} has guards in scripts/guards/ that are NOT running.
 
 {what}
 
-Those files execute before every Bash command, so nothing here runs them until
+Those files execute before every Bash, Write and Edit call, so nothing here runs them until
 you have read them and said so. Review them, then pick one:
 
   1. Let the repository own its guards. Survives this plugin being removed, and
      is what scaffold.py wires for you. In .claude/settings.json:
 
-     {{"hooks": {{"PreToolUse": [{{"matcher": "Bash", "hooks":
+     {{"hooks": {{"PreToolUse": [{{"matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit", "hooks":
         [{{"type": "command", "command": "python3 scripts/guards/dispatch.py"}}]}}]}}}}
 
   2. Or trust this checkout, on this machine only:

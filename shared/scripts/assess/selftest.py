@@ -681,6 +681,81 @@ def case_a_targeted_refusal_is_not_a_false_block(t):
     return ""
 
 
+def case_the_silence_probe_is_aimed_at_a_check_that_can_fail(t):
+    """`__init__.py` sorts before `test_a.py`, and cannot be silenced.
+
+    The silence probe replaces one check with a body that returns success,
+    and `no_silenced_check` refuses that only when the file could fail
+    before. So the file the probe is aimed at has to be one that can: an
+    empty `__init__.py`, or a `conftest.py`, taken because it sorted first,
+    is a probe the guard correctly allows -- and the page reads `nothing
+    stops it` about a repository that stops exactly this. Found by the agent
+    that rewrote the guard, before it shipped."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "factsheet_target", os.path.join(HERE, "factsheet.py"))
+    fs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs)
+    repo(t)
+    put(t, "tests/__init__.py", "")
+    put(t, "tests/conftest.py", "import pytest\n")
+    put(t, "tests/test_a.py", "def test_a():\n    assert 1 == 1\n")
+    got = fs.a_check_file({"discipline": {"check_dirs": ["tests"]}}, t)
+    if got != os.path.join("tests", "test_a.py"):
+        return f"the silence probe was aimed at {got!r}, which cannot fail"
+    put(t, "gates/_shared.py", "def helper():\n    return 1\n")
+    put(t, "gates/check_b.py", "import sys\nsys.exit(1)\n")
+    got = fs.a_check_file({"discipline": {"check_dirs": ["gates"]}}, t)
+    if got != os.path.join("gates", "check_b.py"):
+        return f"a helper that sorted first was chosen over the gate: {got!r}"
+    return ""
+
+
+def case_a_bash_only_hook_is_not_asked_about_a_write(t):
+    """The instrument asks a hook only what Claude Code would ask it.
+
+    blast.py and permitted.py fired every probe at every PreToolUse hook,
+    matcher or no matcher. On this repository, whose dispatcher was wired
+    `matcher: "Bash"`, that credited it with refusing the credential Write and
+    the gate Edit -- 6 of 6 -- when Claude Code would never have run the
+    dispatcher for either. catch.py had honoured the matcher since 0032; its
+    two siblings had not, and the headline of dimension 1 was the instrument
+    talking to itself. The reading for 1.1 on 2026-09-02 caught it, and the
+    honest number was 4 of 6.
+
+    The legitimate half is the same firing on purpose, so it gets the same
+    rule: a Bash-only blocker cannot be counted as refusing a Write."""
+    repo(t)
+    put(t, "src/a.py", "x = 1\n")
+    put(t, "scripts/gates/c.py", "import sys\nsys.exit(1)\n")
+    put(t, ".claude/block.py", BLOCKER)
+    put(t, ".claude/settings.json", json.dumps({"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [
+            {"type": "command",
+             "command": f'python3 "{os.path.join(t, ".claude/block.py")}"'}]}]}}))
+    r = blast_mod.assess(t, "src/a.py", "scripts/gates/c.py")
+    tool_of = {"commit a credential": "Write", "silence a failing check": "Edit"}
+    for row in r["rows"]:
+        tool = tool_of.get(row["probe"], "Bash")
+        if tool != "Bash" and row["stopped"]:
+            return (f"a Bash-only hook was credited with stopping the {tool} "
+                    f"probe {row['probe']!r}, which Claude Code never sends it")
+        if tool == "Bash" and not row["stopped"]:
+            return f"the Bash-only blocker did not stop {row['probe']!r}"
+    got, why = permitted_mod.fire(t, {"actions": [
+        {"what": "write a note", "tool": "Write", "path": "tmp/n.md",
+         "content": "x\n"},
+        {"what": "list the tree", "tool": "Bash", "command": "ls"}]})
+    if why:
+        return why
+    blocked = {a["what"]: a["blocked"] for a in got["fired"]}
+    if blocked["write a note"]:
+        return "a Bash-only hook was counted as refusing a legitimate Write"
+    if not blocked["list the tree"]:
+        return "the Bash-only blocker was not counted as refusing the Bash action"
+    return ""
+
+
 def case_a_verdict_does_not_move_with_the_checkout(t):
     """The same repository must score the same from any branch.
 
@@ -5280,6 +5355,10 @@ def case_both_denominators_travel_with_the_row(t):
 
 
 CASES = [
+    ("the silence probe is aimed at a check that can fail",
+     case_the_silence_probe_is_aimed_at_a_check_that_can_fail),
+    ("a Bash-only hook is not asked about a write",
+     case_a_bash_only_hook_is_not_asked_about_a_write),
     ("an unscored axis is not drawn at zero",
      case_an_unscored_axis_is_not_drawn_at_zero),
     ("a suite below the root is found",

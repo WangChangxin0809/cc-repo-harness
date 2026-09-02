@@ -53,7 +53,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from catch import fire_ex, wired  # noqa: E402
+from catch import applicable, fire_ex, wired  # noqa: E402
 
 # A placeholder that is unmistakably not a credential, so a scan run later never
 # finds a plausible-looking one this script left behind.
@@ -218,8 +218,15 @@ def assess(root, sample_src, check_file):
     pre = wired(root, "PreToolUse")
     rows = []
     for name, risk, bad, good in probes(root, sample_src, check_file):
-        stopped, hook, said, broke = fire_ex(root, pre, payload(root, bad))
-        over, ohook, osaid, obroke = fire_ex(root, pre, payload(root, good))
+        # Only the hooks Claude Code would run for this tool. A `matcher:
+        # "Bash"` dispatcher asked about a Write answers a question it is
+        # never asked in a session, and this repository's headline read
+        # 6 of 6 on the strength of two such answers; the honest number was
+        # 4. catch.py had honoured the matcher since 0032. This did not.
+        stopped, hook, said, broke = fire_ex(
+            root, applicable(pre, bad["tool_name"]), payload(root, bad))
+        over, ohook, osaid, obroke = fire_ex(
+            root, applicable(pre, good["tool_name"]), payload(root, good))
         rows.append({
             "probe": name, "risk": risk,
             "stopped": stopped,

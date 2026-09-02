@@ -223,7 +223,7 @@ in `~/.claude/cc-repo-harness/`, never in the repository.
 Once the repository wires `dispatch.py` into its own `.claude/settings.json`,
 which the scaffold does for you, the normal project-trust prompt applies and
 this hook exits silently. It exists only for the window in between. Cost: one
-interpreter start, about 45 ms, before every Bash call.
+interpreter start, about 45 ms, before every Bash, Write and Edit call.
 
 ## Requirements
 

@@ -33,7 +33,12 @@ already covered by `gates/` anyway.
 
 **It loses every failure path.** No non-zero exit, no raise, no assert, no
 `expect`, no `fail`. A Python check whose body becomes `return 0`, a shell
-script that becomes `exit 0`.
+script that becomes `exit 0`. A guard fails by returning a reason, so under
+`guards/` a `return` of anything but `None`, `0`, `False` or an empty string
+is a failure path too. During this repository's own assessment a reader
+replaced a whole guard with a shorter one that still returned its reason, and
+this file refused it as mute, because it only knew how a gate or a test says
+no.
 
 **It gains a swallow.** `|| true`, `continue-on-error: true`, `--no-verify`,
 `pytest.mark.skip`, `it.skip(`, `xit(`, `t.Skip(`. These keep the failure path
@@ -44,12 +49,32 @@ workflow header saying no step may use `|| true` -- is the rule being written
 down, not broken, and a guard that refuses the edit beneath it is a guard that
 gets turned off. A line is a comment when its first non-blank character is
 `#`, which is what YAML, shell and Python share; strings are not parsed.
+
+## Judged on the file, not on the edit
+
+The mute rule reads the file as it will be after the edit -- `old_string`
+replaced by `new_string`, the whole file when `old_string` is empty, which is
+how the instrument sends one, every entry of a MultiEdit in order -- and
+refuses only when the file could fail before and cannot after. Judged on the
+edited text alone, a reworded comment or a changed constant in a check is
+"something that cannot fail", because a partial edit rarely carries a failure
+path in its own lines. That never fired while the dispatcher was wired to
+Bash alone; the first Edit it saw would have had this guard switched off
+within the hour.
+
+A file this guard cannot read is judged on the new content alone when the
+edit replaces all of it, and left alone when it does not: a partial edit to a
+file nobody can see is not judgeable, and the dispatcher fails open by design.
+An `old_string` that is not in the file is left alone too; the edit would not
+apply.
 """
 
 from __future__ import annotations
 
 import os
 import re
+
+_SELF = os.path.abspath(__file__)
 
 _IS_CHECK = re.compile(
     r"(?:^|/)(?:gates|guards|tests?)/"
@@ -68,6 +93,13 @@ _CAN_FAIL = re.compile(
     r"|::error::"
     r"|\bexit\(\s*[1-9]")
 
+# A guard reports failure by returning a reason from check(): any `return`
+# but None, 0, False or an empty string.
+_IS_GUARD = re.compile(r"(?:^|/)guards/")
+_GUARD_CAN_FAIL = re.compile(
+    _CAN_FAIL.pattern
+    + r"|\breturn[ \t]+(?!None\b|0\b|False\b|[\"']{2}|#)\S")
+
 _SWALLOWS = (
     (re.compile(r"\|\|\s*true\b"), "`|| true`"),
     (re.compile(r"^\s*continue-on-error:\s*true\b", re.M),
@@ -80,20 +112,21 @@ _SWALLOWS = (
     (re.compile(r"@Ignore\b|@Disabled\b"), "`@Ignore`"),
 )
 
-# Content too small to be a check either way -- a stub, a placeholder, a file
-# being emptied before being written properly. Below this the rule cannot tell
-# a silencing from a beginning, so it says nothing.
+# A file left too small to be a check either way -- a stub, a placeholder, a
+# file being emptied before being written properly. Below this the rule cannot
+# tell a silencing from a beginning, so it says nothing.
 MIN_BODY = 12
 
 REASON_MUTE = """\
-Blocked: this replaces {name} with something that cannot fail.
+Blocked: after this edit {name} cannot fail.
 
     {preview}
 
-Nothing in the new content raises, asserts, or exits non-zero, so from here on
-it reports success for every change -- including the one it was written to
-catch. No later run can tell you that happened: a green square from a check
-that cannot go red looks exactly like a green square that meant something.
+Nothing left in the file raises, asserts, exits non-zero or, for a guard,
+returns a reason, so from here on it reports success for every change --
+including the one it was written to catch. No later run can tell you that
+happened: a green square from a check that cannot go red looks exactly like a
+green square that meant something.
 
 If the check is wrong, change what it checks and watch it fail on the case it
 should catch. If it is genuinely obsolete, delete the file -- an absent check
@@ -123,6 +156,49 @@ def _code_lines(body: str) -> str:
         line for line in body.splitlines() if not line.lstrip().startswith("#"))
 
 
+def _edits(tool_name: str, tool_input: dict) -> list:
+    """Each replacement the call proposes, as (old, new, everywhere)."""
+    entries = ([tool_input] if tool_name == "Edit"
+               else tool_input.get("edits") or [])
+    out = []
+    for entry in entries:
+        if isinstance(entry, dict) and isinstance(entry.get("new_string"), str):
+            out.append((entry.get("old_string") or "", entry["new_string"],
+                        bool(entry.get("replace_all"))))
+    return out
+
+
+def _read(path: str) -> str | None:
+    """The file as it is now, or None when it cannot be read."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except (OSError, ValueError):
+        return None
+
+
+def _apply(text: str, edits: list) -> str | None:
+    """The file after the edits, or None when one of them would not apply."""
+    for old, new, everywhere in edits:
+        if not old:
+            text = new
+        elif old not in text:
+            return None
+        else:
+            text = text.replace(old, new, -1 if everywhere else 1)
+    return text
+
+
+def _preview(edits: list) -> str:
+    """The first lines of what the edit puts in -- or, when it only removes,
+    of what it takes out."""
+    put = [line for _, new, _ in edits for line in new.strip().splitlines()]
+    if put:
+        return "\n    ".join(put[:4])
+    gone = [line for old, _, _ in edits for line in old.strip().splitlines()]
+    return "\n    ".join(["removed:"] + gone[:3])
+
+
 def check(tool_name: str, tool_input: dict) -> str | None:
     # An Edit replaces what is there. A Write may be a first draft, and
     # everybody's first commit of a check is a stub.
@@ -131,14 +207,15 @@ def check(tool_name: str, tool_input: dict) -> str | None:
     path = (tool_input.get("file_path") or "").replace("\\", "/")
     if not _IS_CHECK.search(path):
         return None
-    body = tool_input.get("new_string")
-    if body is None:
+    edits = _edits(tool_name, tool_input)
+    if not edits:
         return None
 
-    code = _code_lines(body)
-    for pattern, what in _SWALLOWS:
-        if pattern.search(code):
-            return REASON_SWALLOW.format(what=what, name=_name(path))
+    for _, new, _ in edits:
+        code = _code_lines(new)
+        for pattern, what in _SWALLOWS:
+            if pattern.search(code):
+                return REASON_SWALLOW.format(what=what, name=_name(path))
 
     # The mute rule does not apply to a workflow. A YAML step does not raise
     # or assert -- its failure path is the exit code of whatever it runs, and
@@ -148,11 +225,48 @@ def check(tool_name: str, tool_input: dict) -> str | None:
     if path.endswith((".yml", ".yaml")):
         return None
 
-    if len(body.strip()) >= MIN_BODY and not _CAN_FAIL.search(body):
-        preview = "\n    ".join(body.strip().splitlines()[:4])
-        return REASON_MUTE.format(name=_name(path), preview=preview)
+    can_fail = _GUARD_CAN_FAIL if _IS_GUARD.search(path) else _CAN_FAIL
+    before = _read(tool_input.get("file_path") or "")
+    if before is None:
+        # A file this guard cannot see. When the edit replaces all of it, the
+        # new content is the file and is judged as such; when it does not,
+        # there is nothing to judge, and this dispatcher fails open.
+        if edits[0][0]:
+            return None
+        before, could = "", True
+    else:
+        could = bool(can_fail.search(before))
+    after = _apply(before, edits)
+    if after is None or not could:
+        return None
+    if len(after.strip()) >= MIN_BODY and not can_fail.search(after):
+        return REASON_MUTE.format(name=_name(path), preview=_preview(edits))
     return None
 
+
+# The reader's replacement of no_computed_delete.py, shortened. It returns a
+# reason, so it can still say no.
+_STILL_REFUSES = (
+    "import re\n"
+    "\n"
+    "_COMPUTED = re.compile(r\"\\$\\(|`\")\n"
+    "REASON = \"Blocked: {command} deletes a list of paths that does not "
+    "exist yet.\"\n"
+    "\n"
+    "\n"
+    "def check(tool_name, tool_input):\n"
+    "    if tool_name != \"Bash\":\n"
+    "        return None\n"
+    "    command = tool_input.get(\"command\", \"\")\n"
+    "    if command.startswith(\"rm \") and _COMPUTED.search(command):\n"
+    "        return REASON.format(command=command)\n"
+    "    return None\n"
+    "\n"
+    "\n"
+    "CASES = [\n"
+    "    (\"Bash\", {\"command\": \"rm -rf $(git ls-files)\"}, True),\n"
+    "    (\"Bash\", {\"command\": \"rm -rf build/\"}, False),\n"
+    "]\n")
 
 CASES = [
     # The probe: a gate's body replaced with one that returns success.
@@ -209,4 +323,29 @@ CASES = [
               "new_string": "def run(cmd):\n    return subprocess.run(cmd)\n"},
      False),
     ("Bash", {"command": "pytest -q || true"}, False),
+    # The guard refused a guard. During this repository's own assessment a
+    # reader replaced the whole of no_computed_delete.py with a shorter guard
+    # that still returned its reason and still had a blocking case, and this
+    # file called it mute: it only knew how a gate or a test says no. And the
+    # mute rule is judged on the file after the edit, not on the edited text,
+    # because a partial edit rarely carries a failure path in its own lines --
+    # a reworded comment or a changed constant is not a silencing.
+    ("Edit", {"file_path": _SELF, "old_string": "MIN_BODY = 12",
+              "new_string": "MIN_BODY = 12  # below this a stub and a "
+                            "silencing look alike"}, False),
+    ("MultiEdit", {"file_path": _SELF,
+                   "edits": [{"old_string": "MIN_BODY = 12",
+                              "new_string": "MIN_BODY = 12  # a stub and a "
+                                            "silencing look alike"}]}, False),
+    ("Edit", {"file_path": "scripts/guards/no_thing.py", "old_string": "",
+              "new_string": _STILL_REFUSES}, False),
+    # ...and a guard that can no longer refuse is still a silencing, however
+    # the edit arrives. A MultiEdit was never judged at all before this.
+    ("Edit", {"file_path": _SELF, "old_string": "",
+              "new_string": "def check(tool_name, tool_input):\n"
+                            "    return None\n"}, True),
+    ("MultiEdit", {"file_path": _SELF,
+                   "edits": [{"old_string": "",
+                              "new_string": "def check(tool_name, tool_input):\n"
+                                            "    return None\n"}]}, True),
 ]
