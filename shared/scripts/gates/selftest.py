@@ -618,20 +618,43 @@ CASES = [
     dict(
         gate="check_context_budget.py",
         args=["--cap", "20"],
-        why="a nested CLAUDE.md far over the root cap",
+        why="a nested CLAUDE.md over the root cap is still not charged",
         needle=None,
+        plant=lambda t: write(t, "src/api/CLAUDE.md",
+                              "# api\n\n" + "".join(f"- rule {i}\n"
+                                                    for i in range(1, 30))),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20"],
+        why="a scoped .claude/rules file over the root cap is not charged",
+        # The escape hatch this gate exists to push work toward. Charging for a
+        # scoped rule would push it straight back into CLAUDE.md, which is the
+        # outcome the cap is trying to prevent.
+        needle=None,
+        plant=lambda t: write(t, ".claude/rules/api.md",
+                              '---\npaths:\n  - "src/**"\n---\n\n'
+                              + "".join(f"- rule {i}\n" for i in range(1, 30))),
+    ),
+    # Uncharged is not unbounded. The two cases above prove neither escape
+    # hatch is billed on every turn; these two prove each still has a ceiling
+    # of its own, because the cost of a three-hundred-line scoped rule did not
+    # vanish when it left CLAUDE.md -- it moved from every turn to every
+    # matching read, which is the worse of the two.
+    dict(
+        gate="check_context_budget.py",
+        args=["--cap", "20", "--nested-cap", "50"],
+        why="a nested CLAUDE.md that has become a second root file",
+        needle="second root file",
         plant=lambda t: write(t, "src/api/CLAUDE.md",
                               "# api\n\n" + "".join(f"- rule {i}\n"
                                                     for i in range(1, 80))),
     ),
     dict(
         gate="check_context_budget.py",
-        args=["--cap", "20"],
-        why="a .claude/rules file that declares paths:, far over the cap",
-        # The escape hatch this gate exists to push work toward. Charging for a
-        # scoped rule would push it straight back into CLAUDE.md, which is the
-        # outcome the cap is trying to prevent.
-        needle=None,
+        args=["--cap", "20", "--scoped-cap", "40"],
+        why="a scoped rule longer than one file's worth of context",
+        needle="scoped rule is longer",
         plant=lambda t: write(t, ".claude/rules/api.md",
                               '---\npaths:\n  - "src/**"\n---\n\n'
                               + "".join(f"- rule {i}\n" for i in range(1, 80))),
