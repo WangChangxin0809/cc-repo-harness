@@ -237,13 +237,12 @@ def head_of(r):
             "tier": p["tier"]}
 
 
-def dimensions_of(r, memory=None, judged=None, observed=None):
-    """`memory` is `memory.compare()`'s output, when somebody spent the two
-    agents dimension 4's navigation half needs. Without it that half abstains;
-    the truth half in `r["truth"]` costs nothing and is always there."""
+def dimensions_of(r, judged=None, observed=None):
+    """`judged` is the mutation reading and `observed` the dimension-1 one;
+    both are None unless somebody answered the brief that asks for them."""
     return dim_mod.assess(r["root"], r["probe"], r["blast"], r["catch"],
                           r["catch_why"], r["defects"], r.get("log"),
-                          catch_mod.LADDER, memory, r.get("truth"),
+                          catch_mod.LADDER, r.get("truth"),
                           r.get("value"), r.get("mutants"),
                           r.get("mutants_why", ""), judged,
                           r.get("cover"), r.get("cover_why", ""),
@@ -415,9 +414,6 @@ def main():
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="",
                     help="also write a self-contained page for a person")
-    ap.add_argument("--memory", default="",
-                    help="JSON from `memory.py --score`; without it "
-                         "dimension 4 abstains rather than scoring zero")
     ap.add_argument("--flat", action="store_true",
                     help="the ungrouped page: the same numbers, unsorted")
     a = ap.parse_args()
@@ -515,10 +511,6 @@ def _run(a, root, work):
     if a.flat:
         print(render_flat(r))
     else:
-        memory = None
-        if a.memory:
-            with open(a.memory, encoding="utf-8") as fh:
-                memory = json.load(fh)
         judged = None
         if a.mutant_answers and r.get("mutants"):
             with open(a.mutant_answers, encoding="utf-8") as fh:
@@ -552,7 +544,7 @@ def _run(a, root, work):
             if observed is None:
                 print(f"  --observe-answers ignored: {why}\n")
             r["observe_judged"] = observed
-        head, dims = head_of(r), dimensions_of(r, memory, judged, observed)
+        head, dims = head_of(r), dimensions_of(r, judged, observed)
         print(report_mod.text(head, dims, CANNOT_SAY))
         if a.html:
             where = report_mod.write_html(a.html, head, dims, CANNOT_SAY)

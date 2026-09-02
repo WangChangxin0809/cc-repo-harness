@@ -28,7 +28,7 @@
   {
    "id": 3,
    "real": false,
-   "why": "'two agents' is dimension 4's memory probe costing exactly two repo-probe agents, which is still true -- memory.py prepares two trees and the assessor is told to spawn no more. Compared against agents/, which holds four agent definitions, a different set.",
+   "why": "'two agents' was dimension 4's memory probe, which cost exactly two repo-probe agents. That measurement has since been removed -> 0042, and the sentence with it. T1 compared the count against agents/, a different set.",
    "file": "guide/1-assess.md",
    "claim": "two\nagents",
    "tier": 1

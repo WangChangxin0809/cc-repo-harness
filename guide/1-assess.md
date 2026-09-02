@@ -312,23 +312,28 @@ can be walked around.
 
 ## 4 — Repository memory: is what is written down true, and worth its place?
 
-Whether the memory **works** is not read off the repository. An agent that has
-never seen it answers nine questions on a copy of the tree — six about the whole
-place, three that are the subject lines of real commits, with the commits' own
-diffs as the answer key — and then the same nine on a copy with `CLAUDE.md`,
-`.claude/` and every nested `CLAUDE.md` removed.
-
-> The difference between the two runs is the memory.
-
-That is why nothing below is read off a count of files. A count says a repository
-is better for having adopted somebody else's conventions, and it goes *up* when
-you install this plugin — the instrument rewarding its own presence. A difference
-cannot be raised by adding files
+Nothing below is read off a count of files. A count says a repository is better
+for having adopted somebody else's conventions, and it goes *up* when you
+install this plugin — the instrument rewarding its own presence. So thickness
+appears here as a **denominator** and never as a score: adding files cannot
+raise anything on this page, and adding wrong ones lowers it
 -> [0025](../docs/decisions/0025-dimension-4-asks-whether-an-agent-can-find-its-way.md).
-It costs two agent sessions, so it is opt-in, and without it this half abstains.
 
-The four rows below ask the other question: given that the memory exists, is it
-true and is it worth its place?
+There used to be a row above these that answered a better question. A pair of
+agents read the same questions — one on this tree, one on a copy with
+`CLAUDE.md` and `.claude/` removed — and the difference between them was the
+measurement of what the repository's memory is worth. It was removed: each run
+is a single sample of a non-deterministic process, the reported number is the
+difference of two such samples, and the budget that made the pair affordable is
+exactly what stopped it being averaged. It moved when nothing had changed, and
+a page that improves on a rerun has spent its credibility
+-> [0042](../docs/decisions/0042-a-measurement-noisier-than-its-effect-is-not-a-measurement.md)
+
+**So this dimension no longer claims to know whether the memory works.** It
+asks the question a single deterministic read can answer: is what is written
+down still true, and is it worth what it costs to keep? What is lost is the
+positive claim — *this `CLAUDE.md` is carrying an agent* — and nothing here
+replaces it.
 
 ### 4.1 Dimensions
 

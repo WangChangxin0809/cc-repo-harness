@@ -94,9 +94,6 @@ SUBITEMS = (
      ("can the verification be skipped", "steps that could turn a red run green",
       "CI runs the suite")),
 
-    ("4.0", "finding its way",
-     "two agents, one on this tree and one on a copy with the memory removed",
-     ("an agent finding its way",)),
     ("4.1", "what is written down",
      "the kinds of memory that exist, and whether their references hold",
      ("what it writes down", "references that do not resolve",
