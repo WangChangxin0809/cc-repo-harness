@@ -93,6 +93,24 @@ SUBITEMS = (
      "the repository requires the check, rather than merely offering it",
      ("can the verification be skipped", "steps that could turn a red run green",
       "CI runs the suite")),
+    # The pipeline itself, read by pipeline.py. Conventions -- matrix,
+    # cache, job count -- are not rows; each of these passes 0043's test:
+    # there is no other way to get the effect it measures -> 0044
+    ("3.3", "scope",
+     "which changes run which checks, and which run none",
+     ("changes that run no check", "does not run when it changes itself",
+      "job-level filter")),
+    ("3.4", "the pipeline checked",
+     "whether the workflow files are themselves linted, audited or tested",
+     ("pipeline is itself checked", "rules a step refuses",
+      "workflow audit findings")),
+    ("3.5", "the verdict's trust",
+     "how often a rerun changed the verdict, and how long one takes",
+     ("reruns that changed the verdict",)),
+    ("3.6", "what ships",
+     "tags, what makes them, whether the latest is on the default branch",
+     ("what ships from here", "latest tag is on this branch",
+      "manifest agrees")),
 
     # Not "did it adopt our layout" -- 0025 refused that and still does. The
     # places counted here are Claude Code's own, and there is no other way to
@@ -158,8 +176,11 @@ def _rows(run):
 # than the flag because an abstention and an ordinary fact share the `info`
 # flag: `defects available to replay: 12` is measured, `an agent finding its
 # way: not probed` is not, and both are info.
+# `not readable` is 3.2's and 3.5's word for a remote nobody could ask; it
+# was missing here, so a branch-protection row nobody could read was being
+# scored as a measurement of it.
 ABSTAINED = ("could not judge", "cannot judge", "not probed", "not yet judged",
-             "not run", "not tested", "pending", "abstain")
+             "not run", "not tested", "not readable", "pending", "abstain")
 
 
 def measured(row):

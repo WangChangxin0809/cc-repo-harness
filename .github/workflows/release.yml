@@ -1,0 +1,64 @@
+name: release
+
+# When the version in .claude-plugin/plugin.json changes on main, tag that
+# commit `v<version>` and publish a GitHub release from it.
+#
+# This is the whole of what "shipping" means for a plugin: Claude Code decides
+# whether an installed copy needs updating by comparing that version, and the
+# tag is what lets anyone say which commit a version was. Until this file
+# existed both were done by hand, and the instrument's own row for it read
+# "no workflow makes a tag or publishes anything: every release is a person's
+# hands". The pull-request half -- that a change to the shipped surface must
+# raise the version -- is in ci.yml, under release-hygiene.
+#
+# The decision is in .github/scripts/release_tag.py, which has a self-test,
+# for the same reason every step in ci.yml is one line: judgement in YAML
+# cannot be run before pushing and cannot be watched failing. Its third
+# answer is the one that matters -- a version that already has a tag at a
+# different commit was reused, and the run stops rather than moving anything.
+#
+# Idempotent: a rerun, or a merge that touched plugin.json without changing
+# the version, finds the tag in place and exits green having done nothing.
+
+on:
+  push:
+    branches: [main]
+    paths: [".claude-plugin/plugin.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # The one job in this repository that writes: a tag and a release.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          # The script compares the tag's commit with HEAD; tags are not
+          # fetched by a shallow checkout.
+          fetch-depth: 0
+
+      - name: does this version need a tag
+        id: decide
+        run: python3 .github/scripts/release_tag.py >> "$GITHUB_OUTPUT"
+
+      - name: tag it and publish the release
+        if: steps.decide.outputs.action == 'create'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes

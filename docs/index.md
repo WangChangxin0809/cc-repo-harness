@@ -37,6 +37,7 @@
 | Know why the agent that tests a promise cannot read the repository | [0040](decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md) |
 | Know why dimension 4 stopped measuring whether an agent can navigate | [0042](decisions/0042-a-measurement-noisier-than-its-effect-is-not-a-measurement.md) |
 | Know why counting mechanisms is allowed where counting files is not | [0043](decisions/0043-a-mechanism-is-not-a-convention.md) |
+| Know why the pipeline is read for scope, self-check, reruns and shipping, and never for its shape | [0044](decisions/0044-the-pipeline-is-read-for-what-it-does-not-what-it-resembles.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 

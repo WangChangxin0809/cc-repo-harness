@@ -58,6 +58,7 @@ import conflict as conflict_mod
 import promises as promises_mod
 import units as units_mod
 import permitted as permitted_mod  # noqa: E402
+import pipeline as pipeline_mod  # noqa: E402
 import dimensions as dim_mod  # noqa: E402
 import judge as judge_mod  # noqa: E402
 import run_mutants as mutants_mod  # noqa: E402
@@ -136,6 +137,7 @@ def gather(root, full, instances, work, command=None, mutate=0):
     # only prints once an agent has judged the evidence, per its own module.
     r["observe"], r["observe_why"] = observe_mod.assess(root)
     r["gate"], r["gate_why"] = merge_mod.assess(root)
+    r["pipeline"], r["pipeline_why"] = pipeline_mod.assess(root)
     r["conflict"], r["conflict_why"] = conflict_mod.narrow(root)
     r["units"], r["units_why"] = units_mod.measure(root)
     r["permitted"], r["permitted_why"] = permitted_mod.evidence(root)
@@ -249,7 +251,8 @@ def dimensions_of(r, judged=None, observed=None):
                           r.get("observe"), observed, r.get("gate"),
                           r.get("conflict"), r.get("conflict_judged"),
                           r.get("promises"), r.get("units"),
-                          r.get("permitted"), r.get("truth_judged"))
+                          r.get("permitted"), r.get("truth_judged"),
+                          r.get("pipeline"))
 
 
 def render_flat(r):

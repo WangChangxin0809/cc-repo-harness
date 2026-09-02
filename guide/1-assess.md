@@ -270,6 +270,71 @@ that something *ran*. Whether it was *required* is invisible from all three.
 Whether the checks *work* is dimension 2's question; this one asks only whether
 they can be walked around.
 
+The four rows below read the pipeline itself, and only for GitHub Actions;
+another host abstains. Matrix breadth, caching, job count and reusable
+workflows are conventions and are not read
+-> [0044](../docs/decisions/0044-the-pipeline-is-read-for-what-it-does-not-what-it-resembles.md)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/pipeline.py --root .
+```
+
+### 3.3 Scope
+
+*Asks:* which changes run which checks, and which run none?
+
+Every workflow on pull requests is read for `paths:` and `paths-ignore:`. One
+workflow with no filter means every change is checked. When all of them carry
+a filter, the row names what a change can touch and run nothing. A filter
+that leaves out `.github/workflows` is called out on its own: an edit to the
+pipeline is then the one change the pipeline never checks. A job-level filter
+(`paths-filter`) is listed and not read, since which checks run is computed
+inside the run.
+
+*Agent judges.* A filter is usually deliberate. The reading is whether what it
+skips can break anything, and a docs-only change is exactly the one that
+breaks a routing table.
+
+### 3.4 The pipeline checked
+
+*Asks:* are the workflow files themselves linted, audited or tested?
+
+A workflow file is code nobody runs locally, and its first test is the next
+push. Three mechanisms are read as present or absent: a linter
+(`actionlint`), a security audit (`zizmor`), and a test that reads `.github/`
+or runs a `--self-test`. Steps that search the tree and fail the job are
+listed as *rules a step refuses*: the CI-side twin of a guard, paid on every
+run instead of every turn, handed over and never counted.
+
+The audit row is zizmor's own findings, counted by severity, when it is on
+PATH. Absent, the row abstains; nothing here reimplements it.
+
+### 3.5 The verdict's trust
+
+*Asks:* how often did a rerun change the verdict?
+
+From the repository's run history: runs whose first attempt failed and whose
+last succeeded, on the same commit. A verdict that changed with no change to
+the code depended on something other than the code, which is flakiness
+measured rather than felt. The median time to a verdict travels with the row.
+No remote, no `gh`, or no auth reads as *not readable*, never as zero flips.
+
+### 3.6 What ships
+
+*Asks:* what leaves this repository, what makes it, and can the latest be
+traced?
+
+Tags are counted, the latest is checked for reachability from `HEAD`, and the
+workflows are read for anything that publishes: a release, a tag, an image, a
+package. The manifest's version (`plugin.json`, `package.json`,
+`pyproject.toml`, `Cargo.toml`) is compared with the latest tag. A repository
+that ships nothing is reported as such, in `info`: fine for one nobody
+installs.
+
+*Bad reading costs:* a tag off the default branch means what shipped is not
+what the branch says shipped. A manifest ahead of its tag is a version nobody
+can install yet, or a release somebody forgot.
+
 ---
 
 ## 4 — Repository memory: is what is written down true, and worth its place?

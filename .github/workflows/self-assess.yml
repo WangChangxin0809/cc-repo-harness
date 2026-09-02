@@ -1,0 +1,76 @@
+name: self-assess
+
+# Measure this repository the way it measures everyone else's, once a week,
+# and keep the page.
+#
+# The plugin's own argument is that a harness decays and cannot see itself
+# doing it -> docs/decisions/0021. The guide's last stage is "re-measure,
+# months later, to find out whether it rotted", and a stage that depends on
+# somebody remembering is the stage that does not happen. So the instrument
+# runs on a schedule, and each page is kept for ninety days: the before that
+# any later after is compared against.
+#
+# It reports and never gates. A bad reading here is a finding for a person
+# to act on, and the assessment's own rule is that nothing in the repository
+# may be changed by it. Same shape as benchmark.yml, for the same reason.
+#
+# Everything the fact sheet needs is on the runner: `gh` with the job token,
+# for branch protection and run history (3.2, 3.5); the full history, for the
+# defect replay (2.3); `coverage`, for 2.1. The replay runs this repository's
+# own check script three times, which is most of the minutes below.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"   # Mondays, an hour after benchmark.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: the coverage tool dimension 2.1 reads
+        run: python3 -m pip install -r .github/requirements-dev.txt
+
+      - name: measure this repository the way it measures others
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 shared/scripts/assess/factsheet.py --root . --test-command "python3 scripts/check.py" --json assessment.json --html assessment.html | tee assessment.txt
+
+      - name: put the page where it will actually be read
+        run: |
+          {
+            echo "## assessment @ \`${GITHUB_SHA::10}\`"
+            echo
+            echo '```'
+            cat assessment.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: assessment-${{ github.sha }}
+          path: |
+            assessment.json
+            assessment.html
+            assessment.txt
+          retention-days: 90

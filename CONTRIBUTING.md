@@ -18,6 +18,14 @@ code — the code will tell you how things work, not what this project wants.
   plugin, and the repository still teaches a fresh agent how to work in it.
   Machinery that lives here rather than in the target repository fails that.
 
+## Releasing
+
+Raise `version` in `.claude-plugin/plugin.json` in the pull request that ships
+the change; CI refuses a change to the shipped surface without it. When that
+merges, `release.yml` tags the commit `v<version>` and publishes a GitHub
+release with generated notes. There is nothing else to do, and doing it by
+hand is what the workflow exists to stop.
+
 ## Before you open a pull request
 
 ```bash
