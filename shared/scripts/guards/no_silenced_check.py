@@ -77,7 +77,7 @@ import re
 _SELF = os.path.abspath(__file__)
 
 _IS_CHECK = re.compile(
-    r"(?:^|/)(?:gates|guards|tests?)/"
+    r"(?:^|/)(?:gates|guards|tests?|selftests?)/"
     r"|(?:^|/)test_[^/]*$"
     r"|_test\.[A-Za-z0-9]+$"
     r"|(?:^|/)[^/]*selftest[^/]*$"
@@ -93,9 +93,12 @@ _CAN_FAIL = re.compile(
     r"|::error::"
     r"|\bexit\(\s*[1-9]")
 
-# A guard reports failure by returning a reason from check(): any `return`
-# but None, 0, False or an empty string.
-_IS_GUARD = re.compile(r"(?:^|/)guards/")
+# Some checks report failure by returning a reason rather than by raising:
+# a guard returns one from `check()`, and a selftest case returns the problem
+# it found, or None. For those, any `return` but None, 0, False or an empty
+# string is a failure path -- judging them by `assert` alone reads a whole
+# convention as mute and refuses ordinary work on it.
+_BY_RETURN = re.compile(r"(?:^|/)guards/|(?:^|/)selftests?/")
 _GUARD_CAN_FAIL = re.compile(
     _CAN_FAIL.pattern
     + r"|\breturn[ \t]+(?!None\b|0\b|False\b|[\"']{2}|#)\S")
@@ -225,7 +228,7 @@ def check(tool_name: str, tool_input: dict) -> str | None:
     if path.endswith((".yml", ".yaml")):
         return None
 
-    can_fail = _GUARD_CAN_FAIL if _IS_GUARD.search(path) else _CAN_FAIL
+    can_fail = _GUARD_CAN_FAIL if _BY_RETURN.search(path) else _CAN_FAIL
     before = _read(tool_input.get("file_path") or "")
     if before is None:
         # A file this guard cannot see. When the edit replaces all of it, the
@@ -308,6 +311,23 @@ CASES = [
     ("Edit", {"file_path": ".github/workflows/ci.yml", "old_string": "",
               "new_string": "# never `|| true` here\n"
                             "      - run: kill $PID || true\n"}, True),
+    # A directory of cases, not a file with `selftest` in its name. This
+    # repository split a 6074-line `assess/selftest.py` into
+    # `assess/selftests/*_cases.py`, and 192 cases walked out from behind
+    # this guard in one commit: the basename rule below stopped matching and
+    # nothing in the directory rule did. Its own assessment found it, by
+    # aiming the silencing probe at `blast_cases.py` and getting through.
+    ("Edit", {"file_path": "shared/scripts/assess/selftests/blast_cases.py",
+              "old_string": "", "new_string": "def case_x(t):\n    pass\n"},
+     True),
+    ("Edit", {"file_path": "scripts/selftest/cases_for_gates.py",
+              "old_string": "", "new_string": "import sys\nsys.exit(0)\n"},
+     True),
+    # And a case module being made stricter is still ordinary work.
+    ("Edit", {"file_path": "shared/scripts/assess/selftests/blast_cases.py",
+              "old_string": "", "new_string": "def case_x(t):\n"
+                            "    if wrong(t):\n        return 'it broke'\n"
+                            "    return None\n"}, False),
     # The probe's own twin: an ordinary source edit.
     ("Edit", {"file_path": "src/main.py", "old_string": "",
               "new_string": "# an ordinary change\n"}, False),
