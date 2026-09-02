@@ -59,7 +59,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ecosystems import DID_NOT_RUN, argv_of, display, find, run, sh  # noqa: E402
+from ecosystems import (DID_NOT_RUN, argv_of, display, find,  # noqa: E402
+                        find_all, run, sh)
 from history import candidates, mine  # noqa: E402
 
 LADDER = ("before-write", "same-turn", "local-suite", "ci", "never")
@@ -251,6 +252,104 @@ def untracked_entry(root, repo, command):
     return None
 
 
+class Suites:
+    """Every suite the replay runs, and the one rule for pooling them.
+
+    A repository with Python at the root and Go under `cli/` has two suites,
+    and the ladder used to run the first one it found. A defect whose
+    regression test lived in the other read as `never` -- a sentence about
+    the instrument, printed as a sentence about the repository.
+
+    So every suite `find_all` returns runs at each rung, and the verdict is
+    pooled: **red if any suite is red; could-not-run only if no suite ran;
+    green otherwise**. A suite whose tool is not on this machine keeps
+    command None and is carried as *found but not run* -- an absence on the
+    machine, which abstains for that suite and never turns the pool red
+    -> 0047.
+
+    Scoping is per suite. A suite whose subtree holds one of the tests the
+    fix touched is narrowed to them, as before. A suite whose subtree holds
+    none of them runs whole rather than being skipped: the fix's own test
+    lives in one suite, but the source it reverted may break an existing
+    test in another, and seeing that is the whole reason to run more than
+    one. The price is one extra suite run per rung, which is bounded by the
+    number of suites and not by the size of the history."""
+
+    def __init__(self, pairs):
+        self.pairs = [(eco, cmd) for eco, cmd in pairs]
+
+    def __len__(self):
+        return len(self.pairs)
+
+    @property
+    def runnable(self):
+        return [(eco, cmd) for eco, cmd in self.pairs if cmd]
+
+    @property
+    def ecosystem(self):
+        return " + ".join(eco.name for eco, _cmd in self.pairs)
+
+    @property
+    def command(self):
+        return " ; ".join(display(cmd) for _eco, cmd in self.runnable)
+
+    def install(self, repo):
+        for eco, _cmd in self.runnable:
+            for step in eco.install(repo):
+                sh(step, repo, 900)
+
+    def entry_missing(self, repo):
+        return any(_entry_missing(repo, cmd) for _eco, cmd in self.runnable)
+
+    def scoped(self, tests):
+        """The runnable suites, each narrowed to the tests in its subtree,
+        or whole where none are."""
+        return Suites([(eco, eco.scope(cmd, tests) or cmd)
+                       for eco, cmd in self.runnable])
+
+    def each(self, repo, codes=None):
+        """[(eco, verdict, detail)] -- one run per runnable suite.
+
+        `codes` overrides every suite's own vocabulary for what "did not
+        run" means; None asks each runner for its own."""
+        return [(eco, ) + run(repo, cmd, eco.did_not_run if codes is None
+                                else codes)
+                for eco, cmd in self.runnable]
+
+    def run(self, repo, codes=None):
+        """(verdict, one line), pooled. See the class docstring."""
+        return pool(self.each(repo, codes))
+
+
+def pool(results):
+    """The one verdict of several suites: red beats green beats could-not-run.
+
+    The detail names the suite it came from whenever there is more than one,
+    so a red on the page says *which* suite went red."""
+    if not results:
+        return "could-not-run", "no suite could run"
+    named = len(results) > 1
+
+    def say(eco, detail):
+        return f"{eco.name}: {detail}" if named else detail
+
+    for eco, verdict, detail in results:
+        if verdict == "red":
+            return "red", say(eco, detail)
+    for eco, verdict, detail in results:
+        if verdict == "green":
+            return "green", say(eco, detail)
+    eco, _verdict, detail = results[0]
+    return "could-not-run", say(eco, detail)
+
+
+def _verdict(repo, cmd, codes=DID_NOT_RUN):
+    """`cmd` is a `Suites`, or one argv for a caller that still has one."""
+    if isinstance(cmd, Suites):
+        return cmd.run(repo, codes)
+    return run(repo, cmd, codes)
+
+
 def park(repo, sha):
     # --force, because parking is also how an instance is undone: the tree
     # carries the injected defect at that point.
@@ -299,7 +398,7 @@ def prior_suite(repo, row, cmd, codes):
     not a fault -- it is the denominator the interesting rows are read
     against. `caught` / `missed` / None when it could not run."""
     _revert(repo, row, list(row["source"]) + list(row.get("tests") or []))
-    verdict, _detail = run(repo, cmd, codes)
+    verdict, _detail = _verdict(repo, cmd, codes)
     return {"red": "caught", "green": "missed"}.get(verdict)
 
 
@@ -413,7 +512,9 @@ def rung(repo, row, pre, post, cmd, ci, ci_secs=None, broke=None):
                     time.monotonic() - t1)
 
     t2 = time.monotonic()
-    verdict, detail = run(repo, cmd)
+    # Every suite, pooled: red if any is red. `cmd` is a `Suites` from
+    # `assess` and a plain argv from anyone else.
+    verdict, detail = _verdict(repo, cmd)
     suite = time.monotonic() - t2
     if verdict == "red":
         return "local-suite", detail, None, suite
@@ -474,7 +575,6 @@ def assess(root, instances, work, command=None):
                       "fix-with-test commit to replay")
 
     repo = bench(root, work)
-    eco, cmd = find(repo)
     if command:
         missing = untracked_entry(root, repo, command)
         if missing:
@@ -482,7 +582,9 @@ def assess(root, instances, work, command=None):
                           f"which is in the working tree and not tracked by "
                           f"git. The replay runs in a clean clone, so commit "
                           f"it or name a tracked command")
-        cmd = argv_of(command)
+        # Exactly one suite, the one somebody typed. The ecosystem the table
+        # would have found still lends its scoping and its exit codes.
+        eco, _found = find(repo)
         eco = eco or type("Given", (), {
             "name": "given", "tool": None,
             # A command somebody passed on the command line is theirs, and
@@ -490,14 +592,26 @@ def assess(root, instances, work, command=None):
             "did_not_run": DID_NOT_RUN + (2,),
             "install": staticmethod(lambda p: []),
             "scope": staticmethod(lambda c, t: None)})()
-    if cmd is None:
+        suites = Suites([(eco, argv_of(command))])
+    else:
+        suites = Suites(find_all(repo))
+    if not suites.runnable:
+        lacking = [f"{eco.name} needs {eco.tool}, which is not on PATH"
+                   for eco, _cmd in suites.pairs if eco.tool]
         return None, ("cannot judge: no runnable test command"
-                      + (f" ({eco.name} needs {eco.tool}, which is not on "
-                         f"PATH)" if eco and eco.tool else "")
+                      + (" (" + "; ".join(lacking) + ")" if lacking else "")
                       + " — pass --test-command if this repository has a "
                         "suite the table does not recognise")
-    for step in eco.install(repo):
-        sh(step, repo, 900)
+    suites.install(repo)
+    # What each suite did across the replay, for the page. A suite whose
+    # tool is missing never ran and says so; one that was red at every fix
+    # it was tried at says that instead.
+    ledger = {eco.name: {"ecosystem": eco.name,
+                         "command": display(cmd) if cmd else "",
+                         "ran": False,
+                         "why": "" if cmd else
+                         f"{eco.tool} is not installed here"}
+              for eco, cmd in suites.pairs}
     # Only the hooks that would actually run for the payload the ladder
     # sends. The ladder edits files, so a Bash-only guard is not a layer that
     # failed to catch this -- it is a layer that was never asked.
@@ -521,7 +635,7 @@ def assess(root, instances, work, command=None):
     # *that was there* caught the defect, and that suite is the one in the
     # parked tree. So re-detect per instance, and fall back to the HEAD command
     # only where the parked tree offers none.
-    at_head, eco_at_head = cmd, eco
+    at_head = suites
     for row in rows:
         park(repo, row["sha"])
         # The wiring that was there. The bench is a clone, so this reads only
@@ -536,35 +650,60 @@ def assess(root, instances, work, command=None):
         # ecosystem: a commit from before the `tests/` directory existed falls
         # through to a `Makefile` whose `test` target drives something else
         # entirely. That turned a case here from `local-suite` to nothing.
-        eco, cmd = eco_at_head, at_head
-        if command is None and _entry_missing(repo, cmd):
-            eco_then, then = find(repo)
-            if then is not None:
-                eco, cmd = eco_then, then
+        here = at_head
+        if command is None and at_head.entry_missing(repo):
+            then = Suites(find_all(repo))
+            if then.runnable:
+                here = then
         tests = [p for p in row["tests"] if os.path.exists(os.path.join(repo, p))]
-        scoped = eco.scope(cmd, tests) or cmd
-        base, detail = run(repo, scoped, eco.did_not_run)
-        if base != "green":
+        scoped = here.scoped(tests)
+        # Each suite must be green at the fix to take part in this instance.
+        # One that is not is left out of the instance and says so in the
+        # ledger; the instance is unusable only when none is left, which is
+        # what a single red suite meant before there were several.
+        ready, failed = [], []
+        for (eco, cmd), (_eco, base, detail) in zip(scoped.runnable,
+                                                    scoped.each(repo)):
+            if base == "green":
+                ready.append((eco, cmd))
+            else:
+                failed.append((eco, base, detail))
+                if eco.name in ledger and not ledger[eco.name]["ran"]:
+                    ledger[eco.name]["why"] = (f"at {row['sha'][:10]} the "
+                                               f"suite was {base}: {detail}")
+        if not ready:
+            _eco, base, detail = failed[0]
             out.append({"sha": row["sha"][:10], "subject": row["subject"],
                         "rung": None, "detail": f"unusable — at the fix the "
                         f"tests are {base}: {detail}"})
             continue
+        for eco, _cmd in ready:
+            if eco.name in ledger:
+                ledger[eco.name].update(ran=True, why="")
+        active = Suites(ready)
+        whole = Suites([(eco, cmd) for eco, cmd in here.runnable
+                        if any(eco is e for e, _c in ready)])
         wrong = false_block(repo, row, pre, post)
         park(repo, row["sha"])
         broke = []
-        got, detail, _h, secs = rung(repo, row, pre, post, scoped, ci,
+        got, detail, _h, secs = rung(repo, row, pre, post, active, ci,
                                      ci_secs, broke)
         park(repo, row["sha"])
-        prior = prior_suite(repo, row, cmd, eco.did_not_run) if got else None
+        prior = prior_suite(repo, row, whole, None) if got else None
         park(repo, row["sha"])
         out.append({"sha": row["sha"][:10], "subject": row["subject"],
                     "rung": got, "detail": detail, "false_block": wrong,
                     "seconds": secs, "tests": tests,
                     "source": row["source"], "prior_suite": prior,
                     "hooks": at_commit,
+                    "suites": [eco.name for eco, _cmd in ready],
                     "broke": [f"{h['command'][:60]} — {why}"
                               for h, why in broke]})
-    return {"ecosystem": eco.name, "command": display(cmd),
+    return {"ecosystem": suites.ecosystem, "command": suites.command,
+            # Every suite found at HEAD, whether it ran, and if not, why.
+            # A `ran: False` with a tool named is an absence on this machine
+            # and abstains for that suite; it is never a red -> 0047
+            "suites": [ledger[eco.name] for eco, _cmd in suites.pairs],
             "ci": " ".join(ci) if ci else "", "ci_seconds": ci_secs,
             # What HEAD wires. Each row carries what was wired at its own
             # commit, which is what it was fired at.
@@ -606,6 +745,16 @@ def render(r):
         "  ladder   " + "  ".join(f"{k}:{counts[k]}" for k in LADDER)
         + (f"  unusable:{unusable}" if unusable else ""),
         f"  suite    {r['command']}   ci: {r['ci'] or 'none found'}",
+    ]
+    suites = r.get("suites") or []
+    if len(suites) > 1:
+        # Several suites, pooled: the page has to say which ran, because a
+        # red is any of them and a `never` is all of them.
+        for s in suites:
+            lines.append(f"           {s['ecosystem']}: "
+                         + (s["command"] if s.get("ran")
+                            else f"not run — {s.get('why', '')}"))
+    lines += [
         f"  hooks    PreToolUse:{r['hooks']['PreToolUse']}  "
         f"PostToolUse:{r['hooks']['PostToolUse']}   (at HEAD; each row is "
         f"fired at what its own commit wired)",

@@ -168,7 +168,14 @@ Where a criterion cannot be produced, the row is absent, not zero.
 That table is what can be *read*. What the replay can *run* on its own is
 narrower: `npm test`, `pytest`, `cargo test`, `go test`, `make test`, and a
 command the repository's own documents declare, found at the root or up to
-two directories below it. Java, Kotlin, C#, Ruby and Dart are read from
+two directories below it. Every suite found is run -- Python at the root and
+Go under `cli/` are two suites, measured at each rung and pooled: red if any
+is red, could not run only if none ran; a suite whose toolchain this machine
+lacks is listed as found but not run and abstains. A root `Makefile` or a
+documented command is the recipe that drives them all and runs alone, and
+coverage is each suite's own tool, summed
+-> [0050](../docs/decisions/0050-every-ecosystem-is-measured-and-the-verdict-is-pooled.md).
+Java, Kotlin, C#, Ruby and Dart are read from
 reports the repository already produces and are never driven blind. For
 anything else, `--test-command` runs through `bash -c`, in a clean clone of
 `HEAD`, and must exist at the older commits the replay parks at.

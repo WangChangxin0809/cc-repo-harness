@@ -431,22 +431,54 @@ def _subdirs(path, depth=2):
     return out
 
 
-def find(path):
-    """(ecosystem, command) for a repository, or (None, None).
+def _runnable(eco, cmd):
+    """The command, or None when the tool it needs is not on this machine.
 
-    The root first. Then each directory one and two levels down, shallowest
-    first, because a monorepo keeps its Go under `cli/` and its Node under
-    `web/` and has no `go.mod` at the root -- a layout the first version of
-    this function reported as no ecosystem at all, for a language it
-    supported."""
+    None here is "found but could not run": an absence on the machine, which
+    abstains for that suite and is never a red -> 0047."""
+    if eco.tool and shutil.which(eco.tool) is None:
+        return None
+    return cmd
+
+
+# The two ecosystems that are not a language: a recipe, and a sentence in a
+# document. Either one at the root is how a repository says "this runs all
+# of it", which is why they can claim the tree in `find_all`.
+AGGREGATES = ("make", "declared")
+
+
+def find_all(path):
+    """Every (ecosystem, command-or-None) in a repository, in a stable order.
+
+    The languages first: each of Node, Python, Rust and Go that detects at
+    the root, then the first ecosystem found in each directory one and two
+    levels down, shallowest first -- a monorepo keeps its Go under `cli/`
+    and its Node under `web/` and has no `go.mod` at the root. A directory
+    nested inside one already taken is skipped, and a documented command is
+    only ever read at the root, because a document names its own paths.
+
+    Then the aggregates. A root `Makefile` with a `test:` target, or a
+    command the repository documents for itself, is the recipe that drives
+    everything, so when there is more than one language suite -- or none --
+    it claims the tree and is returned alone. When there is exactly one, the
+    language runner is the answer, as `find` has always given it: `pytest`
+    knows how to name a single test and `make` does not, and there is nothing
+    to aggregate.
+
+    A pair whose tool is not installed keeps command None. That suite was
+    found and could not run, which is a fact about this machine and abstains
+    for that suite; it never turns the pooled verdict red -> 0047."""
+    suites = []
     for eco in ECOSYSTEMS:
-        cmd = eco.detect(path)
-        if cmd is None:
+        if eco.name in AGGREGATES:
             continue
-        if eco.tool and shutil.which(eco.tool) is None:
-            return eco, None
-        return eco, cmd
+        cmd = eco.detect(path)
+        if cmd is not None:
+            suites.append((eco, _runnable(eco, cmd)))
+    taken = []
     for sub in _subdirs(path):
+        if any(sub == t or sub.startswith(t + "/") for t in taken):
+            continue
         for eco in ECOSYSTEMS:
             if eco.name == "declared":
                 continue            # a document names its own paths; root only
@@ -454,10 +486,27 @@ def find(path):
             if cmd is None:
                 continue
             rooted = Rooted(eco, sub)
-            if eco.tool and shutil.which(eco.tool) is None:
-                return rooted, None
-            return rooted, rooted._wrap(cmd)
-    return None, None
+            taken.append(sub)
+            suites.append((rooted, _runnable(rooted, rooted._wrap(cmd))))
+            break
+    if len(suites) != 1:
+        for eco in ECOSYSTEMS:
+            if eco.name not in AGGREGATES:
+                continue
+            cmd = eco.detect(path)
+            if cmd is not None:
+                return [(eco, _runnable(eco, cmd))]
+    return suites
+
+
+def find(path):
+    """(ecosystem, command) for a repository, or (None, None).
+
+    The first suite `find_all` returns: the root before any subdirectory,
+    and the aggregate when there is one. Callers that can run only one
+    command keep this; the replay and coverage run them all."""
+    found = find_all(path)
+    return found[0] if found else (None, None)
 
 
 def run(path, cmd, codes=DID_NOT_RUN):
