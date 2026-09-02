@@ -45,6 +45,7 @@
 | Know why a probe reaches only the hooks Claude Code would run, and why the matcher names every tool a guard judges | [0049](decisions/0049-the-instrument-asks-a-hook-only-what-claude-code-would-and-the-matcher-names-every-tool-a-guard-judges.md) |
 | Know why the second pass writes the run back, and why a page without its readers says so | [0051](decisions/0051-the-run-is-the-record-and-the-header-says-what-is-still-open.md) |
 | Know why the third-party scorer left CI, and what a second opinion has to do to stay | [0052](decisions/0052-the-second-opinion-was-read-once-and-then-retired.md) |
+| Know why a file over 2000 lines is a gate finding and not a style opinion | [0053](decisions/0053-a-file-an-agent-cannot-read-in-one-call-is-two-files.md) |
 | Know why every suite in a tree is run, how their verdicts are pooled, and why a root Makefile claims the tree | [0050](decisions/0050-every-ecosystem-is-measured-and-the-verdict-is-pooled.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
