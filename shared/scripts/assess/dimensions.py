@@ -645,7 +645,16 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
         reached[k] = total - seen
         seen += counts.get(k, 0)
 
-    def state(exists, rung, what):
+    # The counts above are what HEAD wires. Each replayed row was fired at
+    # what its *own* commit wired, and a hook committed after the defect was
+    # not there to catch it: that is "absent at the defect", not "0 of N
+    # caught", and it must not be flagged as a layer that failed.
+    scored = [r for r in (catch or {}).get("rows") or []
+              if r.get("rung") and r.get("hooks") is not None]
+    absent = {ev: sum(1 for r in scored if not (r["hooks"] or {}).get(ev, 0))
+              for ev in ("PreToolUse", "PostToolUse")}
+
+    def state(exists, rung, what, event=None):
         if not exists:
             return f"{rung}: none wired"
         got = counts.get(rung, 0)
@@ -653,13 +662,20 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
             return f"{rung}: {what}, {got} caught"
         if not reached.get(rung, 0):
             return f"{rung}: {what}, nothing reached it"
+        gone = absent.get(event, 0) if event else 0
+        if gone and gone >= reached[rung]:
+            return (f"{rung}: {what} at HEAD, wired at none of the "
+                    f"{reached[rung]} replayed commits")
+        if gone:
+            return (f"{rung}: {what} ({gone} replayed before it was wired), "
+                    f"0 of {reached[rung] - gone} caught")
         return f"{rung}: {what}, 0 of {reached[rung]} caught"
 
     bits = [
         state(pre, "before-write",
               f"{pre} hook(s)" + (f" incl. {deny} deny rule(s)"
-                                  if deny else "")),
-        state(post, "same-turn", f"{post} hook(s)"),
+                                  if deny else ""), "PreToolUse"),
+        state(post, "same-turn", f"{post} hook(s)", "PostToolUse"),
         state(suite, "local-suite",
               f"{len(disc.get('check_dirs') or [])} check dir(s)"),
         state(ci, "ci", ", ".join(disc.get("ci_entry") or []) or "an entry point")
