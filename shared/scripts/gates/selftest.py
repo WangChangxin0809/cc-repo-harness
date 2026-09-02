@@ -679,6 +679,37 @@ CASES = [
                               "from src.service.use import use\n\n"
                               "def other():\n    return use()\n"),
     ),
+    dict(
+        gate="check_hook_paths.py",
+        # This is the real defect fixed at aafdc0113: every wired hook command
+        # was a bare relative path, which only resolved when the session's cwd
+        # happened to be the repository root. `python3 <missing>.py` exits 2,
+        # the same code Claude Code reads as *block* -- so the failure is not
+        # silence, it is every matching tool call refused with an unreadable
+        # "can't open file".
+        why="a hook command wired to a bare relative path",
+        needle="resolves from one directory",
+        plant=lambda t: write(t, ".claude/settings.json", json.dumps({
+            "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+                {"type": "command",
+                 "command": "python3 shared/scripts/guards/dispatch.py"}]}]}},
+            indent=2) + "\n"),
+    ),
+    dict(
+        gate="check_hook_paths.py",
+        # The near-miss the gate must not learn to flag: a shell one-liner
+        # that names no script at all, only a bare command word and a
+        # redirect target. Treating either as an unresolved path would make
+        # this indistinguishable from a gate that fires on every hook.
+        why="a shell one-liner naming no script, which must NOT be reported",
+        needle=None,
+        plant=lambda t: write(t, ".claude/settings.json", json.dumps({
+            "hooks": {"SessionStart": [{"matcher": "*", "hooks": [
+                {"type": "command",
+                 "command": 'command -v jq >/dev/null || '
+                            'echo "install jq: brew install jq" >&2'}]}]}},
+            indent=2) + "\n"),
+    ),
 ]
 
 

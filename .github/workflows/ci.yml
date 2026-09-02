@@ -112,6 +112,17 @@ jobs:
       - name: public face intact
         run: python3 shared/scripts/gates/check_community_health.py --root .
 
+      # `aafdc0113` fixed every wired hook here: each one named its script by
+      # a bare relative path, which only resolved when the session's cwd
+      # happened to be the repository root. `python3 <missing>.py` exits 2,
+      # the same code Claude Code reads as *block*, so the failure was not
+      # silence but every matching tool call refused for an unreadable reason
+      # -- and for the Stop hook, a session that could never be ended from
+      # outside a worktree. This is the same-turn layer that defect disabled,
+      # reading the wiring directly instead of trusting it is intact.
+      - name: wired hook commands resolve from any working directory
+        run: python3 shared/scripts/gates/check_hook_paths.py --root .
+
       - name: docs routing table resolves
         run: python3 shared/scripts/gates/check_docs_index.py --root .
 
