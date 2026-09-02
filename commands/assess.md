@@ -26,13 +26,26 @@ put back, and how late each one is caught. It costs minutes, runs that
 repository's tests, and prints the command before it runs. `--no-full` only
 if the caller asked.
 
-If it says **no test command was found**, that is a fact about a table, not
-about the repository. Read the CI file and pass what you find as
-`--test-command`. It runs through a shell, so `cd app && flutter test` works;
-everything it names must be tracked by git and exist at older commits. When
-that command cannot be wrapped by a coverage tool — a loop, a `cd` — pass the
-plain equivalent as `--coverage-command` too. *No tests exist* is a finding
-and stays one; a table that missed a convention is not.
+**Two things about the test command, and the second one bites.**
+
+If it says *no test command was found*, that is a fact about a table, not
+about the repository: read the CI file, the `Makefile`, the contributing
+guide, and pass what you find as `--test-command`. *No tests exist* is a
+finding and stays one; a table that missed a convention is not.
+
+If it names a command and dimension 2 comes back COULD NOT JUDGE with *no
+such file*, the command exists today and did not exist at the commits the
+replay parks at. The replay checks out this repository's own history, so a
+runner added last month is absent in March. Pass an entry point old enough
+to be there — often the suites the runner calls, chained — and say in the
+hand-back that you substituted one, because the rung it measures is then the
+suite and not the documented command. This repository hit exactly that.
+
+The command runs through a shell, so `cd app && flutter test` works, and
+everything it names must be tracked by git. A shell line no coverage tool
+can wrap — a loop, a `cd`, an `&&` chain — makes 2.1 abstain while 2.3 still
+measures; pass a single plain invocation as `--coverage-command` as well and
+both rows fill in.
 
 `--mutate N` is opt-in and runs the suite once per mutant. Pass it only when
 asked or when the suite is fast.
@@ -119,5 +132,17 @@ is the measurement behind it. Then, briefly:
   scripts, and ask what each would do to a branch somebody cares about
 - what you are deliberately **not** proposing, and why
 
-For a longer or unattended run, delegate the whole thing to the
-`repo-assessor` agent instead.
+## What a low score means, when you write the summary
+
+| | | A low score means |
+|---|---|---|
+| 1 | Controlled Execution | uncommitted work can be destroyed and nothing refuses |
+| 2 | Change Validation | defects this repository has produced would reach `main` |
+| 3 | Reliable Delivery | the green light is real but unrelated to what changed |
+| 4 | Repository Memory | a newcomer edits the wrong file, and nothing shortens the search |
+| 5 | Context Economy | tokens are spent every turn on text that restates the code |
+
+Absence in the repository is measured: no `.claude/`, no test file, no
+pipeline, nothing written down each put a red row on the page. Absence on
+this machine is not: a toolchain nobody installed abstains, and an abstained
+sub-item is in no brief. The page never confuses the two, and neither may you.
