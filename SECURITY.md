@@ -40,7 +40,7 @@ python3 hooks/run_repo_guards.py --trust     # lists the files first
 python3 hooks/run_repo_guards.py --forget
 ```
 
-Trust records live in `$CLAUDE_CONFIG_DIR/repo-agent-harness/trusted-guards.json`
+Trust records live in `$CLAUDE_CONFIG_DIR/cc-repo-harness/trusted-guards.json`
 (default `~/.claude`), mode 0600, written atomically. They are deliberately
 *outside* the repository: a repository that could grant itself trust in a pull
 request would not be granting anything.

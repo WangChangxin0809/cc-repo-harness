@@ -2,12 +2,12 @@
 
 <img src=".github/assets/harness.svg" alt="A repository holding one dais: Claude Code, with Claude, DeepSeek, Gemini, Kimi and Grok standing on it" width="560">
 
-# repo-agent-harness
+# cc-repo-harness
 
 **Measure a repository as a place for a coding agent to work, and lay the
 foundation where it has none.**
 
-[![CI](https://github.com/WangChangxin0809/repo-agent-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/WangChangxin0809/repo-agent-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-A8492E.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-A8492E.svg)](#requirements)
 [![Dependencies](https://img.shields.io/badge/dependencies-none-A8492E.svg)](#requirements)
@@ -43,8 +43,8 @@ same behaviour. Uninstalling removes the measurement and nothing else.
 ## Quick start
 
 ```bash
-/plugin marketplace add WangChangxin0809/repo-agent-harness
-/plugin install repo-agent-harness@wangchangxin-plugins
+/plugin marketplace add WangChangxin0809/cc-repo-harness
+/plugin install cc-repo-harness@wangchangxin-plugins
 ```
 
 Installing runs nothing in your repository. The first session in each repository
@@ -214,7 +214,7 @@ python3 hooks/run_repo_guards.py --forget
 ```
 
 Editing any guard revokes trust until you look again. Trust is per-machine state
-in `~/.claude/repo-agent-harness/`, never in the repository.
+in `~/.claude/cc-repo-harness/`, never in the repository.
 
 Once the repository wires `dispatch.py` into its own `.claude/settings.json`,
 which the scaffold does for you, the normal project-trust prompt applies and

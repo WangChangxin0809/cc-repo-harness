@@ -14,7 +14,7 @@ which is where a `SessionStart` hook puts things that genuinely could not be
 known any other way.
 
 So the marker is per-machine state, not knowledge, and lives beside the trust
-store in `$CLAUDE_CONFIG_DIR/repo-agent-harness/first-look.json`. Writing it
+store in `$CLAUDE_CONFIG_DIR/cc-repo-harness/first-look.json`. Writing it
 into the repository would put a fact about one person's laptop into everybody's
 diff, and the second clone would see the notice the first one already dismissed.
 
@@ -88,7 +88,7 @@ def repo_root(start):
 def store_path():
     cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(
         os.path.expanduser("~"), ".claude")
-    return os.path.join(cfg, "repo-agent-harness", "first-look.json")
+    return os.path.join(cfg, "cc-repo-harness", "first-look.json")
 
 
 def load_store():
@@ -181,7 +181,7 @@ def look(root):
               "gates": d["gates"], "guards": d["guards"]}
 
     lines = [
-        "repo-agent-harness, first session here. Nothing has been changed or run.",
+        "cc-repo-harness, first session here. Nothing has been changed or run.",
         "",
         f"  tier {p['tier']} · {p['source_files']} source files",
         f"  ~{p['always_on_skill_tokens']} tokens/turn of standing context "
