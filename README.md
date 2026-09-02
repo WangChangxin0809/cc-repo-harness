@@ -187,7 +187,7 @@ people skip. The annotated version, and the seven moments in full:
 | `bootstrap-repo-harness` | Once, to lay the foundation | the plugin |
 | `writing-docs` | Writing or restructuring a document | your repo |
 | `writing-checks` | A rule needs enforcing rather than documenting | your repo |
-| `writing-github-docs` | README, CONTRIBUTING, community health files | your repo |
+| `github-surface` | README, CONTRIBUTING, community health files, `.github/workflows/` | your repo |
 | `repo-index` | Large repo; an agent cannot find the relevant code | your repo |
 | `consolidating-notes` | Notes have drifted or contradicted | your repo |
 

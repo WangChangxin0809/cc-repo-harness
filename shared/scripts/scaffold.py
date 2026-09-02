@@ -620,7 +620,7 @@ AGENTS = [
 SKILLS = [
     ("writing-docs", "A"),
     ("writing-checks", "B"),
-    ("writing-github-docs", "B"),
+    ("github-surface", "B"),
     ("consolidating-notes", "B"),
     ("repo-index", "C"),
 ]

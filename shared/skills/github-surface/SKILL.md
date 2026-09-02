@@ -1,9 +1,9 @@
 ---
-name: writing-github-docs
-description: Write the repository's public face — README.md, CONTRIBUTING.md, and the GitHub community health files (SECURITY, CODE_OF_CONDUCT, LICENSE, issue and pull request templates). Use this when creating or rewriting any of those, when deciding whether a sentence belongs in the README or in CONTRIBUTING, when GitHub's Community Standards page reports something missing, when a repository is going public or starting to accept outside contributions, or when someone asks how to make the project understandable to people who have never seen it. Not for docs/ — that is the writing-docs skill.
+name: github-surface
+description: Write everything GitHub itself reads — README.md, CONTRIBUTING.md, the community health files (SECURITY, CODE_OF_CONDUCT, LICENSE, issue and pull request templates), and the workflows under .github/workflows/. Use this when creating or rewriting any of those, when deciding whether a sentence belongs in the README or in CONTRIBUTING, when GitHub's Community Standards page reports something missing, when adding or reviewing CI, or when a repository is going public. Not for docs/ — that is the writing-docs skill.
 ---
 
-# The repository's public face
+# The GitHub surface
 
 Three documents answering three different questions. Mixing them is the
 expensive mistake in this category, because the result reads complete.
@@ -122,6 +122,53 @@ Two things it deliberately does not judge: whether the prose is any good, and
 whether the quick start works. The second one has no substitute for running it
 in a fresh clone, so put that in `CONTRIBUTING.md` as a release step.
 
+## What runs on the platform
+
+`.github/workflows/` is the third layer, and the only one nobody can skip: the
+hooks act while an agent is working, `ci.sh` acts before you push, and this acts
+before anything merges. A check that lives only on a laptop is the weakest of the
+three, because it is the one no one is obliged to run.
+
+**Call the roster; do not restate it.** One step running `./ci.sh` beats twelve
+steps naming twelve scripts. Two lists drift, and the day they do, the laptop and
+the server disagree about whether the repository is sound — with the laptop being
+the one people believe.
+
+**Judgement does not belong in YAML.** A condition written into a workflow cannot
+be run before pushing, cannot be tested, and dies with the provider. Every step
+is one line invoking a script; the script is where the thinking goes.
+
+Six settings, each of which was a real defect somewhere before it was a rule:
+
+| | Why |
+|---|---|
+| `uses: owner/action@<40-char sha>  # vN` | A tag is mutable. Referencing by tag is a standing promise from whoever can move it |
+| `persist-credentials: false` on checkout | Otherwise the job's token sits in `.git/config` where every later step, and anything a later step runs, can read it |
+| `permissions:` at the top, least privilege | The default is generous and invisible |
+| `timeout-minutes:` on every job | The default is six hours, which turns a hang into a queue nobody notices |
+| `cancel-in-progress` on pull requests **only** | A cancelled run on the default branch leaves a commit nobody ever judged in the history every later bisect is measured against |
+| no `paths:` filters | A docs-only change is exactly what breaks a routing table or a link check, so "skip CI for docs" skips the checks most likely to catch it |
+
+**Never `|| true`, and never swallow a status.** Exit 2 means *could not judge*
+and must fail the step. A step that returns 0 when it could not run manufactures
+a green square somebody will trust.
+
+Pin linters in a requirements file rather than inline, so Dependabot can see
+them. A version written into YAML is one nothing updates.
+
+### Check it rather than reviewing it
+
+```bash
+actionlint                              # syntax, expression types, shellcheck over every run:
+zizmor --no-progress .github/workflows/ # unpinned actions, credential persistence
+```
+
+Run against this repository's own workflow the day it was written — by someone
+who had read the security section of its README that morning — `zizmor` found
+ten: seven unpinned actions and three checkouts leaving the token behind. That
+is the whole argument for a check over a convention, and it is why these two run
+in CI rather than living in a contributing note.
+
 ## When the repository is bilingual
 
 Keep the public face in the language of the audience you are asking to
@@ -136,6 +183,7 @@ after a translation — see `writing-checks` on vacuous passes.
 | File | Read when |
 |---|---|
 | `references/templates.md` | You want the skeletons, and the community health file bodies |
+| `references/workflows.md` | You are writing or reviewing `.github/workflows/` |
 
 Related skills: `writing-docs` (everything under `docs/`), `writing-checks`
 (the gate above), `bootstrap-repo-harness` (`SECURITY.md` is scaffolded there).
