@@ -34,7 +34,8 @@ PARENT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import history as history_mod
-import reframe as reframe_mod  # noqa: E402
+import reframe as reframe_mod
+import surface as surface_mod  # noqa: E402
 
 # A rule with no `paths:` loads at launch; one with `paths:` loads only when
 # Claude reads a matching file. The distinction decides both what a rule costs
@@ -1156,7 +1157,7 @@ def _is_source(path, check_dirs=()):
 
 def repository_memory(root, log, check_dirs=(), truth=None,
                       conflict=None, conflict_judged=None,
-                      promises=None, truth_judged=None):
+                      promises=None, truth_judged=None, probe=None):
     """Is what this repository writes down still true, and worth keeping?
 
     `truth` is `truth.assess()`'s output, and it asks not how much the
@@ -1174,6 +1175,9 @@ def repository_memory(root, log, check_dirs=(), truth=None,
     two runs of the same pair disagreed by more than the thing being measured
     -> 0042"""
     rows = []
+
+    if probe is not None:
+        rows.extend(surface_mod.render(surface_mod.assess(root, probe)))
 
     if truth is not None:
         t = truth["thickness"]
@@ -1585,7 +1589,8 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
                           mutants_why, judged, cover, cover_why, probe, value),
         reliable_delivery(root, log, check_dirs, gate),
         repository_memory(root, log, check_dirs, truth,
-                          conflict, conflict_judged, promises, truth_judged),
+                          conflict, conflict_judged, promises, truth_judged,
+                          probe),
         context_economy(root, probe, blast, value, units),
     ]
 

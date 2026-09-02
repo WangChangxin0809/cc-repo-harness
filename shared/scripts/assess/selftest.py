@@ -54,6 +54,7 @@ import units as units_mod          # noqa: E402
 import review as review_mod        # noqa: E402
 import permitted as permitted_mod  # noqa: E402
 import reframe as reframe_mod      # noqa: E402
+import surface as surface_mod      # noqa: E402
 import ecosystems as eco_mod       # noqa: E402
 
 
@@ -3452,6 +3453,72 @@ def case_a_reading_of_the_candidates_can_be_recorded(t):
     return None
 
 
+def case_the_surface_is_coverage_not_a_count(t):
+    """The test 0025 used, applied to the row that came after it.
+
+    0025 refused to score a repository on what it keeps, and the case that
+    settled it was 0024: deleting five skills cut the standing cost by 81%,
+    and any measure calling that a regression is measuring the wrong thing.
+    So this row is present/absent per mechanism and never a quantity -- six
+    skills are the same coverage as one, and deleting five of them cannot
+    move it.
+
+    Two more ways it could quietly become what 0025 rejected. A skill a
+    plugin installed is on somebody's laptop, not in this tree, so counting
+    it would let the instrument reward its own presence -- and a teammate
+    without the plugin gets nothing. And a `.claude/rules` file with no
+    `paths:` frontmatter loads at launch: it is a slower entry file rather
+    than a scoped rule, which is why the budget gate counts it on the
+    floor."""
+    def probe_with(**over):
+        base = {"moments": {"1_always": [{"file": "CLAUDE.md", "lines": 9}],
+                            "4_subtree": [], "2_session_start": 0,
+                            "3_prompt": 0, "6_after_action": 0,
+                            "5_before_action": {"PreToolUse": 0,
+                                                "permissions_deny": 0},
+                            "7_on_request": []},
+                "discipline": {"other_hooks": {}}}
+        base["moments"].update(over)
+        return base
+
+    one = surface_mod.assess(t, probe_with(
+        **{"7_on_request": [{"origin": "repo"}]}))
+    six = surface_mod.assess(t, probe_with(
+        **{"7_on_request": [{"origin": "repo"}] * 6}))
+    if one["reached"] != six["reached"]:
+        return ("six skills scored differently from one — this is a count, "
+                "and 0024 would read as a regression")
+
+    plugin_only = surface_mod.assess(t, probe_with(
+        **{"7_on_request": [{"origin": "plugin"}] * 3}))
+    if plugin_only["have"]["skills"]:
+        return "a skill installed by a plugin was counted as the repository's"
+
+    # A deny rule reaches the same moment a PreToolUse hook does.
+    hook = surface_mod.assess(t, probe_with(
+        **{"5_before_action": {"PreToolUse": 1, "permissions_deny": 0}}))
+    deny = surface_mod.assess(t, probe_with(
+        **{"5_before_action": {"PreToolUse": 0, "permissions_deny": 4}}))
+    if not (hook["have"]["before"] and deny["have"]["before"]):
+        return "a repository that can refuse an action was reported as unable"
+
+    # `.claude/rules` without `paths:` loads at launch: an entry file, not a
+    # scoped rule.
+    os.makedirs(os.path.join(t, ".claude", "rules"), exist_ok=True)
+    put(t, ".claude/rules/loose.md", "# always on\n")
+    if surface_mod.assess(t, probe_with())["have"]["scoped"]:
+        return "an unscoped rule was credited as path-scoped coverage"
+    put(t, ".claude/rules/scoped.md", "---\npaths: src/**\n---\n\nhere\n")
+    if not surface_mod.assess(t, probe_with())["have"]["scoped"]:
+        return "a rule with `paths:` was not seen"
+
+    # ...and every absence has to say what it costs, or the row is a scold.
+    for a in surface_mod.assess(t, probe_with())["absent"]:
+        if not a["costs"] or not a["where"]:
+            return "an absence was reported without what it costs: " + a["what"]
+    return None
+
+
 def case_a_dimension_that_read_nothing_abstains(t):
     """The rule that outlived the measurement it was written for.
 
@@ -4609,6 +4676,8 @@ CASES = [
      case_the_page_names_where_it_looked_for_tests),
     ("a dimension that read nothing abstains rather than reporting a clean bill",
      case_a_dimension_that_read_nothing_abstains),
+    ("the surface it uses is coverage, not a count",
+     case_the_surface_is_coverage_not_a_count),
     ("a record of mistakes nobody reads is not scored as learning",
      case_a_record_nobody_reads_is_not_scored_as_learning),
 ]
