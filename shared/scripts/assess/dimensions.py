@@ -228,10 +228,17 @@ def controlled_execution(root, probe, blast, observe=None, judged=None,
     if blast is None:
         headline = "nothing is wired to refuse anything"
         state = "open"
-        rows.append({"label": "destructive probes", "value": "not asked",
+        # Not an abstention. With no .claude/ there is nothing to ask, and
+        # the answer to "is anything refused" is therefore known: no. The
+        # first version said `not asked` under a label no sub-item claimed,
+        # so the worst possible reading left the brief and the radar drew
+        # it exactly like a dimension nobody measured.
+        rows.append({"label": "refused before they happen",
+                     "value": "0/6 — nothing is wired",
                      "flag": "bad",
-                     "note": "no .claude/ — the probes have nothing to ask, "
-                             "so every one of them would go through"})
+                     "note": "no .claude/, so no hook and no deny rule: every "
+                             "destructive action goes through, and that is a "
+                             "measurement, not a gap in one"})
     else:
         b = blast["rows"]
         stopped = [x for x in b if x["stopped"] and not x["false_block"]]
@@ -413,13 +420,27 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
         mutant_ladder(mutants, judged) if mutants else ({}, 0, [], []))
 
     if catch:
+        unreached = _unreached(catch, cover)
         counts = {k: 0 for k in ladder}
         unusable = [r for r in catch["rows"] if not r["rung"]]
         for row in catch["rows"]:
-            if row["rung"]:
+            if row["rung"] and row["sha"] not in unreached:
                 counts[row["rung"]] += 1
         placed = sum(counts.values())
         late = counts.get("ci", 0) + counts.get("never", 0)
+        if unreached:
+            rows.append({
+                "label": "defects outside the suite's reach",
+                "value": str(len(unreached)),
+                "flag": "info",
+                "note": "nothing went red, and the suite never executed the "
+                        "file the defect is in — so this is not a miss, it "
+                        "is a region the command you gave does not cover: "
+                        + "; ".join(f"{sha} ({', '.join(files[:2])})"
+                                    for sha, files in
+                                    list(unreached.items())[:3])
+                        + ". Not counted as surviving. Pass a command that "
+                          "reaches it, or read this as the finding"})
 
         if not placed:
             # Every replay was unusable. Reporting a ladder of zeros here
@@ -448,6 +469,27 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                         f"a session")
             rows.append(interception_layers(probe, catch, mutants, value,
                                             ladder, counts))
+            # The control: the suite as it was before the fix. Kept beside
+            # the ladder because the ladder alone is close to a tautology --
+            # the replay keeps the fix's own regression test, which was
+            # written to fail on exactly this.
+            judged_prior = [r for r in catch["rows"]
+                            if r.get("prior_suite") in ("caught", "missed")]
+            if judged_prior:
+                caught = [r for r in judged_prior
+                          if r["prior_suite"] == "caught"]
+                rows.append({
+                    "label": "caught by a test that already existed",
+                    "value": f"{len(caught)} of {len(judged_prior)} replayed",
+                    "flag": "info",
+                    "note": "source and tests both put back to before the "
+                            "fix, then the whole suite. The rest were caught "
+                            "only by the test the fix itself brought, which "
+                            "is the ordinary case: a suite that sees a "
+                            "defect before its regression test exists is "
+                            "the exception worth knowing about"
+                            + (": " + ", ".join(r["sha"] for r in caught[:3])
+                               if caught else "")})
             rows.append({"label": "where each was first caught",
                          "value": "  ".join(f"{k}:{counts[k]}" for k in ladder),
                          "flag": "bad" if late else "ok",
@@ -938,7 +980,7 @@ def reliable_delivery(root, log, check_dirs=(), gate=None, pipeline=None):
         state = "measured"
         headline = (f"{len(bare)} of the last {len(recent)} changes that owe "
                     f"a test touched nothing that verifies them")
-        if len(typed) >= max(4, len(touched) // 2):
+        if len(typed) >= max(4, len(touched) // 2):  # kept in step with typed_mode
             how = (f"{len(touched) - len(recent)} of {len(touched)} change(s) "
                    f"to source are excluded as owing no test — renames, "
                    f"formatting, dependency bumps, docs and chores, read off "
@@ -948,12 +990,25 @@ def reliable_delivery(root, log, check_dirs=(), gate=None, pipeline=None):
                    "subjects are not typed — nothing here can tell a rename "
                    "from a new function, and guessing would shrink the "
                    "denominator without changing the repository")
+        # Both denominators travel with the row. Which one the percentage
+        # uses depends on whether the subjects are typed, and a branch that
+        # types its commits against one that does not would otherwise
+        # produce two percentages that cannot be compared -- while the guide
+        # asks people to keep the JSON precisely in order to compare.
+        bare_all = [c for c in touched
+                    if not any(_verifies(p, check_dirs) for p in c[2])]
+        typed_mode = len(typed) >= max(4, len(touched) // 2)
         rows.append({
             "label": "changes that verified nothing",
             "value": f"{len(bare)}/{len(recent)}  ({pct}%)",
             "flag": "bad" if pct >= 80 else ("warn" if pct >= 40 else "ok"),
+            "denominator": "typed" if typed_mode else "all source",
+            "all_source": f"{len(bare_all)}/{len(touched)}",
             "note": "the green light can be real and still have nothing to "
-                    "do with what was changed. " + how})
+                    "do with what was changed. " + how
+                    + f". Against every change to source, typed or not: "
+                      f"{len(bare_all)}/{len(touched)} — compare that one "
+                      f"across branches whose commits are typed differently"})
 
         # Most unverified changes are not worth anyone's attention -- in a
         # repository that writes tests, the ones without are usually small.
@@ -1197,6 +1252,39 @@ def _pipeline_rows(p):
                     "somebody forgot; behind: a tag pointing at a version the "
                     "manifest no longer claims"})
     return rows
+
+
+def _suite_root(command):
+    """The directory a `cd X && ...` command runs in, or None."""
+    m = re.match(r"\s*cd\s+('?)([^\s'&]+)\1\s*&&", command or "")
+    return m.group(2).rstrip("/") if m else None
+
+
+def _unreached(catch, cover):
+    """{sha: [files]} for replayed defects the suite never got in front of.
+
+    Two ways to know. The command itself runs from a subdirectory, so a
+    defect in a file outside it is out of reach by construction. Or the
+    coverage run executed nothing in the file. Either way the defect is
+    reclassified rather than counted as surviving: `1 defect survives past
+    the end of a session` is a sentence about the repository, and the
+    honest sentence here is about the command."""
+    sub = _suite_root(catch.get("command"))
+    reached = (cover or {}).get("reached") or {}
+    out = {}
+    for row in catch.get("rows") or []:
+        if row.get("rung") not in ("ci", "never") or not row.get("source"):
+            continue
+        outside = []
+        for p in row["source"]:
+            rel = p.lstrip("./")
+            if sub and not rel.startswith(sub + "/"):
+                outside.append(rel)
+            elif rel in reached and not reached[rel]:
+                outside.append(rel)
+        if outside and len(outside) == len(row["source"]):
+            out[row["sha"]] = outside
+    return out
 
 
 def _test_homes(root, check_dirs):

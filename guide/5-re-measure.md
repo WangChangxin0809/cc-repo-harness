@@ -21,6 +21,9 @@ instrument.
 
 Two things follow, and both are easy to get wrong:
 
+- **The same `--test-command` before and after.** It decides which files
+  the suite reaches, and 3.1's percentage carries two denominators for the
+  same reason: compare `typed` with `typed`, or the all-source pair.
 - **`--no-full` before must mean `--no-full` after.** The replay is on by
   default; dimension 2 abstains when it is skipped, and an abstention
   compared against a measurement is not a comparison.

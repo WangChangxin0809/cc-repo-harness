@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -339,8 +340,105 @@ def unusable(detail):
     return any(m in d for m in CANNOT_RUN)
 
 
+# Directories that hold somebody else's code or build output. A suite found
+# under one of these is not the repository's.
+NOT_OURS = {"node_modules", "vendor", "venv", ".venv", "env", "dist", "build",
+            "target", "__pycache__", "site-packages", "third_party",
+            "third-party", "external", "deps"}
+
+
+# What makes a typed command need a shell rather than an exec.
+SHELLY = re.compile(r"[;&|<>$`*?()]|\bcd\s")
+
+
+def argv_of(command):
+    """A command somebody typed, as something that can run.
+
+    `--test-command "cd app && flutter test"` was being split on whitespace
+    and exec'd, so `cd` was looked up on PATH and the help text promised
+    something the code could not do. Multi-root repositories are exactly the
+    ones that need to pass a command, and their command is exactly the kind
+    that needs a shell. A plain `pytest -q` stays an argv, because that is
+    the shape `coverage run` can wrap and `scope` can narrow."""
+    if command is None:
+        return None
+    if isinstance(command, str):
+        if SHELLY.search(command):
+            return ["bash", "-c", command]
+        return shlex.split(command)
+    return list(command)
+
+
+def display(cmd):
+    """The command as a person would type it."""
+    if not cmd:
+        return ""
+    if cmd[:2] == ["bash", "-c"] and len(cmd) == 3:
+        return cmd[2]
+    return " ".join(cmd)
+
+
+class Rooted(Ecosystem):
+    """An ecosystem found below the root, run from where it lives.
+
+    A Go module under `cli/`, a package.json under `web/`: the language is one
+    of the five this file knows, and the root has none of its markers. The
+    command is wrapped as `cd <sub> && ...` so every caller that runs it from
+    the repository root keeps working, and `scope` translates test paths into
+    the subdirectory before asking the inner ecosystem to narrow."""
+
+    def __init__(self, inner, sub):
+        self.inner, self.sub = inner, sub
+        self.name = f"{inner.name} in {sub}/"
+        self.tool = inner.tool
+        self.did_not_run = inner.did_not_run
+
+    def _wrap(self, cmd):
+        return ["bash", "-c", f"cd {shlex.quote(self.sub)} && "
+                              f"{shlex.join(cmd)}"]
+
+    def detect(self, path):
+        return self.inner.detect(os.path.join(path, self.sub))
+
+    def install(self, path):
+        return [self._wrap(step)
+                for step in self.inner.install(os.path.join(path, self.sub))]
+
+    def scope(self, cmd, tests):
+        prefix = self.sub.rstrip("/") + "/"
+        inside = [t[len(prefix):] for t in tests if t.startswith(prefix)]
+        if not inside:
+            return None
+        inner = cmd[2].split(" && ", 1)[1] if cmd[:2] == ["bash", "-c"] \
+            else " ".join(cmd)
+        narrowed = self.inner.scope(shlex.split(inner), inside)
+        return self._wrap(narrowed) if narrowed else None
+
+
+def _subdirs(path, depth=2):
+    """Candidate roots below `path`, shallowest first, nothing hidden and
+    nothing that holds somebody else's code."""
+    out = []
+    for here, dirs, _files in os.walk(path):
+        rel = os.path.relpath(here, path)
+        level = 0 if rel == "." else rel.count(os.sep) + 1
+        dirs[:] = sorted(d for d in dirs
+                         if not d.startswith(".") and d not in NOT_OURS)
+        if level >= depth:
+            dirs[:] = []
+        if rel != ".":
+            out.append(rel.replace(os.sep, "/"))
+    return out
+
+
 def find(path):
-    """(ecosystem, command) for a repository, or (None, None)."""
+    """(ecosystem, command) for a repository, or (None, None).
+
+    The root first. Then each directory one and two levels down, shallowest
+    first, because a monorepo keeps its Go under `cli/` and its Node under
+    `web/` and has no `go.mod` at the root -- a layout the first version of
+    this function reported as no ecosystem at all, for a language it
+    supported."""
     for eco in ECOSYSTEMS:
         cmd = eco.detect(path)
         if cmd is None:
@@ -348,6 +446,17 @@ def find(path):
         if eco.tool and shutil.which(eco.tool) is None:
             return eco, None
         return eco, cmd
+    for sub in _subdirs(path):
+        for eco in ECOSYSTEMS:
+            if eco.name == "declared":
+                continue            # a document names its own paths; root only
+            cmd = eco.detect(os.path.join(path, sub))
+            if cmd is None:
+                continue
+            rooted = Rooted(eco, sub)
+            if eco.tool and shutil.which(eco.tool) is None:
+                return rooted, None
+            return rooted, rooted._wrap(cmd)
     return None, None
 
 
