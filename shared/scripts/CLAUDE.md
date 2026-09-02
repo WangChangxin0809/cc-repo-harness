@@ -1,6 +1,7 @@
 # shared/scripts/ — this is payload
 
-Everything here is **written for a repository you have never seen**. You are not
+This is hard rule 1, at the point it's actually read. Everything here is
+**written for a repository you have never seen**. You are not
 editing our tooling; you are editing a stranger's. Two ways that happens, and
 the difference decides what you may depend on:
 

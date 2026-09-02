@@ -29,13 +29,14 @@ the first question, because the answer changes who is affected.
 
 The plugin is charged for on **every turn of every session on the machine**, so
 only one skill lives there: `bootstrap-repo-harness`, which is how a person
-arrives. The other five are payload, copied into the repository that chose them
--> docs/decisions/0024
+arrives -> docs/decisions/0024
 
 ## Hard rules
 
-1. **Anything under `shared/` ships to strangers.** Write it for a repository
-   you have never seen. Tools only we need go elsewhere.
+Rules 1 and 5 are true of one directory only, so they load where that
+directory is actually touched, not here: 1 in `shared/scripts/CLAUDE.md` and
+`shared/skills/CLAUDE.md`, 5 in `.claude/rules/wiring.md`.
+
 2. **A check nobody has watched fail is a file, not a check.** A new gate or
    guard is not done until you have planted its defect, watched it go red, and
    left a selftest case behind that does the same. See `writing-checks`.
@@ -48,12 +49,6 @@ arrives. The other five are payload, copied into the repository that chose them
    reason to keep the plugin installed, and it is also the easiest place to
    smuggle behaviour in — a diagnostic that starts fixing what it finds has
    stopped being a diagnostic -> docs/decisions/0021
-5. **We wire to `shared/` for payload, `scripts/` for templates.** A scaffolded
-   repository gets *copies* of payload under `scripts/`; we are where those
-   copies come from, so `.claude/settings.json` points at the source. The one
-   hook pointing at `scripts/` is `session_brief.py`, which is generated per
-   repository rather than copied — ours is our own instance of it, not a stale
-   duplicate -> docs/index.md
 
 ## Commands
 
