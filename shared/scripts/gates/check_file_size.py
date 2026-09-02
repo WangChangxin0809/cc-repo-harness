@@ -8,8 +8,8 @@
 
 The Read tool shows 2000 lines by default. A file past that is read in
 pieces, and the piece an agent did not ask for is where the defect it did not
-see lives -- this repository found its own 6074-line `assess/selftest.py`
-exactly this way, by pointing this gate at itself.
+see lives. The repository this gate was written in found its own 6074-line
+selftest exactly this way, by pointing the gate at itself.
 
 ## Scope
 
@@ -209,10 +209,7 @@ def main():
             "  one, add an exemption with a reason to .claude/guards.json:\n"
             '    {"file_size": {"exempt": [{"path": "'
             + (offenders[0][0] if offenders else "path/to/file")
-            + '", "reason": "..."}]}}\n'
-            "  Why this rule exists: "
-            "docs/decisions/0053-a-file-an-agent-cannot-read-in-one-call-is-"
-            "two-files.md", file=sys.stderr)
+            + '", "reason": "..."}]}}', file=sys.stderr)
     for f in failures:
         print(f, file=sys.stderr)
     return 1

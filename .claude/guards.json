@@ -7,11 +7,6 @@
   "layers": [],
   "layering_allow": [],
   "file_size": {
-    "exempt": [
-      {
-        "path": "shared/scripts/assess/selftest.py",
-        "reason": "being split on branch split-assess-selftest; remove when it lands"
-      }
-    ]
+    "exempt": []
   }
 }
