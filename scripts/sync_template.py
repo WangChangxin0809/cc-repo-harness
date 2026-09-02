@@ -43,7 +43,7 @@ KEEP = {"session_brief.py"}
 # repository wrote for itself, and deleting somebody's own skill because a
 # rename happened here would be the worst kind of helpful.
 OWNED = ("scripts/guards", "scripts/gates", "scripts/context")
-WATCHED = (".claude/skills", ".claude/agents")
+WATCHED = (".claude/skills", ".claude/agents", ".claude/rules")
 
 
 def plan_for(tier):
@@ -69,6 +69,10 @@ def plan_for(tier):
         if sc.at_least(tier, floor):
             dirs.append((os.path.join("skills", name),
                          os.path.join(".claude", "skills", name)))
+    for name, floor in sc.RULES:
+        if sc.at_least(tier, floor):
+            files.append((os.path.join("rules", name),
+                          os.path.join(".claude", "rules", name)))
     for name, floor in sc.AGENTS:
         if sc.at_least(tier, floor):
             files.append((os.path.join("agents", name),
