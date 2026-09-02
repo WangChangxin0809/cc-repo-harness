@@ -31,12 +31,13 @@ Nodes are `file:<path>`, `sym:<path>:<name>`, and `doc:<path>`. Edges:
 
 **A symbol node is keyed by the file that defines it.** Keying by bare name
 merges every definition sharing it, and the merged node then dominates the
-graph: in this plugin's own repository `sym:main` — sixteen unrelated
+graph: in this plugin's own repository `sym:main` — dozens of unrelated
 `def main()` — had a higher degree than any real file, and seeding on one guard
-ranked an *empty template* second because five guards define `check`. Bare names
-are still how a reference resolves and how `--seed` matches; they are just no
-longer the node. A reference to an ambiguous name contributes `1/N` to each
-candidate, and `--report` lists which names are ambiguous.
+still turns up an *empty template* among the real ones, because every guard
+module defines `check`. Bare names are still how a reference resolves and how
+`--seed` matches; they are just no longer the node. A reference to an
+ambiguous name contributes `1/N` to each candidate, and `--report` lists
+which names are ambiguous.
 
 `Governs:` is the edge that makes documents reachable from code. Without it,
 docs and code are two disconnected components and no amount of ranking bridges
