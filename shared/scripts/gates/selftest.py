@@ -284,6 +284,35 @@ CASES = [
                               "something, when asked to.\n---\n\n"
                               "Read `<plugin>/references/moments.md` first.\n"),
     ),
+    # Bodies are free -- they load when the thing is invoked. The frontmatter
+    # is not: every skill, agent and command is listed by name and description
+    # on every turn, in every repository on the machine, including the ones
+    # that never touch this plugin. Nothing measured that, and this repository
+    # drifted to 350 tokens a turn, most of it one description that had grown a
+    # clause for every symptom anyone might type.
+    dict(
+        gate="check_plugin_structure.py",
+        args=["--always-on-cap", "60"],
+        why="a description that has grown a clause for every symptom",
+        needle="on every turn, cap is 60",
+        plant=lambda t: write(t, "skills/demo/SKILL.md",
+                              "---\nname: demo\ndescription: Demonstrate "
+                              "something, when asked to. " +
+                              "Use it when somebody mentions a thing. " * 12 +
+                              "\n---\n\n# Demo\n\nGuidance lives here.\n"),
+    ),
+    # The other direction: a long *body* is not a cost, and charging for it
+    # would push guidance out of the one place it is free.
+    dict(
+        gate="check_plugin_structure.py",
+        args=["--always-on-cap", "60"],
+        why="a long body behind a short description",
+        needle=None,
+        plant=lambda t: write(t, "skills/demo/SKILL.md",
+                              "---\nname: demo\ndescription: Demonstrate "
+                              "something, when asked to.\n---\n\n# Demo\n\n"
+                              + "A paragraph of guidance.\n" * 400),
+    ),
     dict(
         gate="check_plugin_structure.py",
         why="component directories nested inside .claude-plugin/",

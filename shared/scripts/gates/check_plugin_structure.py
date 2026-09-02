@@ -6,6 +6,8 @@
     0 = the manifest and components hold      1 = something is wrong
     2 = cannot judge (no .claude-plugin/ — not a plugin repository)
 
+    --always-on-cap N   tokens of name+description, summed (default 400)
+
 This repository shipped forty selftest cases covering the *payload* it copies
 into other people's repositories, and zero covering the thing that is actually
 the plugin: `.claude-plugin/`, `skills/`, `agents/`, `hooks/`. The reason is not
@@ -169,6 +171,46 @@ def check_agents(root, out):
                 out.append(f"{rel} frontmatter has no `description`")
 
 
+def _field(block, key):
+    m = re.search(rf"^{key}:\s*(.*)$", block, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def always_on_cost(root):
+    """(rel, name, tokens) for every component the router keeps in context.
+
+    Claude Code lists every installed skill, agent and command by `name` and
+    `description` on every turn, in every repository on the machine, whether or
+    not that repository has anything for the plugin to do. Bodies are not
+    charged -- they load when the thing is invoked -- so this is a cost that
+    only the frontmatter can lower.
+
+    Nothing measured it. This repository's own plugin drifted to 350 tokens a
+    turn, most of it one skill description that had grown a list of every
+    symptom anyone might type. Each addition was one plausible clause.
+    """
+    found = []
+    for base in ("skills", "agents", "commands"):
+        d = os.path.join(root, base)
+        if not os.path.isdir(d):
+            continue
+        for cur, _dirs, files in os.walk(d):
+            for entry in sorted(files):
+                if not entry.endswith(".md"):
+                    continue
+                if base == "skills" and entry != "SKILL.md":
+                    continue
+                path = os.path.join(cur, entry)
+                fm = FRONTMATTER.match(read(path))
+                if not fm:
+                    continue
+                block = fm.group(1)
+                name = _field(block, "name") or os.path.basename(path)
+                cost = len(f"{name}: {_field(block, 'description')}") // 4
+                found.append((os.path.relpath(path, root), name, cost))
+    return sorted(found, key=lambda t: -t[2])
+
+
 def check_portable_paths(root, out):
     """Every reference into the plugin must go through the variable.
 
@@ -206,6 +248,8 @@ def read(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
+    ap.add_argument("--always-on-cap", type=int, default=400,
+                    help="max tokens of component name+description, summed")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
 
@@ -225,6 +269,19 @@ def main():
     check_agents(root, out)
     check_portable_paths(root, out)
 
+    charged = always_on_cost(root)
+    total = sum(c for _, _, c in charged)
+    if total > a.always_on_cap:
+        listing = "\n".join(f"      {name:<28} ~{c:>4} tok   {rel}"
+                             for rel, name, c in charged)
+        out.append(
+            f"the plugin costs ~{total} tokens on every turn, cap is "
+            f"{a.always_on_cap}:\n{listing}\n"
+            f"    Paid in EVERY repository on the machine, including the ones\n"
+            f"    that never invoke this plugin. Shorten a description, or move\n"
+            f"    the component into the payload so the repository that wants\n"
+            f"    it is the one that pays.")
+
     if out:
         print(f"{len(out)} problem(s) in the plugin surface:\n", file=sys.stderr)
         for line in out:
@@ -235,7 +292,7 @@ def main():
 
     n = len([d for d in COMPONENT_DIRS if os.path.isdir(os.path.join(root, d))])
     print(f"plugin surface intact: manifest, {n} component director(ies), "
-          f"portable paths")
+          f"portable paths, ~{total} tok/turn always-on")
     return 0
 
 

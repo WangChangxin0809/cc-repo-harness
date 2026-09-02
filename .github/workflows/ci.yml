@@ -159,7 +159,11 @@ jobs:
       # agent to run `python3 <plugin>/shared/scripts/scaffold.py`, against a
       # placeholder this repository invented and nothing resolves.
       - name: the plugin surface itself holds
-        run: python3 shared/scripts/gates/check_plugin_structure.py --root .
+        # The cap is the tightest one this repository currently passes. It is a
+        # ratchet, not a budget with headroom: every token here is paid in
+        # every repository on the machine, including the ones that never invoke
+        # this plugin, so the only honest direction for this number is down.
+        run: python3 shared/scripts/gates/check_plugin_structure.py --root . --always-on-cap 150
 
       # The other half of drift needs judgement and cannot be a gate. What can
       # be checked is the tool that prepares the judgement: that its git triage

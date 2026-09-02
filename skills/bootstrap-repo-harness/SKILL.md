@@ -1,6 +1,6 @@
 ---
 name: bootstrap-repo-harness
-description: Lay the foundation that makes a repository teach coding agents how to work in it — CLAUDE.md and its subtree files, .claude/ hook wiring, a layered docs/ truth source, scripts/ gates and guards, and a decision record explaining the shape. Use this whenever someone says the agent keeps repeating a mistake, that rules in CLAUDE.md are ignored, that context feels full before they've typed anything, that a new agent or teammate takes too long to get productive, or asks to set up CLAUDE.md / AGENTS.md / hooks / project conventions / onboarding for AI. Also use it when starting a fresh repo that agents will work in, or when auditing an existing one that has grown conventions nobody enforces.
+description: Lay a repository's harness — CLAUDE.md, hook wiring, docs/, gates and guards. Use when an agent repeats a mistake, when CLAUDE.md rules go ignored, or when a repository has no agent conventions.
 ---
 
 # Bootstrap a repository harness

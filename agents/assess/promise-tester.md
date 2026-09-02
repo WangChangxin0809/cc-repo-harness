@@ -1,6 +1,6 @@
 ---
 name: assess-promise-tester
-description: Writes tests, then an implementation, from a repository's documentation alone, never reading the code either describes. Spawned by /assess; not for ordinary work.
+description: Writes tests then an implementation from a repository's docs alone, never reading its code. Spawned by /assess.
 tools: Write
 model: sonnet
 ---
