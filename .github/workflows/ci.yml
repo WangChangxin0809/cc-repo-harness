@@ -115,6 +115,12 @@ jobs:
       - name: docs routing table resolves
         run: python3 shared/scripts/gates/check_docs_index.py --root .
 
+      # A file past 2000 lines is read by an agent in pieces, and the piece it
+      # did not ask for is where the defect it did not see lives. This gate
+      # found its own 6074-line assess/selftest.py this way.
+      - name: no file is longer than an agent reads in one call
+        run: python3 shared/scripts/gates/check_file_size.py --root .
+
       # A second instrument scoring this repository found a username in three
       # committed result files. It was right, and the answer to a finding a
       # paragraph could have prevented is a check rather than a paragraph.

@@ -5,5 +5,8 @@
   ],
   "_layers": "Declare the stack lowest-first to switch on check_layering.py",
   "layers": [],
-  "layering_allow": []
+  "layering_allow": [],
+  "file_size": {
+    "exempt": []
+  }
 }

@@ -493,6 +493,63 @@ CASES = [
         plant=lambda t: write(t, "docs/notes.md", "# Notes\n\nStray.\n"),
     ),
 
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="a tracked file over the line cap",
+        needle="cap is 30",
+        plant=lambda t: write(t, "src/big.py",
+                              "".join(f"x = {i}\n" for i in range(1, 50))),
+    ),
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="an exemption with a reason for a file still over the cap",
+        needle=None,
+        plant=lambda t: (
+            write(t, "src/big.py",
+                  "".join(f"x = {i}\n" for i in range(1, 50))),
+            write(t, ".claude/guards.json", json.dumps({
+                "protected_branches": ["main"],
+                "layers": [{"name": "types", "paths": ["src/types/"]},
+                          {"name": "service", "paths": ["src/service/"]}],
+                "file_size": {"exempt": [
+                    {"path": "src/big.py",
+                     "reason": "kept large for this demo repository"}]},
+            }, indent=2) + "\n")),
+    ),
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="an exemption with no reason",
+        needle="exemption has no reason",
+        plant=lambda t: (
+            write(t, "src/big.py",
+                  "".join(f"x = {i}\n" for i in range(1, 50))),
+            write(t, ".claude/guards.json", json.dumps({
+                "protected_branches": ["main"],
+                "layers": [{"name": "types", "paths": ["src/types/"]},
+                          {"name": "service", "paths": ["src/service/"]}],
+                "file_size": {"exempt": [{"path": "src/big.py",
+                                          "reason": ""}]},
+            }, indent=2) + "\n")),
+    ),
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="an exemption for a file that no longer needs it",
+        needle="outlived its reason",
+        plant=lambda t: (
+            write(t, "src/small.py", "x = 1\n"),
+            write(t, ".claude/guards.json", json.dumps({
+                "protected_branches": ["main"],
+                "layers": [{"name": "types", "paths": ["src/types/"]},
+                          {"name": "service", "paths": ["src/service/"]}],
+                "file_size": {"exempt": [{"path": "src/small.py",
+                                          "reason": "used to be big"}]},
+            }, indent=2) + "\n")),
+    ),
+
     # --- negative controls ---------------------------------------------------
     # Each gate needs at least one of these, and coverage_gaps() below enforces
     # it. Without one, a gate that flagged *everything* would show a perfect row
