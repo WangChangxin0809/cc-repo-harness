@@ -1220,10 +1220,17 @@ def repository_memory(root, log, check_dirs=(), truth=None,
                 # one -> conflict.py, which had the same hole.
                 rows.append({
                     "label": "candidates for a second reading",
-                    "value": "%d real of %d candidate(s)%s" % (
+                    "value": "%d real of %d candidate(s)%s%s" % (
                         len(judged["real"]), judged["judged"],
                         ", %d unread" % judged["pending"]
-                        if judged["pending"] else ""),
+                        if judged["pending"] else "",
+                        # An answer this run has no candidate for. Usually the
+                        # shared cap moved and it will be back; occasionally
+                        # the document changed under it. Either way, printing
+                        # it beats a file that quietly loses entries.
+                        ", %d answer(s) matched nothing"
+                        % len(judged.get("stale") or [])
+                        if judged.get("stale") else ""),
                     "flag": "bad" if judged["real"] else "ok",
                     "note": ("read, not counted: " + spread + ". "
                              + (judged["real"][0].get("why", "")[:160]

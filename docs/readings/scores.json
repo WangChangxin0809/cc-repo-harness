@@ -1,7 +1,7 @@
 {
- "of_commit": "3001d5c",
+ "of_commit": "a455cef",
  "sub_items": 13,
- "average": 8.15,
+ "average": 8.0,
  "items": [
   {
    "id": "1.1",
@@ -20,13 +20,8 @@
   },
   {
    "id": "2.3",
-   "score": 7,
-   "why": "0 of 2 survive is two defects: 16 were available, 3 were asked for, one could not be put back because CLAUDE.md did not introduce its command block readably at that commit"
-  },
-  {
-   "id": "2.4",
-   "score": 8,
-   "why": "every rung is wired and same-turn caught first, which means local-suite and ci have no evidence here at all -- they were never reached, so nothing shows they would catch what it missed"
+   "score": 5,
+   "why": "nine defects were available and the instrument put back none of them: every commit it sampled predates `scripts/check.py`, so a repository whose documented entry point is two weeks old cannot be replay-tested on its own history"
   },
   {
    "id": "3.1",
@@ -37,6 +32,11 @@
    "id": "3.2",
    "score": 9,
    "why": "five checks required to merge on a one-author repository, so nothing reaches main unrun, and the second opinion now fails below 65 instead of below 0"
+  },
+  {
+   "id": "4.0",
+   "score": 8,
+   "why": "6 of 12, and five of the six absences are correct here -- its skills, agents and commands are the plugin's, which rule 4 requires; the one real gap is the empty .claude/rules/, which 5.1 independently reports as six path-scoped sentences paid for on every turn"
   },
   {
    "id": "4.1",
