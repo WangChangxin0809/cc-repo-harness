@@ -54,6 +54,18 @@ EXEMPT_LINE = "# docs-runnable: ignore"
 PLACEHOLDER = re.compile(r"^<.*>$")
 HEADER_LINES = 40
 
+# A fence that declares its language as markdown holds *sample markup* -- what a
+# good how-to step looks like, what a decision record's header is -- and the
+# commands inside it illustrate a shape rather than name anything in this tree.
+# Reading them as live invocations reports the sample's own placeholder paths as
+# broken, which is a finding about a document that is doing its job.
+#
+# Only `markdown` and `md`. Every other language is a real command in a real
+# shell as far as this gate is concerned, and a `bash` fence full of examples is
+# exactly the case this gate was written to catch.
+FENCE = re.compile(r"^\s*(?:```|~~~)\s*(\w*)")
+SAMPLE_LANGS = {"markdown", "md"}
+
 
 def tracked_markdown(root):
     out = subprocess.run(["git", "ls-files", "-z", "*.md"],
@@ -171,8 +183,15 @@ def main():
         if any(EXEMPT_FILE.search(l) for l in lines[:HEADER_LINES]):
             continue
 
+        in_sample = False
         for i, line in enumerate(lines, 1):
-            if EXEMPT_LINE in line:
+            fence = FENCE.match(line)
+            if fence:
+                # A closing fence carries no language, so it can only ever end a
+                # sample -- never open one.
+                in_sample = (not in_sample) and fence.group(1) in SAMPLE_LANGS
+                continue
+            if in_sample or EXEMPT_LINE in line:
                 continue
             m = INVOCATION.match(line)
             if not m:
