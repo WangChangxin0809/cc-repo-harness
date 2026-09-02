@@ -188,10 +188,11 @@ check has not become a wall that people learn to bypass.
 **A criterion can pass vacuously.** If the preconditions were never established
 — the entities do not exist yet, the counter was captured by value, the signal
 carries an argument the matcher does not accept — then every negative assertion
-is true of nothing. Vacuous passes look identical to real ones. The defence is
-one positive assertion per group: something that must be non-empty, non-zero,
-present. `text != ""` catches what "does not contain X" and "is tall enough"
-both let through.
+is true of nothing. Vacuous passes look identical to real ones.
+
+**The defence is one positive assertion per group:** something that must be
+non-empty, non-zero, present. `text != ""` catches what "does not contain X"
+and "is tall enough" both let through.
 
 **Redundant mechanisms mask each other.** When two things independently
 guarantee a property, breaking one leaves the other holding it, and neither

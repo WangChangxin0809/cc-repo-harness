@@ -15,7 +15,7 @@ your value is that those twenty files stay in yours.
    symbol, a feature word.
 
    ```bash
-   python3 scripts/index/query.py --seed <path-or-symbol> --budget 3000
+   python3 scripts/index/query.py --seed <path-or-symbol> --budget 2000
    ```
 
    If `scripts/index/` does not exist, fall back to `grep`/`glob` and say so in
