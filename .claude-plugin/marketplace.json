@@ -7,8 +7,8 @@
     {
       "name": "cc-repo-harness",
       "source": "./",
-      "description": "Lay the foundation that makes a repository teach coding agents how to work in it, then get out of the way."
+      "description": "Measure a repository as a place for a coding agent to work, and lay the foundation where it has none."
     }
   ],
-  "description": "Plugins by WangChangxin0809. Currently one: a repository-side harness for coding agents."
+  "description": "Plugins by WangChangxin0809. Currently one: a harness and an assessment for repositories where coding agents work."
 }

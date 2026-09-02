@@ -173,6 +173,42 @@ def case_tier_a_ships_working_guards():
         shutil.rmtree(repo, ignore_errors=True)
 
 
+def case_a_guard_behind_a_narrower_matcher_turns_the_selftest_red():
+    """A guard that judges a Write, wired at `matcher: "Bash"`, never runs.
+
+    This repository shipped exactly that: no_committed_credential and
+    no_silenced_check judge Write and Edit, dispatch.py was wired for Bash
+    only, and both were files that never ran in a live session. Nothing said
+    so, because the dispatcher fails open and an unasked guard looks like a
+    quiet one. The guards' selftest is what runs in the fast lane, so it is
+    what says so: every tool a guard can refuse must be one its wiring can
+    show it."""
+    repo = fresh_repo()
+    try:
+        if scaffold(repo, "A").returncode != 0:
+            return "scaffold --tier A failed"
+        settings = os.path.join(repo, ".claude", "settings.json")
+        with open(settings, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        for group in cfg["hooks"]["PreToolUse"]:
+            if any("guards/dispatch.py" in h["command"] for h in group["hooks"]):
+                group["matcher"] = "Bash"
+        with open(settings, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        out = sh([sys.executable, "scripts/guards/selftest.py"], cwd=repo)
+        text = out.stdout + out.stderr
+        if out.returncode != 1:
+            return (f"the guards' selftest exited {out.returncode} with a guard "
+                    f"that refuses a Write wired behind matcher \"Bash\" -- "
+                    f"nothing says that guard never runs")
+        if "Write" not in text or "matcher" not in text:
+            return ("the selftest went red without naming the tool and the "
+                    f"matcher, so nobody can fix it from the message: {text[:300]}")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    return None
+
+
 def case_dry_run_describes_the_run_that_happens():
     """`--dry-run` must name exactly the files the real run creates.
 
@@ -486,6 +522,8 @@ def case_scaffolding_twice_changes_nothing():
 
 
 CASES = [
+    ("a guard behind a narrower matcher turns the selftest red",
+     case_a_guard_behind_a_narrower_matcher_turns_the_selftest_red),
     ("skills are copied into the repository and outlive the plugin",
      case_skills_are_copied_and_outlive_the_plugin),
     ("a tier A repository is not given every skill",

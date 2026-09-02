@@ -20,8 +20,14 @@ conditional form worth allowing:
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from _shell import without_heredocs  # noqa: E402
 
 DEFAULT_PROTECTED = ["main", "master"]
 _PUSH = re.compile(r"\bgit\s+(?:-\S+\s+)*push\b([^|;&]*)")
@@ -66,7 +72,7 @@ def _current_branch():
 def check(tool_name: str, tool_input: dict) -> str | None:
     if tool_name != "Bash":
         return None
-    match = _PUSH.search(tool_input.get("command", ""))
+    match = _PUSH.search(without_heredocs(tool_input.get("command", "")))
     if not match:
         return None
 
@@ -103,4 +109,11 @@ CASES = [
     ("Bash", {"command": "git fetch origin main"}, False),
     ("Bash", {"command": "git log origin/main"}, False),
     ("Read", {"file_path": "x"}, False),
+    # A heredoc body is data. This refused the command that was *writing* a
+    # selftest case naming `git push origin main`, twice, while the guard
+    # beside it was being fixed for the same class of mistake.
+    ("Bash", {"command": "cat > t.py <<'EOF'\n"
+                         "CASES = [('Bash', {'command': 'git push origin main | tail -5'},\n"
+                         "          True)]\n"
+                         "EOF"}, False),
 ]

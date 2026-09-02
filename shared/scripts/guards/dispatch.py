@@ -8,17 +8,20 @@ a rule is adding one file here.
     {
       "hooks": {
         "PreToolUse": [{
-          "matcher": "Bash",
+          "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
           "hooks": [{"type": "command",
                      "command": "python3 scripts/guards/dispatch.py"}]
         }]
       }
     }
 
-The matcher is "Bash" because every guard that ships here returns early on any
-other tool; paying an interpreter start on Read and Edit buys nothing. Widen it
-to "*" the first time you write a guard that judges a non-Bash call, and not
-before.
+The matcher names every tool a guard here judges: Bash for the command guards,
+Write, Edit, MultiEdit and NotebookEdit for the ones that read what is about
+to be written. It is not "*", because an interpreter start on every Read buys
+nothing. Add a tool the first time you write a guard that judges it, and
+selftest.py checks that you did: a guard wired behind a matcher that never
+names its tool is a file that never runs, and because the dispatcher fails
+open, nothing at runtime says so. This repository shipped two that way.
 
 Reads the hook payload as JSON on stdin. Exit codes:
 

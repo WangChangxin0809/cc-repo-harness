@@ -1,7 +1,7 @@
 {
   "name": "cc-repo-harness",
-  "version": "1.4.1",
-  "description": "Lay the foundation that makes a repository teach coding agents how to work in it: delivery moments wired to hooks, a layered docs truth source, CI gates plus tool-call guards, a rebuildable repo graph, and a consolidation pass. Bootstraps once, then the repo stands on its own.",
+  "version": "1.4.2",
+  "description": "Measure a repository as a place for a coding agent to work, and lay the foundation where it has none: hooks, guards and gates proven to turn red, layered docs, a repo graph, and a five-dimension assessment you can take again later. Bootstraps once; the repository stands on its own.",
   "agents": [
     "./agents/repo-explorer.md",
     "./agents/repo-assessor.md",

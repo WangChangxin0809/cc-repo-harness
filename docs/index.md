@@ -41,6 +41,7 @@
 | Know why each score carries what would move it, and why every dimension is read twice | [0046](decisions/0046-a-reading-says-what-would-move-it-and-is-read-twice.md) |
 | Know which kind of nothing is measured and which abstains | [0047](decisions/0047-absence-in-the-repository-is-measured-absence-on-the-machine-is-not.md) |
 | Know how the assessment's agents are split, and why the second pass reads a run back | [0048](decisions/0048-the-assessment-agents-live-under-agents-assess-and-the-second-pass-does-not-re-run-the-suite.md) |
+| Know why a probe reaches only the hooks Claude Code would run, and why the matcher names every tool a guard judges | [0049](decisions/0049-the-instrument-asks-a-hook-only-what-claude-code-would-and-the-matcher-names-every-tool-a-guard-judges.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 

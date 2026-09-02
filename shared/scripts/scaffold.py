@@ -495,7 +495,7 @@ CONTEXT_SCRIPTS = [
 # in the informer would take the guards down with it, and guards failing open is
 # a decision that belongs to dispatch.py alone.
 HOOKS = [
-    ("PreToolUse", "Bash",
+    ("PreToolUse", "Bash|Write|Edit|MultiEdit|NotebookEdit",
      'python3 "${CLAUDE_PROJECT_DIR}/scripts/guards/dispatch.py"', "A"),
     ("SessionStart", "*",
      'python3 "${CLAUDE_PROJECT_DIR}/scripts/context/session_brief.py"', "A"),
@@ -841,7 +841,7 @@ def main():
     print("  2. Break one check on purpose; confirm its selftest goes red.")
     print("     Until you have seen it fail, you have a file, not a check.")
     print("  3. Read scripts/guards/*.py. The merge above wired them, so they now")
-    print("     run before every Bash call in this repo — that is code you are")
+    print("     run before every Bash, Write and Edit in this repo — code you are")
     print("     handing the keys to, and it arrived from a scaffolder.")
     if gated:
         print("  4. Work the red list down: ./ci.sh --fast, fill what it names,")

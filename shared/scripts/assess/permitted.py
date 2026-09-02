@@ -62,7 +62,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from blast import bash, edit, payload, write                 # noqa: E402
-from catch import fire_ex, wired                             # noqa: E402
+from catch import applicable, fire_ex, wired                 # noqa: E402
 
 MAX_ACTIONS = 40
 
@@ -228,7 +228,8 @@ def fire(root, actions):
         if not call:
             continue
         blocked, hook, said, broke = fire_ex(
-            root, hooks, payload(root, call, "PreToolUse"))
+            root, applicable(hooks, call["tool_name"]),
+            payload(root, call, "PreToolUse"))
         subject = (call["tool_input"].get("command")
                    or call["tool_input"].get("file_path") or "")
         out.append({"what": action.get("what", ""),

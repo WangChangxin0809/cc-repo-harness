@@ -12,7 +12,7 @@ until it has been observed blocking -- and observed *not* blocking a near miss -
 that claim is untested. The dispatcher deliberately fails open, so a guard that
 quietly stopped working is invisible at runtime. This is what makes it visible.
 
-Two structural requirements, checked alongside the cases themselves:
+Three structural requirements, checked alongside the cases themselves:
 
 * At least one case per guard must expect a block, and at least one must not.
   A guard with only positive cases passes every test while blocking everything,
@@ -20,15 +20,85 @@ Two structural requirements, checked alongside the cases themselves:
 * A blocking guard must return a non-empty reason. Exit code 2 is reached by
   several different paths, including a guard crashing on unexpected input, so a
   test that only checks the code passes while the guard is broken.
+* Every tool a guard can refuse must be one its wiring shows it. A guard that
+  judges a Write behind `matcher: "Bash"` in .claude/settings.json is a file
+  that never runs, and because the dispatcher fails open, an unasked guard
+  and a quiet one look identical at runtime. This repository shipped two
+  guards that way.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 from dispatch import load_guards  # noqa: E402
+
+
+def _settings_above(start):
+    """The nearest .claude/settings*.json above the guards directory."""
+    cur = os.path.abspath(start)
+    for _ in range(8):
+        found = [os.path.join(cur, ".claude", name)
+                 for name in ("settings.json", "settings.local.json")
+                 if os.path.exists(os.path.join(cur, ".claude", name))]
+        if found:
+            return found
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+    return []
+
+
+def _matches(matcher, tool):
+    """Would Claude Code run a hook with this matcher for this tool?"""
+    if not matcher or matcher in ("*", ".*"):
+        return True
+    try:
+        return re.fullmatch(matcher, tool) is not None
+    except re.error:
+        return tool in [p.strip() for p in matcher.split("|")]
+
+
+def wiring_gaps(guards, here=HERE):
+    """Tools a guard can refuse that its wiring never shows it.
+
+    Silent when nothing above this directory wires dispatch.py: then the
+    wiring is somebody else's, or absent, and neither is this check's
+    subject."""
+    matchers = []
+    for path in _settings_above(here):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        for group in (cfg.get("hooks") or {}).get("PreToolUse") or []:
+            commands = [h.get("command") or "" for h in group.get("hooks") or []]
+            if any("dispatch.py" in c for c in commands):
+                matchers.append((group.get("matcher") or "",
+                                 os.path.join(".claude", os.path.basename(path))))
+    if not matchers:
+        return []
+    refuses = {}
+    for name, mod in guards:
+        for tool, _input, should in getattr(mod, "CASES", None) or []:
+            if should:
+                refuses.setdefault(tool, set()).add(name)
+    gaps = []
+    for tool in sorted(refuses):
+        if any(_matches(m, tool) for m, _where in matchers):
+            continue
+        wired = ", ".join(f'matcher "{m}" in {where}' for m, where in matchers)
+        gaps.append(f"{', '.join(sorted(refuses[tool]))}: refuses a {tool}, but "
+                    f"dispatch.py is wired at {wired}, so it is never asked "
+                    f"-- a file that never runs. Name {tool} in the matcher.")
+    return gaps
 
 
 def main():
@@ -75,6 +145,8 @@ def main():
                 failures.append(f"{name}: blocked {shown} with an empty reason")
             elif verbose:
                 print(f"  ok  {name:<34} {'block ' if blocked else 'allow '} {shown}")
+
+    failures += wiring_gaps(guards)
 
     total = sum(len(getattr(m, 'CASES', [])) for _, m in guards)
     if failures:
