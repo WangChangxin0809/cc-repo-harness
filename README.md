@@ -186,12 +186,13 @@ people skip. The annotated version, and the seven moments in full:
 |---|---|---|
 | `bootstrap-repo-harness` | Once, to lay the foundation | the plugin |
 | `writing-docs` | Writing or restructuring a document | your repo |
+| `find-skill` | Before writing one: does it already exist, and what does it cost | your repo |
 | `writing-checks` | A rule needs enforcing rather than documenting | your repo |
 | `github-surface` | README, CONTRIBUTING, community health files, `.github/workflows/` | your repo |
 | `repo-index` | Large repo; an agent cannot find the relevant code | your repo |
 | `consolidating-notes` | Notes have drifted or contradicted | your repo |
 
-Only the first is charged to every session on your machine. The other five are
+Only the first is charged to every session on your machine. The other six are
 copied into a repository at the tier that earns them, so they cost nothing until
 then and keep working after you uninstall this.
 
