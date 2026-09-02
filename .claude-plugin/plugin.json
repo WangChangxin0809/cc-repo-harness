@@ -1,7 +1,13 @@
 {
   "name": "cc-repo-harness",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Lay the foundation that makes a repository teach coding agents how to work in it: delivery moments wired to hooks, a layered docs truth source, CI gates plus tool-call guards, a rebuildable repo graph, and a consolidation pass. Bootstraps once, then the repo stands on its own.",
+  "agents": [
+    "./agents/repo-explorer.md",
+    "./agents/repo-assessor.md",
+    "./agents/assess/reader.md",
+    "./agents/assess/promise-tester.md"
+  ],
   "author": {
     "name": "WangChangxin0809"
   },

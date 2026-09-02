@@ -27,6 +27,14 @@ Two things follow, and both are easy to get wrong:
 - **`--no-full` before must mean `--no-full` after.** The replay is on by
   default; dimension 2 abstains when it is skipped, and an abstention
   compared against a measurement is not a comparison.
+- **The reading is compared as a reading.** `reading.json` from before and
+  after carry the same sub-item ids; a number that moved by less than two is
+  inside one reader's own spread and says nothing. What closes a row is its
+  `moves_if` turning to *nothing*, or the measured row under it moving.
+- **Answers are re-applied, not re-invented.** `factsheet.py --from` puts
+  the readers' answers back on a new run in a second; a judged row that was
+  answered before is answered again from the same brief, and the two
+  answers are what to compare.
 
 ## Only the measured rows may be compared
 

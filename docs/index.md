@@ -38,6 +38,9 @@
 | Know why dimension 4 stopped measuring whether an agent can navigate | [0042](decisions/0042-a-measurement-noisier-than-its-effect-is-not-a-measurement.md) |
 | Know why counting mechanisms is allowed where counting files is not | [0043](decisions/0043-a-mechanism-is-not-a-convention.md) |
 | Know why the pipeline is read for scope, self-check, reruns and shipping, and never for its shape | [0044](decisions/0044-the-pipeline-is-read-for-what-it-does-not-what-it-resembles.md) |
+| Know why each score carries what would move it, and why every dimension is read twice | [0046](decisions/0046-a-reading-says-what-would-move-it-and-is-read-twice.md) |
+| Know which kind of nothing is measured and which abstains | [0047](decisions/0047-absence-in-the-repository-is-measured-absence-on-the-machine-is-not.md) |
+| Know how the assessment's agents are split, and why the second pass reads a run back | [0048](decisions/0048-the-assessment-agents-live-under-agents-assess-and-the-second-pass-does-not-re-run-the-suite.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 

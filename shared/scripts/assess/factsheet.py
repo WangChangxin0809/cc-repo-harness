@@ -10,6 +10,11 @@
     --mutate N change N covered lines and see whether the tests notice --
                OFF by default, because it runs the suite once per mutant
     --html P   a self-contained page for a person to read once and act on
+    --from R   read a previous --json run back and apply the answer flags
+               to it; nothing is re-measured, the suite does not run again
+    --coverage-command C
+               the plain command coverage should wrap, when --test-command
+               is a shell line no coverage tool can
 
 Exit codes:
     0 = the page was produced    2 = cannot judge (not a git repository)
@@ -120,7 +125,8 @@ def a_check_file(probe, root):
     return ""
 
 
-def gather(root, full, instances, work, command=None, mutate=0):
+def gather(root, full, instances, work, command=None, mutate=0,
+           coverage_command=None):
     probe_mod = load("probe_repo", os.path.join(PARENT, "probe_repo.py"))
     probe = probe_mod.probe(root) if probe_mod else None
     if probe is None:
@@ -184,7 +190,14 @@ def gather(root, full, instances, work, command=None, mutate=0):
         if not command:
             _eco, found_cmd = catch_mod.find(cbench)
             command = found_cmd
-        r["cover"], r["cover_why"] = cover_mod.assess(cbench, command, cwork)
+        # A suite that has to go through a shell -- `cd app && flutter test`,
+        # a loop over selftests -- cannot be wrapped in a coverage tool, and
+        # the replay is right to run it as written. Coverage takes its own
+        # command when one is given, so the two rows stop being tied to one
+        # string that only one of them can use.
+        ccmd = (catch_mod.argv_of(coverage_command) if coverage_command
+                else command)
+        r["cover"], r["cover_why"] = cover_mod.assess(cbench, ccmd, cwork)
 
     # Second injection, and the only one that is opt-in. The replay asks how
     # late a defect that actually happened here is caught; mutation asks
@@ -357,6 +370,15 @@ def main():
                     default=True,
                     help="skip the defect replay (dimension 2 then abstains)")
     ap.add_argument("--instances", type=int, default=3)
+    # The second pass. Every answer flag below re-ran the whole instrument,
+    # replay included, to put one reading onto the page -- minutes of a
+    # stranger's test suite per answer. A run is a record; reading it back
+    # is what the JSON was for.
+    ap.add_argument("--from", dest="from_run", default="", metavar="RUN.json",
+                    help="a previous --json run. Nothing is re-measured; the "
+                         "answer flags below are applied to it and the page "
+                         "is written again. This is how the readers' answers "
+                         "reach the page without running the suite twice")
     ap.add_argument("--test-command", default="",
                     help="how this repository's tests run. The built-in table "
                          "recognises a handful of conventions and misses most "
@@ -371,6 +393,12 @@ def main():
     # per mutant, and the number of mutants is chosen by the caller. It is the
     # one thing on this page whose cost the page cannot bound on its own, so it
     # is the one thing the caller has to ask for.
+    ap.add_argument("--coverage-command", default="",
+                    help="how to run the suite for coverage only, when "
+                         "--test-command is a shell line the coverage tool "
+                         "cannot wrap: a plain `pytest -q` or `npm test` "
+                         "that runs the same suite. Defaults to the test "
+                         "command")
     ap.add_argument("--mutate", nargs="?", type=int, const=30, default=0,
                     metavar="N",
                     help="change N covered lines and see whether the tests "
@@ -483,16 +511,52 @@ def preflight(root, a, work):
     print("\n".join(lines) + "\n", file=sys.stderr)
 
 
+def reload(path, root):
+    """A previous run, read back so answers can be applied to it.
+
+    The root it was taken from is kept unless the caller names another: the
+    second pass fires legitimate actions at the repository's hooks and runs
+    promise tests in a clone of it, so it has to be the same tree."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            r = json.load(fh)
+    except (OSError, ValueError) as exc:
+        return None, f"cannot judge: {path} is not a run: {exc}"
+    if not isinstance(r, dict) or "probe" not in r:
+        return None, f"cannot judge: {path} is not factsheet.py --json output"
+    r.pop("dimensions", None)
+    if root and r.get("root") and os.path.abspath(root) != r["root"]:
+        r["root"] = os.path.abspath(root)
+    return r, ""
+
+
 def _run(a, root, work):
-    if a.full or a.mutate or a.promise_tests:
-        preflight(root, a, work)
-    r = gather(root, a.full, a.instances, work,
-               a.test_command or None, a.mutate)
-    if r is None:
-        print("cannot judge: not a git repository, or git is unavailable",
-              file=sys.stderr)
-        return 2
-    r["root"] = root
+    if a.from_run:
+        r, why = reload(a.from_run, root if a.root != "." else "")
+        if r is None:
+            print(why, file=sys.stderr)
+            return 2
+        root = r.get("root") or root
+        if a.promise_tests:
+            print("  reading the run back; nothing is re-measured. The "
+                  "promise tests run in a clone, never in the repository\n",
+                  file=sys.stderr)
+    else:
+        if a.full or a.mutate or a.promise_tests:
+            preflight(root, a, work)
+        r = gather(root, a.full, a.instances, work,
+                   a.test_command or None, a.mutate,
+                   a.coverage_command or None)
+        if r is None:
+            print("cannot judge: not a git repository, or git is unavailable",
+                  file=sys.stderr)
+            return 2
+        r["root"] = root
+        # What the run measured, so a reader handed the run later can tell
+        # whether the tree in front of it is still the one on the page.
+        r["head_sha"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True,
+            text=True, timeout=30).stdout.strip()
 
     # Round one, then -- only if its answers arrived -- round two. Both run
     # the agent's own code, which is why both happen in a throwaway clone

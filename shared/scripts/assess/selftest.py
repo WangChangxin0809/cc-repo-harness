@@ -406,6 +406,106 @@ def case_settings_local_is_read_and_marked(t):
     return ""
 
 
+def case_a_repository_with_no_suite_is_scored_not_skipped(t):
+    """Absent in the repository, not absent on this machine.
+
+    `no runnable test command` covered two situations: a toolchain this
+    machine lacks, and a repository with no test file anywhere. The first is
+    an abstention. The second was reported the same way, so the one
+    repository dimension 2 should have been loudest about was the one it
+    said nothing about -> 0047"""
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    commit(t, "feat: a")
+    put(t, "src/a.py", "def f():\n    return 3\n")
+    commit(t, "fix: f returned the wrong number")
+    found = history_mod.mine(t)
+    defects = {"replayable": 0, "fix_no_test": 1,
+               "has_test_files": found["has_test_files"],
+               "shallow": found["shallow"]}
+    if defects["has_test_files"]:
+        return "the fixture has a test file, so this proves nothing"
+    d = dim_mod.change_validation(
+        defects, None, "cannot judge: no runnable test command — pass "
+        "--test-command", catch_mod.LADDER)
+    if d["state"] != "measured":
+        return f"no suite in the tree was reported as {d['state']!r}"
+    row = next((r for r in d["rows"]
+                if r["label"] == "a suite in the repository"), None)
+    if row is None or row["flag"] != "bad":
+        return f"no red row for the missing suite: {row}"
+    items, _un = review_mod.collect({"dimensions": [d]})
+    if "2.4" not in [i["id"] for i in items]:
+        return "the missing suite reaches no sub-item, so it is never scored"
+    # And under --no-full, which costs nothing extra, the same row.
+    d = dim_mod.change_validation(defects, None, "", catch_mod.LADDER)
+    if d["state"] != "measured":
+        return "under --no-full the missing suite went back to being silent"
+
+    # The other case keeps abstaining: a test file exists and the toolchain
+    # to run it does not.
+    put(t, "tests/test_a.py", "def test_f():\n    assert True\n")
+    commit(t, "test: a")
+    found = history_mod.mine(t)
+    defects["has_test_files"] = found["has_test_files"]
+    d = dim_mod.change_validation(
+        defects, None, "cannot judge: no runnable test command (pytest "
+        "needs pytest, which is not on PATH)", catch_mod.LADDER)
+    if d["state"] != "abstained":
+        return ("a suite this machine cannot run was scored as "
+                f"{d['state']!r}")
+    return None
+
+
+def case_a_repository_with_no_pipeline_is_scored_not_skipped(t):
+    """Same rule, dimension 3. `pipeline.py` reads one host and abstains on
+    the others, which is right when a Jenkinsfile is there and wrong when
+    nothing is: 3.3 to 3.6 were absent for a repository with no CI, which
+    is the repository they were written for."""
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    commit(t, "feat: a")
+    log = history_mod.commits(t)
+    d = dim_mod.reliable_delivery(t, log, (), None, None)
+    row = next((r for r in d["rows"]
+                if r["label"] == "changes that run no check"), None)
+    if row is None or row["flag"] != "bad" or "no pipeline" not in row["value"]:
+        return f"no pipeline at all left 3.3 blank: {row}"
+    items, _un = review_mod.collect({"dimensions": [d]})
+    if "3.3" not in [i["id"] for i in items]:
+        return "the missing pipeline reaches no sub-item"
+    # With a pipeline of a host pipeline.py does not read, the row is not
+    # printed: that is unread, not absent.
+    put(t, "Jenkinsfile", "pipeline { agent any }\n")
+    commit(t, "ci: jenkins")
+    d = dim_mod.reliable_delivery(t, history_mod.commits(t), (), None, None)
+    if any(r["label"] == "changes that run no check" for r in d["rows"]):
+        return "a Jenkinsfile nobody read was scored as no pipeline"
+    return None
+
+
+def case_a_repository_that_writes_nothing_down_is_scored(t):
+    """4.1's value was the kinds of memory joined with spaces, and a
+    repository with none produced an empty string, which the reading drops
+    as an abstention. Nothing written down is a measurement."""
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    commit(t, "feat: a")
+    truth = truth_mod.assess(t)
+    if truth is None:
+        return "truth could not read an ordinary repository"
+    if any(truth["thickness"].values()):
+        return f"the fixture writes something down: {truth['thickness']}"
+    d = dim_mod.repository_memory(t, history_mod.commits(t), (), truth)
+    row = next((r for r in d["rows"] if r["label"] == "what it writes down"),
+               None)
+    if row is None or not review_mod.measured(row):
+        return f"nothing written down was dropped as an abstention: {row}"
+    if row["flag"] != "bad":
+        return f"nothing written down is not red: {row['flag']}"
+    return None
+
+
 def case_no_hooks_and_a_real_defect_lands_on_the_suite(t):
     """The end-to-end shape, with the answer known in advance: a repository
     with tests and no hooks catches its defects at `local-suite`.
@@ -3133,17 +3233,194 @@ def case_a_claim_still_waiting_on_round_two_is_not_a_pass(t):
         return "a pending claim was described as the code having passed"
     return None
 
+def case_briefs_are_written_by_dimension_and_name_their_flag(t):
+    """One call per dimension, and each file says where its answer goes.
+
+    The reader that answers a dimension used to need five module names and
+    five flags. A brief that does not name the flag its answer feeds is a
+    reading that reaches the page only if somebody remembers -> 0048"""
+    import briefs as briefs_mod
+    run = {"probe": {"root": t}, "root": t,
+           "observe": {a: [] for a in observe_mod.ANGLES},
+           "permitted": {"ci_commands": [{"command": "make test",
+                                          "from": "ci.yml"}],
+                         "documented_commands": [], "hooks": {}},
+           "truth": None, "conflict": None, "mutants": None}
+    out = os.path.join(t, "d1")
+    got = briefs_mod.write(run, 1, out, t)
+    names = sorted(w["name"] for w in got)
+    if names != ["observe", "permitted"]:
+        return f"dimension 1 wrote {names}, not observe and permitted"
+    for w in got:
+        if not os.path.isfile(w["path"]):
+            return f"{w['name']} was reported and not written"
+        if not w["flag"].startswith("--") or not w["answer"].endswith(
+                ".answers.json"):
+            return f"{w['name']} does not say where its answer goes: {w}"
+    flags = {w["name"]: w["flag"] for w in got}
+    if flags != {"observe": "--observe-answers",
+                 "permitted": "--legitimate-actions"}:
+        return f"the wrong flags were named: {flags}"
+    if briefs_mod.write(run, 3, os.path.join(t, "d3"), t):
+        return "dimension 3 wrote a brief, and it has nothing to answer"
+    if briefs_mod.write(run, 4, os.path.join(t, "d4"), t):
+        return "dimension 4 wrote a brief with no candidates to judge"
+    return None
+
+
+def case_a_run_is_read_back_instead_of_re_measured(t):
+    """The second pass applies answers to a run; it does not run the suite.
+
+    Every answer flag re-ran the whole instrument to put one reading on the
+    page, minutes of somebody's tests per answer. A run is a record. What
+    is checked here: a saved run reloads with its dimensions rebuilt from
+    the same facts, and a file that is not a run is refused."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "factsheet", os.path.join(HERE, "factsheet.py"))
+    fs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs)
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    put(t, "CLAUDE.md", "# t\n\nA repository.\n")
+    commit(t, "feat: a")
+    work = os.path.join(t, ".work")
+    r = fs.gather(t, False, 1, work)
+    if r is None:
+        return "the instrument could not read the fixture"
+    r["root"] = t
+    first = fs.dimensions_of(r)
+    path = os.path.join(t, "run.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({**r, "dimensions": first}, fh)
+    back, why = fs.reload(path, "")
+    if back is None:
+        return f"a saved run did not reload: {why}"
+    if "dimensions" in back:
+        return "the old page came back with the run instead of being rebuilt"
+    second = fs.dimensions_of(back)
+    got = [(d["n"], d["state"], [row["label"] for row in d["rows"]])
+           for d in second]
+    want = [(d["n"], d["state"], [row["label"] for row in d["rows"]])
+            for d in first]
+    if got != want:
+        return f"the run read back does not rebuild the same page: {got}"
+    bad = os.path.join(t, "not-a-run.json")
+    with open(bad, "w", encoding="utf-8") as fh:
+        json.dump({"items": []}, fh)
+    back, why = fs.reload(bad, "")
+    if back is not None or "not factsheet" not in why:
+        return f"a file that is not a run was accepted: {why!r}"
+    return None
+
+
+def case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped(t):
+    """One string, two consumers, and only one of them could use it.
+
+    The replay is right to run `for f in ...; do python3 "$f"; done` as
+    written. No coverage tool wraps a shell loop, so 2.1 abstained on every
+    repository whose suite was a shell line -- this one included. Coverage
+    now takes its own plain command when given one, and the replay keeps
+    the loop."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "factsheet", os.path.join(HERE, "factsheet.py"))
+    fs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs)
+    repo(t)
+    put(t, "src/a.py", "def f():\n    return 2\n")
+    put(t, "tests/test_a.py", "from src.a import f\n\ndef test_f():\n"
+                              "    assert f() == 2\n")
+    commit(t, "feat: a")
+    seen = {}
+
+    def fake_cover(bench, command, work):
+        seen["command"] = command
+        return None, "cannot judge: stubbed"
+
+    def fake_catch(root, instances, work, command=None):
+        seen["replay"] = command
+        return None, "cannot judge: stubbed"
+
+    real_cover, real_catch = fs.cover_mod.assess, fs.catch_mod.assess
+    fs.cover_mod.assess, fs.catch_mod.assess = fake_cover, fake_catch
+    try:
+        loop = 'for f in tests/*.py; do python3 "$f" || exit 1; done'
+        fs.gather(t, True, 1, os.path.join(t, ".work"), loop, 0,
+                  coverage_command="pytest -q")
+    finally:
+        fs.cover_mod.assess, fs.catch_mod.assess = real_cover, real_catch
+    if seen.get("replay") != loop:
+        return f"the replay did not get the suite as written: {seen}"
+    if seen.get("command") != ["pytest", "-q"]:
+        return f"coverage did not get its own command: {seen.get('command')}"
+    # Without one, coverage gets what the replay got.
+    seen.clear()
+    fs.cover_mod.assess, fs.catch_mod.assess = fake_cover, fake_catch
+    try:
+        fs.gather(t, True, 1, os.path.join(t, ".work2"), "pytest -q", 0)
+    finally:
+        fs.cover_mod.assess, fs.catch_mod.assess = real_cover, real_catch
+    if seen.get("command") != "pytest -q":
+        return f"without its own command coverage lost the suite's: {seen}"
+    return None
+
+
+def case_shipping_is_read_from_the_default_branch(t):
+    """A branch that bumped the manifest is supposed to be ahead of the tag.
+
+    3.6 read the checkout: on a feature branch with the version raised, the
+    manifest disagreed with the latest tag, and a tag made on main after
+    the branch was cut was not reachable. Both are the ordinary look of
+    open work; a reader of this repository's own page called the row
+    noise, and it was. Shipping now reads the default branch."""
+    repo(t)
+    put(t, "src/app.py", "x = 1\n")
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "1.0.0"}))
+    put(t, ".github/workflows/ci.yml", WORKFLOW % ("", "      - run: pytest\n"))
+    commit(t, "feat: app")
+    git(["tag", "v1.0.0"], t)
+    # A feature branch raises the version; main also gains a tag after the
+    # branch was cut.
+    git(["checkout", "-q", "-b", "feature"], t)
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "1.1.0"}))
+    commit(t, "feat: bump")
+    git(["checkout", "-q", "main"], t)
+    put(t, "src/app.py", "x = 2\n")
+    commit(t, "fix: x")
+    git(["tag", "v1.0.1"], t)
+    git(["checkout", "-q", "feature"], t)
+    rows = pipeline_rows(t)
+    row = rows.get("the latest tag is on this branch")
+    if not row or row["flag"] != "ok":
+        return f"a tag on main read as unreachable from a feature branch: {row}"
+    row = rows.get("the manifest agrees with the latest tag")
+    if not row or row["flag"] != "ok":
+        return f"a branch that bumped the version read as a mismatch: {row}"
+    # And on main, a version raised without a tag is still the finding.
+    git(["checkout", "-q", "main"], t)
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "2.0.0"}))
+    commit(t, "feat: two")
+    row = pipeline_rows(t).get("the manifest agrees with the latest tag")
+    if not row or row["flag"] != "warn":
+        return f"a bump on main with no tag was not reported: {row}"
+    return None
+
+
 def case_the_blind_agent_cannot_read_the_repository(t):
     """The tool list is the experiment, not a sentence in the prompt.
 
     A test written after reading the implementation agrees with it by
-    construction. `repo-promise-tester` is given `Write` and nothing else so
+    construction. `assess-promise-tester` is given `Write` and nothing else so
     that the blind is a fact about what it can do -- an instruction asking it
     not to look is one an agent can talk itself out of, and the whole method
     is worthless the moment it does."""
     import re as _re
     plugin = os.path.dirname(os.path.dirname(PARENT))
-    path = os.path.join(plugin, "agents", "repo-promise-tester.md")
+    path = os.path.join(plugin, "agents", "assess", "promise-tester.md")
     if not os.path.exists(path):
         return "the agent that writes the tests is missing"
     head = open(path, encoding="utf-8").read().split("---")[1]
@@ -3621,6 +3898,108 @@ def case_a_number_off_the_scale_is_refused(t):
         return "a score of 11 was accepted"
     if "5.1" not in judged["items"]:
         return "the good answer was discarded along with the bad one"
+    return None
+
+
+def case_two_readings_are_pooled_and_a_gap_is_marked(t):
+    """Two numbers for one row are worth more than their mean.
+
+    A reader re-reading its own work moves by a point or two. Two readers
+    five apart saw different repositories, and averaging that to a quiet 5.5
+    hides the one thing the second reading was paid for. So the spread is
+    kept, and past two points the row is marked -> 0046"""
+    run = _run_with([
+        {"label": "refused before they happen", "value": "3/6",
+         "flag": "warn", "note": ""},
+        {"label": "floor — paid on every turn", "value": "~900",
+         "flag": "ok", "note": ""}])
+    first = {"items": [{"id": "1.1", "score": 3, "why": "three open",
+                        "moves_if": "a guard on reset --hard"},
+                       {"id": "5.1", "score": 8, "why": "small",
+                        "moves_if": "nothing -- one paragraph"}]}
+    second = {"items": [{"id": "1.1", "score": 8, "why": "the open ones "
+                         "are never used here",
+                         "moves_if": "a guard on reset --hard"},
+                        {"id": "5.1", "score": 7, "why": "small"}]}
+    judged, why = review_mod.grade(run, [first, second])
+    if judged is None:
+        return f"two readings were not graded: {why}"
+    if judged.get("readings") != 2:
+        return "the page does not know it was read twice"
+    one = judged["items"]["1.1"]
+    if one["scores"] != [3.0, 8.0] or one["score"] != 5.5:
+        return f"the two numbers were not kept: {one}"
+    if not one["disagree"]:
+        return "five points apart was not marked as a disagreement"
+    if judged["items"]["5.1"]["disagree"]:
+        return "one point apart was marked as a disagreement"
+    if one["moves_if"] != ["a guard on reset --hard"]:
+        return f"the same change twice was listed twice: {one['moves_if']}"
+    # The one that was read once is graded as it was given.
+    alone, _ = review_mod.grade(run, first)
+    if alone["items"]["1.1"]["score"] != 3 or alone.get("readings") != 1:
+        return "a single reading is no longer graded as one"
+    return None
+
+
+def case_a_row_nothing_would_move_is_closed(t):
+    """The list the page opens with is what to do, lowest first.
+
+    A row whose reader said `nothing` is a result, and the best one; it is
+    still not something to do. So it is kept on the item and left off the
+    list, and the list is ordered by score with the id breaking ties, so two
+    pages of one repository differ only where the numbers moved."""
+    run = _run_with([
+        {"label": "refused before they happen", "value": "3/6",
+         "flag": "warn", "note": ""},
+        {"label": "floor — paid on every turn", "value": "~900",
+         "flag": "ok", "note": ""},
+        {"label": "changes that verified nothing", "value": "4 of 20",
+         "flag": "warn", "note": ""}])
+    judged, _why = review_mod.grade(run, {"items": [
+        {"id": "5.1", "score": 4, "why": "x",
+         "moves_if": "Nothing — the floor is one paragraph"},
+        {"id": "3.1", "score": 4, "why": "y", "moves_if": "a required check"},
+        {"id": "1.1", "score": 2, "why": "z", "moves_if": "a guard"}]})
+    order = [sid for sid, _v in review_mod.to_move(judged)]
+    if order != ["1.1", "3.1"]:
+        return f"the list is not lowest-first with closed rows left off: {order}"
+    if judged["items"]["5.1"]["moves_if"] != ["Nothing — the floor is one paragraph"]:
+        return "the closing line was dropped from the item itself"
+    page = review_mod.html(judged, run)
+    head = page.split('class="item"')[0]
+    if "a guard" not in head or "a required check" not in head:
+        return "the page does not open with what would move the number"
+    if "one paragraph" in head:
+        return "a closed row is on the list the page opens with"
+    text = review_mod.render(judged)
+    if text.index("a guard") > text.index("dangerous behaviour"):
+        return "the text render does not lead with the list"
+    return None
+
+
+def case_a_brief_for_one_dimension_holds_only_that_dimension(t):
+    """Five readers read five dimensions, and none sees the others' rows.
+
+    A reader given the whole brief and asked for dimension 3 scores
+    dimension 3 with the other four in view, which is a reading of the
+    repository rather than of the dimension. So the brief narrows, and an
+    empty dimension is refused rather than handed over blank."""
+    run = _run_with([
+        {"label": "refused before they happen", "value": "3/6",
+         "flag": "warn", "note": ""},
+        {"label": "changes that verified nothing", "value": "4 of 20",
+         "flag": "warn", "note": ""}])
+    text, why = review_mod.brief(run, 3)
+    if not text:
+        return f"dimension 3 was not briefed: {why}"
+    if "## 1.1" in text or "refused before" in text:
+        return "the brief for dimension 3 carries dimension 1's row"
+    if "## 3.1" not in text:
+        return "the brief for dimension 3 lacks 3.1"
+    text, why = review_mod.brief(run, 5)
+    if text or "dimension 5" not in why:
+        return f"an empty dimension was handed over: {why!r}"
     return None
 
 
@@ -4897,6 +5276,26 @@ CASES = [
      case_a_number_off_the_scale_is_refused),
     ("the radar puts a low axis nearer the centre",
      case_the_radar_puts_a_low_axis_nearer_the_centre),
+    ("two readings are pooled and a gap is marked",
+     case_two_readings_are_pooled_and_a_gap_is_marked),
+    ("a row nothing would move is closed",
+     case_a_row_nothing_would_move_is_closed),
+    ("a brief for one dimension holds only that dimension",
+     case_a_brief_for_one_dimension_holds_only_that_dimension),
+    ("a repository with no suite is scored, not skipped",
+     case_a_repository_with_no_suite_is_scored_not_skipped),
+    ("a repository with no pipeline is scored, not skipped",
+     case_a_repository_with_no_pipeline_is_scored_not_skipped),
+    ("a repository that writes nothing down is scored",
+     case_a_repository_that_writes_nothing_down_is_scored),
+    ("briefs are written by dimension and name their flag",
+     case_briefs_are_written_by_dimension_and_name_their_flag),
+    ("a run is read back instead of re-measured",
+     case_a_run_is_read_back_instead_of_re_measured),
+    ("coverage takes its own command when the suite cannot be wrapped",
+     case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped),
+    ("shipping is read from the default branch, not the checkout",
+     case_shipping_is_read_from_the_default_branch),
     ("a document nobody loads is not a context cost",
      case_a_document_nobody_loads_is_not_a_context_cost),
     ("a skill's reference is loaded and is counted",

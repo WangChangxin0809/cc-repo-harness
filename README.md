@@ -68,19 +68,21 @@ page. Five dimensions, each answering one question:
 | 5 | **Context economy** | What does the harness cost on every turn? |
 
 Every number is produced by a script, never estimated by the model, so a figure
-taken today can be compared with the same figure after a change. The agent reads
-only what the scripts cannot.
-
-The page ends in a checklist with a fixed shape, one row per finding, worst
+taken today can be compared with the same figure after a change. Then one
+reader per dimension, twice, puts each sub-item on a ten and names the one
+change that would move it. The page opens with those changes, lowest score
 first:
 
-| Finding | Evidence | Proposed change | Basis |
-|---|---|---|---|
-| Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
+| | | Moves if |
+|---|---|---|
+| 1.1 | 3 | a guard on `git reset --hard`, the one probe that walked through |
+| 3.2 | 5 | a required check on `main`; today the suite runs and nothing waits for it |
 
-Two endings are results, not failures. *Nothing here is worth changing* gets
-written down. And a repository whose tests will not run on this machine
-abstains from that dimension instead of scoring zero.
+Two readers more than two points apart on a row are shown as disagreeing,
+not averaged. Two endings are results, not failures: *nothing here is worth
+changing* is an empty list, written down. And a repository whose tests will
+not run on this machine abstains from that dimension instead of scoring zero,
+while a repository with no tests at all gets the red row it earned.
 
 ## Improve
 
@@ -193,9 +195,11 @@ Only the first is charged to every session on your machine. The other five are
 copied into a repository at the tier that earns them, so they cost nothing until
 then and keep working after you uninstall this.
 
-Also included: two subagents with their own context, `repo-explorer` and
-`repo-assessor`; the once-per-repository notice; and a hook that runs a
-repository's own guards before it has wired them itself.
+Also included: four subagents with their own context. `repo-explorer`
+answers one question about a codebase; `repo-assessor` runs the assessment
+end to end, spawning `assess-reader` once per dimension and the blind
+`assess-promise-tester` when asked. Plus the once-per-repository notice, and
+a hook that runs a repository's own guards before it has wired them itself.
 
 ## Trust
 

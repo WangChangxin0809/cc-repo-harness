@@ -59,7 +59,7 @@ def load(root):
         return None, str(exc)
 
 
-def check_manifest(m, out):
+def check_manifest(m, out, root=None):
     name = m.get("name")
     if not name:
         out.append(f"{MANIFEST}: no `name` — it is the only required field")
@@ -79,17 +79,38 @@ def check_manifest(m, out):
         out.append(f"{MANIFEST}: no `description` — it is what a user reads "
                    f"before installing")
 
-    # Custom component paths supplement the defaults rather than replacing
-    # them, so a wrong one fails silently: the defaults still load and the
-    # custom directory is simply never read.
+    # A custom `commands` or `agents` list REPLACES the default directory;
+    # only `skills` adds to it. `agents` entries are files, and the first-
+    # party validator insists on `.md`. So a manifest that lists
+    # `./agents/assess/reader.md` and forgets `./agents/repo-explorer.md` has
+    # silently dropped the explorer, and one that lists a file that is not
+    # there has dropped that one. Neither gets a message from the loader.
     for key in ("commands", "agents", "skills", "hooks", "mcpServers"):
         value = m.get(key)
         if value is None:
             continue
-        for path in (value if isinstance(value, list) else [value]):
+        paths = value if isinstance(value, list) else [value]
+        for path in paths:
             if not isinstance(path, str) or not path.startswith("./"):
                 out.append(f"{MANIFEST}: {key} path {path!r} must be relative "
                            f"and start with './'")
+            elif root is not None and not os.path.exists(os.path.join(root, path)):
+                out.append(f"{MANIFEST}: {key} path {path!r} does not exist, "
+                           f"and a listed path replaces the default — what "
+                           f"it was meant to load, loads nowhere")
+        if key == "agents" and root is not None:
+            default = os.path.join(root, "agents")
+            listed = {os.path.normpath(os.path.join(root, p))
+                      for p in paths if isinstance(p, str)}
+            if os.path.isdir(default):
+                dropped = [f for f in sorted(os.listdir(default))
+                           if f.endswith(".md") and os.path.normpath(
+                               os.path.join(default, f)) not in listed]
+                if dropped:
+                    out.append(f"{MANIFEST}: `agents` lists files and "
+                               f"leaves out agents/{dropped[0]} — a list "
+                               f"replaces the default directory, so it no "
+                               f"longer loads")
 
 
 def check_layout(root, out):
@@ -128,17 +149,24 @@ def check_skills(root, out):
 
 
 def check_agents(root, out):
+    """Every agent file, at any depth under agents/.
+
+    Agents can live in a subdirectory the manifest lists, and one there with
+    no description is as invisible as one at the top: the description is the
+    only thing the router reads."""
     agents = os.path.join(root, "agents")
     if not os.path.isdir(agents):
         return
-    for entry in sorted(os.listdir(agents)):
-        if not entry.endswith(".md"):
-            continue
-        fm = FRONTMATTER.match(read(os.path.join(agents, entry)))
-        if not fm:
-            out.append(f"agents/{entry} has no YAML frontmatter")
-        elif not re.search(r"^description:\s*\S", fm.group(1), re.M):
-            out.append(f"agents/{entry} frontmatter has no `description`")
+    for cur, _dirs, files in os.walk(agents):
+        for entry in sorted(files):
+            if not entry.endswith(".md"):
+                continue
+            rel = os.path.relpath(os.path.join(cur, entry), root)
+            fm = FRONTMATTER.match(read(os.path.join(cur, entry)))
+            if not fm:
+                out.append(f"{rel} has no YAML frontmatter")
+            elif not re.search(r"^description:\s*\S", fm.group(1), re.M):
+                out.append(f"{rel} frontmatter has no `description`")
 
 
 def check_portable_paths(root, out):
@@ -191,7 +219,7 @@ def main():
         return 2
 
     out = []
-    check_manifest(manifest, out)
+    check_manifest(manifest, out, root)
     check_layout(root, out)
     check_skills(root, out)
     check_agents(root, out)

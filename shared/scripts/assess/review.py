@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """The last pass: an agent puts a number on every sub-item, out of ten.
 
-    python3 assess/review.py --brief RUN.json          # what to answer
-    python3 assess/review.py --grade RUN.json --answers A.json
+    python3 assess/review.py --brief RUN.json [--dimension N]   # what to answer
+    python3 assess/review.py --grade RUN.json --answers A.json [--answers B.json ...]
 
 Exit codes:
     0 = the brief was written, or the answers were graded
@@ -40,6 +40,20 @@ Score a sub-item nobody measured. A row that abstained stays absent -- there is
 no `0` for `we could not run your tests`, because a repository whose toolchain
 is missing is not a repository with bad tests. Sub-items with no row are not in
 the brief and are refused if they come back anyway.
+
+## What the number is for, and what is read first
+
+A number says which row to look at first; it does not say what to do there.
+So each score carries one more line, `moves_if`: the change to this
+repository that would raise it. The page opens with those lines, lowest score
+first, and a row whose answer is *nothing* is closed rather than listed. A
+reading that says `nothing` about every row is the result 0022 promised could
+exist.
+
+Two readings of one run are pooled, not averaged quietly: a sub-item the two
+put more than two points apart is marked as disagreeing, because at that
+distance they read different repositories, and which is right is itself a
+finding -> 0046
 """
 
 from __future__ import annotations
@@ -84,7 +98,7 @@ SUBITEMS = (
       "outside the suite's reach")),
     ("2.4", "the layers behind the ladder",
      "which rungs exist, which are wired and silent, which are absent",
-     ("what could have caught it",)),
+     ("what could have caught it", "a suite in the repository")),
 
     ("3.1", "tested",
      "changes that add or repair behaviour arrive with something verifying them",
@@ -249,14 +263,25 @@ Say **why** in one line, naming the thing about *this* repository that moved
 the number. A reason that would read the same for any repository is not a
 reason, it is a restatement.
 
+Then say what would **move** it: the one change to this repository that would
+raise this number most, in the repository's own terms -- a file, a hook, a
+rule, a test -- not a direction. "Improve coverage" moves nothing; "a test for
+`billing/refund.py`, which no test executes" does. If nothing would, say so:
+"nothing -- this is as good as it needs to be here" is the answer that closes
+a row, and a page is read from these lines first, lowest number at the top.
+
 ## Answer
 
     {"items": [{"id": "1.1", "score": 4,
                 "why": "an agent commits here every day and three of the six
-                        that matter are open"},
+                        that matter are open",
+                "moves_if": "a PreToolUse guard on `git push --force` and
+                             `git reset --hard`, the two that walked through"},
                {"id": "5.1", "score": 8,
                 "why": "1065 tokens, and all of it is the payload/plugin split
-                        nothing else states"}]}
+                        nothing else states",
+                "moves_if": "nothing -- the floor is one paragraph and every
+                             line of it is about this tree"}]}
 
 Only the sub-items below. One that is absent was not measured, and a number
 there would be indistinguishable from a measurement once it is on the chart.
@@ -266,10 +291,20 @@ there would be indistinguishable from a measurement once it is on the chart.
 """
 
 
-def brief(run):
+def brief(run, dimension=None):
+    """The brief, or one dimension of it.
+
+    `dimension` is a digit. A reader given one dimension gets that
+    dimension's sub-items and nothing else, so five readers can read five
+    dimensions without any of them seeing a number the others will give."""
     items, unmapped = collect(run)
+    if dimension is not None:
+        dimension = str(dimension)
+        items = [it for it in items if it["id"][0] == dimension]
+        unmapped = []
     if not items:
-        return "", "cannot judge: this run printed no row to review"
+        return "", ("cannot judge: this run printed no row to review"
+                    + (f" under dimension {dimension}" if dimension else ""))
     out = [BRIEF]
     for it in items:
         out.append("## %s %s\n\n%s\n\n" % (it["id"], it["name"], it["asks"]))
@@ -280,7 +315,11 @@ def brief(run):
                 ("   [" + flag + "]") if flag else ""))
             note = (row.get("note") or "").strip()
             if note:
-                out.append("  %s\n" % note.replace("\n", " ")[:400])
+                # The note is where a row names its cases -- which changes
+                # verified nothing, which defects survived. Cut at 400 it
+                # named none of them, and the reader's `moves_if` had to
+                # aim at whatever the row happened to mention first.
+                out.append("  %s\n" % note.replace("\n", " ")[:900])
         out.append("\n")
     if unmapped:
         out.append("## Rows no sub-item claims\n\nScore these under whichever "
@@ -290,38 +329,92 @@ def brief(run):
     return "".join(out), ""
 
 
+# Two readings of one sub-item further apart than this disagree, and the page
+# says so instead of averaging quietly. Two points on a ten is the width a
+# single reader's own re-reading moves by; past it the two saw different
+# repositories, and which one is right is the finding -> 0046
+DISAGREE = 2.0
+
+
 def grade(run, answers):
-    """The agent's numbers, checked against what was actually measured."""
+    """The agent's numbers, checked against what was actually measured.
+
+    `answers` is one reading, or a list of them. Every reading is pooled:
+    a sub-item read twice carries the mean, both numbers, and the spread
+    between them; one read once carries what it was given. Five readers each
+    scoring one dimension and two readers each scoring all five are the same
+    shape to this function, which is the point of pooling here rather than in
+    whoever spawned them."""
     items, _ = collect(run)
     known = {it["id"]: it for it in items}
-    got, refused = {}, []
-    for a in (answers or {}).get("items", []):
-        if not isinstance(a, dict):
-            continue
-        sid = str(a.get("id", "")).strip()
-        if sid not in known:
-            refused.append((sid or "(no id)", "nothing measured this"))
-            continue
-        try:
-            score = float(a.get("score"))
-        except (TypeError, ValueError):
-            refused.append((sid, "no usable number"))
-            continue
-        if not (MIN <= score <= MAX):
-            refused.append((sid, "out of 0-10"))
-            continue
-        got[sid] = {"score": score, "why": str(a.get("why", "")).strip()[:300],
-                    "name": known[sid]["name"]}
-    if not got:
+    readings = answers if isinstance(answers, list) else [answers]
+    scores, why, moves, refused = {}, {}, {}, []
+    for reading in readings:
+        for a in (reading or {}).get("items", []):
+            if not isinstance(a, dict):
+                continue
+            sid = str(a.get("id", "")).strip()
+            if sid not in known:
+                refused.append((sid or "(no id)", "nothing measured this"))
+                continue
+            try:
+                score = float(a.get("score"))
+            except (TypeError, ValueError):
+                refused.append((sid, "no usable number"))
+                continue
+            if not (MIN <= score <= MAX):
+                refused.append((sid, "out of 0-10"))
+                continue
+            scores.setdefault(sid, []).append(score)
+            line = str(a.get("why", "")).strip()[:300]
+            if line:
+                why.setdefault(sid, []).append(line)
+            line = str(a.get("moves_if", "")).strip()[:300]
+            if line and line not in moves.setdefault(sid, []):
+                moves[sid].append(line)
+    if not scores:
         return None, ("cannot judge: no usable score came back" +
                       (" (" + "; ".join("%s: %s" % r for r in refused) + ")"
                        if refused else ""))
+    got = {}
+    for sid, ss in scores.items():
+        got[sid] = {
+            "score": round(sum(ss) / len(ss), 1), "scores": ss,
+            "spread": round(max(ss) - min(ss), 1),
+            "disagree": (max(ss) - min(ss)) > DISAGREE,
+            "why": (why.get(sid) or [""])[0],
+            "whys": why.get(sid) or [],
+            "moves_if": moves.get(sid) or [],
+            "name": known[sid]["name"]}
     per_dim = {}
     for sid, v in got.items():
         per_dim.setdefault(sid[0], []).append(v["score"])
     dims = {k: round(sum(v) / len(v), 1) for k, v in sorted(per_dim.items())}
     return {"items": got, "dimensions": dims, "refused": refused,
+            "readings": len(readings),
             "missing": sorted(set(known) - set(got))}, ""
+
+
+def ranked(judged):
+    """Sub-items lowest first: the order the page is read in.
+
+    A tie is broken by id, so two runs of one repository list the same rows in
+    the same order and the diff between the two pages is only what moved."""
+    return sorted(judged["items"].items(),
+                  key=lambda kv: (kv[1]["score"], kv[0]))
+
+
+def closed(line):
+    """A `moves_if` that says nothing would move it. That closes the row: it
+    is kept on the item and left off the list the page opens with."""
+    return (line or "").strip().lower().lstrip("*_`").startswith("nothing")
+
+
+def to_move(judged):
+    """The ranked list the page opens with: every open `moves_if`, lowest
+    score first."""
+    return [(sid, v) for sid, v in ranked(judged)
+            if v.get("moves_if") and not closed(v["moves_if"][0])]
 
 
 # --- the shape, drawn from the numbers ------------------------------------
@@ -397,10 +490,17 @@ def radar(dims, size=400):
 
 
 def render(judged):
-    out = ["", "  the reading, out of ten", ""]
+    out = ["", "  what would move the number, lowest first", ""]
+    for sid, v in to_move(judged):
+        out.append("  %-5s %4g   %s" % (sid, v["score"], v["moves_if"][0][:88]))
+    out += ["", "  the reading, out of ten", ""]
     for sid in sorted(judged["items"]):
         v = judged["items"][sid]
-        out.append("  %-5s %-34s %4g / 10" % (sid, v["name"][:34], v["score"]))
+        out.append("  %-5s %-34s %4g / 10%s" % (
+            sid, v["name"][:34], v["score"],
+            ("   two readings: " + ", ".join("%g" % x for x in v["scores"])
+             + (" -- they disagree" if v.get("disagree") else ""))
+            if len(v.get("scores") or []) > 1 else ""))
         if v["why"]:
             out.append("        %s" % v["why"][:96])
     out.append("")
@@ -476,6 +576,22 @@ h1{font-size:1.9rem;margin:0 0 .5rem;letter-spacing:-.01em;
 .item .s{font:600 17px/1 ui-monospace,monospace;flex:none;width:4.2rem;
  text-align:right;font-variant-numeric:tabular-nums}
 .item .s small{font-weight:400;font-size:11px;color:var(--ink-3)}
+.moves{margin:0 0 2rem;padding:1.2rem 1.4rem;background:var(--card);
+ border:1px solid var(--line);border-radius:10px}
+.moves h2{font:600 12px/1 ui-monospace,monospace;letter-spacing:.1em;
+ text-transform:uppercase;color:var(--ink-3);margin:0 0 .9rem}
+.moves ol{margin:0;padding-left:1.4rem}
+.moves li{padding:.3rem 0;color:var(--ink-2)}
+.moves li b{font:600 12px/1.5 ui-monospace,monospace;color:var(--accent);
+ margin-right:.5rem}
+.moves li .sc{font:600 12px/1.5 ui-monospace,monospace;color:var(--ink-3);
+ margin-right:.5rem}
+.item .s .two{display:block;font:11px/1.4 ui-monospace,monospace;
+ color:var(--ink-3);font-weight:400;margin-top:.2rem}
+.item .s .two.dis{color:#B0483A}
+.item .mv{font-size:13px;color:var(--ink-2);margin-top:.35rem}
+.item .mv b{color:var(--ink-3);font-weight:600;font-size:11px;
+ letter-spacing:.08em;text-transform:uppercase;margin-right:.4rem}
 .note{margin-top:2rem;padding:1rem 1.2rem;background:var(--card);
  border:1px solid var(--line);border-left:3px solid var(--accent);
  border-radius:6px;font-size:13.5px;color:var(--ink-2)}
@@ -487,6 +603,7 @@ h1{font-size:1.9rem;margin:0 0 .5rem;letter-spacing:-.01em;
 <div class="figure"><div class="plot">%(radar)s</div>
 <div class="legend"><h2>Out of ten</h2>%(legend)s
 <p class="caveat">%(caveat)s</p></div></div>
+%(moves)s
 %(items)s
 %(note)s
 </div></body></html>
@@ -520,19 +637,33 @@ def html(judged, run=None, title="The Reading"):
             '<span class="name">%s</span>'
             '<span class="score">%g</span></div>'
             % (k, _esc(DIM_OF.get(k, "")), judged["dimensions"][k]))
+    moves = []
+    for sid, v in to_move(judged):
+        moves.append('<li><b>%s</b><span class="sc">%g</span>%s</li>'
+                     % (_esc(sid), v["score"], _esc(v["moves_if"][0])))
     for sid in sorted(judged["items"]):
         v = judged["items"][sid]
         it = by_id.get(sid, {})
         rows = "\n".join(
             "%s: %s" % (r.get("label", ""), r.get("value", ""))
             for r in it.get("rows", []))
+        two = ""
+        if len(v.get("scores") or []) > 1:
+            two = '<span class="two%s">%s</span>' % (
+                " dis" if v.get("disagree") else "",
+                _esc("read as " + " and ".join("%g" % x for x in v["scores"])
+                     + (", and they disagree" if v.get("disagree") else "")))
+        mv = ""
+        if v.get("moves_if"):
+            mv = '<div class="mv"><b>moves if</b>%s</div>' % _esc(
+                "; ".join(v["moves_if"][:2]))
         body.append(
             '<div class="item"><span class="id">%s</span>'
-            '<div class="what"><b>%s</b><p>%s</p>'
+            '<div class="what"><b>%s</b><p>%s</p>%s'
             '<div class="val">%s</div></div>'
-            '<span class="s">%g<small> /10</small></span></div>'
-            % (_esc(sid), _esc(v["name"]), _esc(v["why"]), _esc(rows),
-               v["score"]))
+            '<span class="s">%g<small> /10</small>%s</span></div>'
+            % (_esc(sid), _esc(v["name"]), _esc(v["why"]), mv, _esc(rows),
+               v["score"], two))
     meta = []
     if run:
         head = run.get("head") or {}
@@ -543,6 +674,8 @@ def html(judged, run=None, title="The Reading"):
     meta.append("<span><b>scored</b> %d of %d sub-item(s)</span>"
                 % (len(judged["items"]),
                    len(judged["items"]) + len(judged["missing"])))
+    if judged.get("readings", 1) > 1:
+        meta.append("<span><b>readings</b> %d</span>" % judged["readings"])
     return PAGE % {
         "title": _esc(title),
         "sub": ("Every number here is a reading, not a threshold. The rows "
@@ -551,6 +684,9 @@ def html(judged, run=None, title="The Reading"):
         "radar": radar(judged["dimensions"]),
         "legend": "".join(legend),
         "caveat": CAVEAT,
+        "moves": ('<div class="moves"><h2>What would move the number, '
+                  'lowest first</h2><ol>%s</ol></div>' % "".join(moves)
+                  if moves else ""),
         "items": "".join(body),
         "note": '<div class="note">%s</div>' % ABSENT,
     }
@@ -559,7 +695,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--brief", default="", help="a run's JSON")
     ap.add_argument("--grade", default="", help="a run's JSON")
-    ap.add_argument("--answers", default="")
+    ap.add_argument("--answers", action="append", default=[],
+                    help="a reading; repeat it for a second reading, or for "
+                         "one file per dimension -- every file is pooled")
+    ap.add_argument("--dimension", default="", choices=["", "1", "2", "3",
+                                                        "4", "5"],
+                    help="with --brief: this dimension's sub-items only")
     ap.add_argument("--json", default="")
     ap.add_argument("--html", default="", help="also write a page for a person")
     a = ap.parse_args()
@@ -573,7 +714,7 @@ def main():
         run = json.load(fh)
 
     if a.brief:
-        text, why = brief(run)
+        text, why = brief(run, a.dimension or None)
         if not text:
             print(why, file=sys.stderr)
             return 2
@@ -583,8 +724,11 @@ def main():
     if not a.answers:
         print("cannot judge: --grade needs --answers", file=sys.stderr)
         return 2
-    with open(a.answers, encoding="utf-8") as fh:
-        judged, why = grade(run, json.load(fh))
+    readings = []
+    for path in a.answers:
+        with open(path, encoding="utf-8") as fh:
+            readings.append(json.load(fh))
+    judged, why = grade(run, readings)
     if judged is None:
         print(why, file=sys.stderr)
         return 2

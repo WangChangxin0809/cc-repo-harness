@@ -18,13 +18,22 @@ is on by default, runs the repository's own tests, and names the command before
 running it; `--no-full` skips it and dimension 2 abstains.
 
 The [`repo-assessor`](../agents/repo-assessor.md) agent does all of this,
-including the reading. It never changes the repository.
+including the reading. It never changes the repository. The reading is done
+by [`assess-reader`](../agents/assess/reader.md), one per dimension, and
+their answers go back onto the page through `--from`, which reads a run back
+without running the suite again.
 
-## Two rules that shape every row
+## Three rules that shape every row
 
 **A row nobody can judge is not printed.** Not as zero, not as unknown: absent.
 A repository with no Go toolchain installed has no Go branch coverage, and `0%`
 there would read as a failing grade for something never measured.
+
+**A row about nothing in the repository is printed, and red.** No test file,
+no pipeline, no document, no `.claude/`: each is a measurement of the
+repository, in the words *absent in the repository, not unread*. The test that
+separates it from the rule above: would a clone on a fully equipped machine
+change the row? If not, it is measured -> [0047](../docs/decisions/0047-absence-in-the-repository-is-measured-absence-on-the-machine-is-not.md)
 
 **Every number carries its denominator.** *Three of six destructive actions
 refused* means nothing without *and none of the repository's own legitimate
@@ -447,7 +456,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/promises.py --root .
 ```
 
 *A blind agent judges.* The rounds run through `--promise-tests` and
-`--promise-impls`, answered by `repo-promise-tester`, which has `Write` and no
+`--promise-impls`, answered by `assess-promise-tester`, which has `Write` and no
 way to read the repository. A test written after reading the implementation
 agrees with it by construction
 -> [0040](../docs/decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md)
@@ -554,11 +563,18 @@ teammate pays for cloning.
 
 ## What comes out
 
-One artefact: the [assessment checklist](2-checklist.md). Five sections in the
-order that ignoring them costs you, and every row points at something specific
-in the repository.
+Two pages. The fact sheet is every row above. The reading puts each sub-item
+on a ten, with one line saying what about *this* repository set it and one
+saying what would move it — a file, a hook, a test, or *nothing*, which
+closes the row. The reading opens with those lines, lowest score first, and
+that list is the artefact -> [0046](../docs/decisions/0046-a-reading-says-what-would-move-it-and-is-read-twice.md)
 
-The hardest questions have no number behind them: is the standing cost earning
+Each dimension is read twice, by readers who did not see each other's
+numbers. Two more than two points apart are shown as disagreeing, and which
+is right is the assessor's to settle with a file and a line.
+
+The [assessment checklist](2-checklist.md) is written from that list. The
+hardest questions have no number behind them: is the standing cost earning
 its tokens, does each hook address a mistake *this* repository actually makes.
 Answering them is the reading, and the reason the checklist is worth more than
 the fact sheet.
