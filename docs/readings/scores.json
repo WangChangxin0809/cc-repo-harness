@@ -1,7 +1,7 @@
 {
- "of_commit": "b59c6ba",
+ "of_commit": "3001d5c",
  "sub_items": 13,
- "average": 8.08,
+ "average": 8.15,
  "items": [
   {
    "id": "1.1",
@@ -31,7 +31,7 @@
   {
    "id": "3.1",
    "score": 8,
-   "why": "25 check files across 7 places and the machinery gap closed; the 9% is docs-shaped commits the type classifier did not exclude, not code arriving unverified"
+   "why": "25 check files across 7 places and the machinery gap closed; the 6% left is docs-shaped commits the type classifier did not exclude, not code arriving unverified"
   },
   {
    "id": "3.2",
@@ -65,8 +65,8 @@
   },
   {
    "id": "5.2",
-   "score": 7,
-   "why": "the one outlier is the assessor, which orchestrates four other agents while the three it is compared against each do one job"
+   "score": 8,
+   "why": "the one flag left is templates.md at 75% fenced, which is a file of templates -- the fences are the content; the size outlier went with the agent that was removed"
   }
  ]
 }
