@@ -549,6 +549,36 @@ CASES = [
                                           "reason": "used to be big"}]},
             }, indent=2) + "\n")),
     ),
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="an exemption naming a file that has since been deleted or renamed",
+        needle="no longer exists",
+        plant=lambda t: write(t, ".claude/guards.json", json.dumps({
+            "protected_branches": ["main"],
+            "layers": [{"name": "types", "paths": ["src/types/"]},
+                      {"name": "service", "paths": ["src/service/"]}],
+            "file_size": {"exempt": [
+                {"path": "src/gone.py",
+                 "reason": "used to justify a file removed since"}]},
+        }, indent=2) + "\n"),
+    ),
+    dict(
+        gate="check_file_size.py",
+        args=["--cap", "30"],
+        why="an exemption naming a file this gate does not judge",
+        needle="does not judge",
+        plant=lambda t: (
+            write(t, "assets/logo.svg", "<svg></svg>\n"),
+            write(t, ".claude/guards.json", json.dumps({
+                "protected_branches": ["main"],
+                "layers": [{"name": "types", "paths": ["src/types/"]},
+                          {"name": "service", "paths": ["src/service/"]}],
+                "file_size": {"exempt": [
+                    {"path": "assets/logo.svg",
+                     "reason": "shrink target once split out"}]},
+            }, indent=2) + "\n")),
+    ),
 
     # --- negative controls ---------------------------------------------------
     # Each gate needs at least one of these, and coverage_gaps() below enforces
