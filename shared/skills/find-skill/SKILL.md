@@ -95,5 +95,9 @@ Say so plainly and write the thing. Half a match is worse than none: it
 activates on the trigger you needed, does something adjacent, and the failure
 looks like the agent ignoring you.
 
+`references/writing-one.md` has the contract: what is a skill and what is a
+gate, why the description is the entire routing decision, and where to put it
+so the cost lands on whoever wanted it.
+
 Related: `writing-checks` (anything that can pass or fail belongs in a gate or a
 guard, not a skill), `github-surface` (if what you are looking for is CI).
