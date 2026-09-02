@@ -159,6 +159,49 @@ def case_scaffold_reaches_green(tier):
     return run
 
 
+def case_the_brief_names_the_plan_in_flight():
+    """SessionStart is where "what is only true right now" is delivered, and the
+    one fact a new session cannot reconstruct by reading is which plan was
+    already underway. An agent without it starts something parallel, or
+    re-derives the plan from the tree; both look like progress.
+
+    The other half is precision. The first version matched `doing` anywhere in
+    the file and named a plan whose README merely *explains* the state words as
+    the one in progress. A brief that misreads a plan is not read twice, so the
+    prose case is planted here too and must not be reported.
+    """
+    repo = fresh_repo()
+    try:
+        scaffold(repo, "B")
+        plans = os.path.join(repo, "docs", "exec-plans")
+        for name, body in (
+            ("shipping", "# Shipping\n\n- [x] done   Build it\n"
+                         "- [ ] doing  Publish it\n"),
+            ("closed", "# Closed\n\n- [x] done   All of it\n"),
+            ("conventions", "# Conventions\n\nNobody reopens a finished step "
+                            "to change `doing` to `done`.\n"),
+        ):
+            os.makedirs(os.path.join(plans, name), exist_ok=True)
+            with open(os.path.join(plans, name, "README.md"), "w",
+                      encoding="utf-8") as fh:
+                fh.write(body)
+
+        said = sh([sys.executable, "scripts/context/session_brief.py"],
+                  cwd=repo).stdout
+        if "shipping" not in said:
+            return ("the brief did not name the plan with a step marked "
+                    f"`doing`: {said.strip()[:300]}")
+        if "closed" in said:
+            return ("a plan with every step done was reported in flight: "
+                    f"{said.strip()[:300]}")
+        if "conventions" in said:
+            return ("a plan whose prose merely mentions `doing` was reported "
+                    f"in flight: {said.strip()[:300]}")
+        return None
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+
 def case_tier_a_ships_working_guards():
     """Tier A has no ci.sh, so the case above cannot see it at all.
 
@@ -556,6 +599,8 @@ CASES = [
      case_dry_run_describes_the_run_that_happens),
     ("wired hooks survive the working directory moving",
      case_hooks_survive_the_working_directory_moving),
+    ("the session brief names the plan in flight, and only that one",
+     case_the_brief_names_the_plan_in_flight),
     ("personal permission grants cannot be committed",
      case_personal_permission_grants_cannot_be_committed),
     ("scaffolding twice changes nothing the second time",

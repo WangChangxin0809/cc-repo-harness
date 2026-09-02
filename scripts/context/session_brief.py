@@ -7,6 +7,9 @@ no file can hold -- which is exactly why it otherwise never gets delivered, and
 the agent spends its first turns rediscovering it, or does not.
 """
 
+import glob
+import os
+import re
 import subprocess
 
 
@@ -39,8 +42,36 @@ def main():
         lines.append(f"!! {len(others)} agent session(s) appear active in this repo "
                      "— append to shared files rather than rewriting them")
 
-    # TODO: add what is specific to this repo — which gates are currently red,
-    # which plan in docs/exec-plans/ is in progress. Keep the total under ~20.
+    # The one thing a new session cannot reconstruct by reading: which plan was
+    # already underway. Without it the agent either starts something parallel
+    # or re-derives the plan from the tree, and both look like progress.
+    #
+    # Only list rows and table rows are read, never prose. The first version
+    # matched `doing` anywhere and reported a plan whose README *explains the
+    # convention* -- "nobody reopens a finished step to change `doing` to
+    # `done`" -- as the step in progress. A brief that misreads one plan is not
+    # a brief anyone reads twice.
+    inflight = []
+    for plan in sorted(glob.glob("docs/exec-plans/*/README.md")):
+        try:
+            with open(plan, encoding="utf-8") as fh:
+                body = fh.read()
+        except OSError:
+            continue
+        rows = [l.strip() for l in body.splitlines()
+                if re.match(r"\s*(?:[-*] \[[ xX]\]|\|)", l)]
+        step = next((l for l in rows if re.search(r"\bdoing\b", l, re.I)), "")
+        if not step:
+            step = next((l for l in rows if l.startswith(("- [ ]", "* [ ]"))), "")
+        if step:
+            inflight.append((os.path.basename(os.path.dirname(plan)), step))
+    for name, step in inflight[:3]:
+        lines.append(f"in flight: {name} — {step[:70]}")
+    if len(inflight) > 3:
+        lines.append(f"...and {len(inflight) - 3} more plan(s) open")
+
+    # TODO: add what else is specific to this repo — which gates are currently
+    # red, for instance. Keep the total under ~20 lines.
     print("\n".join(lines))
 
 
