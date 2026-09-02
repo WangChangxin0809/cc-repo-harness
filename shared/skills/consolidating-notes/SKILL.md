@@ -24,9 +24,9 @@ destroys the evidence needed to tell a good merge from a lossy one, and lossy
 merges are the normal failure — they read beautifully.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
+python3 scripts/consolidate.py prepare --notes .agent-notes --sessions .agent-sessions
 # snapshot is chmod'd read-only; the synthesis writes to .consolidation/candidate/ only
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py diff
+python3 scripts/consolidate.py diff
 ```
 
 `diff` reports three things, in the order they matter:
