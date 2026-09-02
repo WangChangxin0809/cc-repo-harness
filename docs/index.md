@@ -35,6 +35,7 @@
 | Know which changes owe a test, and which are counted anyway | [0039](decisions/0039-tidying-is-not-an-untested-change.md) |
 | Know why the last pass is an agent's number and not a threshold | [0041](decisions/0041-two-states-cannot-say-which-one-to-fix-first.md) |
 | Know why the agent that tests a promise cannot read the repository | [0040](decisions/0040-the-blind-is-the-tool-list-not-the-prompt.md) |
+| Know why dimension 4 stopped measuring whether an agent can navigate | [0042](decisions/0042-a-measurement-noisier-than-its-effect-is-not-a-measurement.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 
