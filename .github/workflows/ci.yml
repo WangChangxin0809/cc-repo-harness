@@ -211,7 +211,18 @@ jobs:
       # Pinned in a requirements file rather than inline, so Dependabot can see
       # them. A version written into YAML is one nothing updates.
       - name: install the linters
-        run: python3 -m pip install -r .github/requirements-dev.txt
+        # actionlint-py's wheel build downloads a Go binary from GitHub. That
+        # download got "Connection reset by peer" once on main (run
+        # 33623238941; the rerun of the same commit was green), so the install
+        # is attempted three times before the step is red for real. A red
+        # here still says nothing about the repository, only about the runner.
+        run: |
+          for attempt in 1 2 3; do
+            python3 -m pip install -r .github/requirements-dev.txt && exit 0
+            echo "::warning::pip install failed on attempt $attempt of 3"
+            sleep 15
+          done
+          exit 1
 
       # Syntax, expression typing, and shellcheck over every `run:` block. It
       # was already clean when introduced; that is the point of adding it before
