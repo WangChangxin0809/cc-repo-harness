@@ -212,6 +212,7 @@ def gather(root, full, instances, work, command=None, mutate=0,
         # reported "no test command to instrument" unless the flag was passed
         # by hand. Two parts of one page disagreeing about whether this
         # repository has a suite is worse than either answer.
+        typed = command
         if not command:
             _eco, found_cmd = catch_mod.find(cbench)
             command = found_cmd
@@ -220,8 +221,15 @@ def gather(root, full, instances, work, command=None, mutate=0,
         # the replay is right to run it as written. Coverage takes its own
         # command when one is given, so the two rows stop being tied to one
         # string that only one of them can use.
-        ccmd = (catch_mod.argv_of(coverage_command) if coverage_command
-                else command)
+        #
+        # With neither flag it is handed nothing, and discovers every suite
+        # itself: the replay above ran all of them, and coverage quoting the
+        # first alone would be one page disagreeing with itself about how
+        # many suites this repository has -> 0050
+        if coverage_command:
+            ccmd = catch_mod.argv_of(coverage_command)
+        else:
+            ccmd = typed or None
         r["cover"], r["cover_why"] = cover_mod.assess(cbench, ccmd, cwork)
 
     # Second injection, and the only one that is opt-in. The replay asks how
@@ -530,26 +538,45 @@ def preflight(root, a, work):
     assessed, and an unreasonable thing to do without saying so first -- so it
     is said first, with the command named, rather than explained afterwards in
     a footnote nobody reads."""
-    eco, cmd = catch_mod.find(root)
+    # Every suite the tree holds, because every one of them will be run.
+    # `--test-command` is one suite, the one somebody typed.
     if a.test_command:
-        cmd = catch_mod.argv_of(a.test_command)
+        suites = [(None, catch_mod.argv_of(a.test_command))]
+    else:
+        suites = catch_mod.find_all(root)
     ci = catch_mod.ci_command(root)
     lines = [f"  assessing {root}",
              f"  replaying up to {a.instances} of this repository's own "
              f"defects, in a clone under {work}"]
     lines.append("  and once more, instrumented, to record which lines, "
                  "branches and conditions it exercises at all")
-    # Where the command came from, when it came from the repository's own
-    # documents rather than from a convention this tool recognises. Running
-    # somebody's documented command is reasonable; running it without saying
-    # whose it is presents their sentence as this tool's decision.
-    whose = ""
-    if cmd and not a.test_command and getattr(eco, "source", None):
-        whose = "  (declared in " + eco.source + ")"
-    lines.append("  it will run: " + (catch_mod.display(cmd) + whose if cmd else
-                                      "nothing — no runnable test command "
-                                      "found. Pass --test-command, or "
-                                      "dimension 2 will abstain"))
+    runnable = [(eco, cmd) for eco, cmd in suites if cmd]
+    lacking = [eco for eco, cmd in suites if not cmd]
+    if not runnable:
+        lines.append("  it will run: nothing — no runnable test command "
+                     "found"
+                     + ("".join(f" ({eco.name} needs {eco.tool}, which is "
+                                f"not on PATH)" for eco in lacking))
+                     + ". Pass --test-command, or dimension 2 will abstain")
+    for i, (eco, cmd) in enumerate(runnable):
+        # Where the command came from, when it came from the repository's
+        # own documents rather than from a convention this tool recognises.
+        # Running somebody's documented command is reasonable; running it
+        # without saying whose it is presents their sentence as this tool's
+        # decision.
+        whose = ""
+        if eco is not None and getattr(eco, "source", None):
+            whose = "  (declared in " + eco.source + ")"
+        elif eco is not None and len(runnable) > 1:
+            whose = "  (" + eco.name + ")"
+        lines.append(("  it will run: " if i == 0 else "          and: ")
+                     + catch_mod.display(cmd) + whose)
+    if runnable and lacking:
+        lines.append("  found but cannot run here: "
+                     + "; ".join(f"{eco.name} ({eco.tool} is not on PATH)"
+                                 for eco in lacking)
+                     + " — that suite abstains, and the verdict is pooled "
+                       "over the rest")
     if ci:
         lines.append("  and its CI entry point: " + " ".join(ci))
     if a.mutate:

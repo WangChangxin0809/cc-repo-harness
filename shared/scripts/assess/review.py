@@ -98,7 +98,9 @@ SUBITEMS = (
       "outside the suite's reach")),
     ("2.4", "the layers behind the ladder",
      "which rungs exist, which are wired and silent, which are absent",
-     ("what could have caught it", "a suite in the repository")),
+     ("what could have caught it", "a suite in the repository",
+      "suites measured", "suites found but not run",
+      "suites the figure above does not cover")),
 
     ("3.1", "tested",
      "changes that add or repair behaviour arrive with something verifying them",

@@ -66,7 +66,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ecosystems import argv_of  # noqa: E402
+from ecosystems import argv_of, find_all  # noqa: E402
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -495,6 +495,102 @@ class Node:
 RUNNERS = (Python(), Node(), Go())
 
 
+def _runner_for(eco):
+    """The runner that drives this ecosystem's own tool, or None -- `make`
+    and a documented command cannot be instrumented blind, and Rust's
+    report is read from disk."""
+    inner = getattr(eco, "inner", eco)
+    for runner in RUNNERS:
+        if runner.name == inner.name:
+            return runner
+    return None
+
+
+def _unwrapped(cmd):
+    """A `Rooted` command without its `cd sub &&`, because the runner is
+    handed the subdirectory as its root instead."""
+    if cmd[:2] == ["bash", "-c"] and len(cmd) == 3 and " && " in cmd[2]:
+        return argv_of(cmd[2].split(" && ", 1)[1])
+    return cmd
+
+
+def _prefixed(mapping, sub):
+    if not sub:
+        return dict(mapping or {})
+    return {sub.rstrip("/") + "/" + f: v for f, v in (mapping or {}).items()}
+
+
+def _each_suite(root, suites, work):
+    """Every suite measured by its own runner, in its own directory.
+
+    Returns ([(name, sub, result)], [{ecosystem, why}]). A suite whose tool
+    is not on this machine, or whose ecosystem has no runner here, is in
+    the second list with the reason: it is listed as not measured, never
+    folded into the figure as zero."""
+    measured, skipped = [], []
+    for i, (eco, cmd) in enumerate(suites):
+        sub = getattr(eco, "sub", None)
+        here = os.path.join(root, sub) if sub else root
+        runner = _runner_for(eco)
+        inner = getattr(eco, "inner", eco)
+        if runner is None:
+            skipped.append({"ecosystem": eco.name,
+                            "why": "no coverage tool this knows how to drive "
+                                   "for %s" % inner.name})
+            continue
+        if cmd is None:
+            skipped.append({"ecosystem": eco.name,
+                            "why": "`%s` is not installed here" % eco.tool})
+            continue
+        if not runner.available(here):
+            skipped.append({"ecosystem": eco.name,
+                            "why": "`%s` is not installed here (%s)"
+                                   % (runner.missing, runner.hint)})
+            continue
+        got, why = runner.measure(here, _unwrapped(cmd),
+                                  os.path.join(work, "suite-%d" % i))
+        if not got:
+            skipped.append({"ecosystem": eco.name, "why": why})
+            continue
+        measured.append((eco.name, sub, got))
+    return measured, skipped
+
+
+def _pool(measured, skipped):
+    """One result from several: each criterion summed over the suites whose
+    tool produces it, files merged under their suite's directory, and a
+    `pooled` block saying which suites the figure holds and which it does
+    not. A criterion only some suites produce -- Go has no branch coverage
+    -- is summed over those and named as such, never padded with zeros."""
+    criteria, came_from = {}, {}
+    for key in CRITERIA:
+        parts = [(name, r["criteria"][key]) for name, _sub, r in measured
+                 if r.get("criteria", {}).get(key)]
+        if not parts:
+            continue
+        criteria[key] = _pair(sum(p["total"] for _n, p in parts),
+                              sum(p["covered"] for _n, p in parts))
+        came_from[key] = [n for n, _p in parts]
+    files, reached = {}, {}
+    for _name, sub, r in measured:
+        files.update(_prefixed(r.get("files"), sub))
+        reached.update(_prefixed(r.get("reached"), sub))
+    tools = []
+    for _name, _sub, r in measured:
+        if r.get("tool") and r["tool"] not in tools:
+            tools.append(r["tool"])
+    n, total = len(measured), len(measured) + len(skipped)
+    return {
+        "tool": " + ".join(tools),
+        "criteria": criteria, "files": files, "reached": reached,
+        "how": "ran " + ", ".join("%s for %s" % (r.get("tool", "its tool"),
+                                                 name)
+                                  for name, _sub, r in measured)
+               + " (%d of %d suites)" % (n, total),
+        "pooled": {"measured": [name for name, _sub, _r in measured],
+                   "not_measured": skipped, "criteria_from": came_from}}
+
+
 def assess(root, command=None, work=None):
     """Coverage for this repository, from its own tooling. Never from ours.
 
@@ -503,25 +599,46 @@ def assess(root, command=None, work=None):
     and may predate the code beside it. But a stale report is still evidence
     and no report is none, so the fallback is worth having -- and for C, C++,
     Rust and Java it is the only path, because their builds cannot be driven
-    blind."""
+    blind.
+
+    `command` is what somebody typed, and it is one suite measured at the
+    root, as before. Without one the suites are discovered here, every one
+    of them: each runner against its own suite in its own directory, then
+    pooled per criterion. One tool's figure was being reported as the
+    repository's, and a page that names a second suite in the replay cannot
+    then quote coverage for the first alone."""
     work = work or os.path.join(root, ".assess-coverage")
     os.makedirs(work, exist_ok=True)
     reasons = []
-    for runner in RUNNERS:
-        if not runner.detect(root):
-            continue
-        if not runner.available(root):
-            reasons.append("%s: `%s` is not installed here (%s)" %
-                           (runner.name, runner.missing, runner.hint))
-            continue
-        if not command:
-            reasons.append("%s: no test command to instrument" % runner.name)
-            continue
-        got, why = runner.measure(root, command, work)
-        if got:
-            got["how"] = "ran " + runner.name + "'s own tool"
-            return got, ""
-        reasons.append("%s: %s" % (runner.name, why))
+    if command:
+        for runner in RUNNERS:
+            if not runner.detect(root):
+                continue
+            if not runner.available(root):
+                reasons.append("%s: `%s` is not installed here (%s)" %
+                               (runner.name, runner.missing, runner.hint))
+                continue
+            got, why = runner.measure(root, command, work)
+            if got:
+                got["how"] = "ran " + runner.name + "'s own tool"
+                return got, ""
+            reasons.append("%s: %s" % (runner.name, why))
+    else:
+        suites = find_all(root)
+        if not suites:
+            reasons = ["%s: no test command to instrument" % runner.name
+                       for runner in RUNNERS if runner.detect(root)]
+        else:
+            measured, skipped = _each_suite(root, suites, work)
+            if len(suites) == 1 and measured:
+                name, sub, got = measured[0]
+                got["files"] = _prefixed(got.get("files"), sub)
+                got["reached"] = _prefixed(got.get("reached"), sub)
+                got["how"] = "ran " + name + "'s own tool"
+                return got, ""
+            if measured:
+                return _pool(measured, skipped), ""
+            reasons = ["%s: %s" % (s["ecosystem"], s["why"]) for s in skipped]
 
     found = find_report(root)
     if found:

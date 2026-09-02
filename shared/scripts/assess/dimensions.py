@@ -410,6 +410,7 @@ def change_validation(defects, catch, catch_why, ladder, mutants=None,
                     + ". A repository can be caught early by this and still "
                       "have failure modes nothing on this page looks for."})
 
+    rows += suite_rows(catch)
     rows += coverage_rows(cover, cover_why)
 
     # Both injections feed ONE ladder. A mutant is a change to a file, so
@@ -723,6 +724,50 @@ def interception_layers(probe, catch, mutants, value, ladder, counts):
                     if unenforced else ""))}
 
 
+def suite_rows(catch):
+    """Which suites the ladder was measured on, and which it could not be.
+
+    A repository with Python at the root and Go under `cli/` has two suites,
+    and the page used to name one. Every suite `find_all` returns is run at
+    each rung and the verdict is pooled -- red if any suite is red -- so the
+    reader has to be told how many suites that pool holds.
+
+    The second row is an abstention and reads as one: a suite whose toolchain
+    this machine lacks is an absence on the machine, not in the repository,
+    and a clone on a fully equipped machine would run it -> 0047. It is
+    never flagged bad, and `review.measured` leaves its value unscored."""
+    suites = (catch or {}).get("suites") or []
+    if not suites:
+        return []
+    ran = [s for s in suites if s.get("ran")]
+    idle = [s for s in suites if not s.get("ran")]
+    rows = [{
+        "label": "suites measured",
+        "value": "%d — %s" % (len(ran), ", ".join(s["ecosystem"] for s in ran))
+                 if ran else "0",
+        "flag": "info",
+        "note": "every suite the tree holds runs at each rung and the "
+                "verdict is pooled: red if any suite is red, could not run "
+                "only if none ran, green otherwise. A root Makefile or a "
+                "documented command counts as the one suite that drives the "
+                "rest"
+                + (". Commands: " + "; ".join(s["command"] for s in ran
+                                               if s.get("command"))
+                   if len(ran) > 1 else "")}]
+    if idle:
+        rows.append({
+            "label": "suites found but not run",
+            "value": "; ".join("%s — not run: %s" % (s["ecosystem"], s["why"])
+                               for s in idle),
+            "flag": "info",
+            "note": "an abstention for these suites, not a finding: what is "
+                    "missing is on this machine, and a clone on one that has "
+                    "it would run them -> 0047. The ladder below was measured "
+                    "on the suites that ran, so a defect only one of these "
+                    "would catch is invisible here, in neither direction"})
+    return rows
+
+
 def coverage_rows(c, why=""):
     """What the ladder cannot speak about, placed before it rather than after.
 
@@ -756,18 +801,42 @@ def coverage_rows(c, why=""):
              "branch": "branches never taken both ways",
              "mcdc": "conditions that never decided anything"}
     rows, criteria = [], c.get("criteria") or {}
+    # Several suites, each measured by its own tool and summed. The note
+    # says which suites a figure pools, and which of them produced this
+    # criterion when not all did -- Go has no branch coverage, so a pooled
+    # branch row beside a Go suite is Python's alone.
+    pooled = c.get("pooled") or {}
+    measured = pooled.get("measured") or []
     for key in ("statement", "function", "branch", "mcdc"):
         got = criteria.get(key)
         if not got:
             continue
         share = (1.0 - got["covered"] / got["total"]) if got["total"] else 0.0
+        note = "%s, %s" % (c.get("tool", "the ecosystem's tool"),
+                           c.get("how", "measured"))
+        if measured:
+            came = (pooled.get("criteria_from") or {}).get(key) or measured
+            note += "; pooled over " + ", ".join(measured)
+            if len(came) < len(measured):
+                note += " — this criterion from " + ", ".join(came) + " only"
         rows.append({
             "label": LABEL[key],
             "value": "%d of %d  (%.0f%%)" % (got["missing"], got["total"],
                                              100 * share),
             "flag": "bad" if share > 0.5 else "info",
-            "note": "%s, %s" % (c.get("tool", "the ecosystem's tool"),
-                                c.get("how", "measured"))})
+            "note": note})
+    if pooled.get("not_measured") and rows:
+        rows.append({
+            "label": "suites the figure above does not cover",
+            "value": "; ".join("%s — not measured: %s" % (s["ecosystem"],
+                                                          s["why"])
+                               for s in pooled["not_measured"]),
+            "flag": "info",
+            "note": "the figures pool %d of %d suites. What is missing for "
+                    "the rest is a tool on this machine, which abstains, "
+                    "not a fact about the repository -> 0047"
+                    % (len(measured),
+                       len(measured) + len(pooled["not_measured"]))})
 
     absent = [k for k in ("statement", "function", "branch", "mcdc")
               if k not in criteria]
@@ -1320,7 +1389,16 @@ def _unreached(catch, cover):
     reclassified rather than counted as surviving: `1 defect survives past
     the end of a session` is a sentence about the repository, and the
     honest sentence here is about the command."""
-    sub = _suite_root(catch.get("command"))
+    # One root per suite that ran. A file is out of reach by construction
+    # only when every suite runs from a subdirectory and the file is under
+    # none of them; a suite running at the top reaches everything.
+    ran = [s for s in catch.get("suites") or [] if s.get("ran")]
+    if ran:
+        subs = [_suite_root(s.get("command")) for s in ran]
+        subs = [] if any(s is None for s in subs) else subs
+    else:
+        one = _suite_root(catch.get("command"))
+        subs = [one] if one else []
     reached = (cover or {}).get("reached") or {}
     out = {}
     for row in catch.get("rows") or []:
@@ -1329,7 +1407,7 @@ def _unreached(catch, cover):
         outside = []
         for p in row["source"]:
             rel = p.lstrip("./")
-            if sub and not rel.startswith(sub + "/"):
+            if subs and not any(rel.startswith(s + "/") for s in subs):
                 outside.append(rel)
             elif rel in reached and not reached[rel]:
                 outside.append(rel)
