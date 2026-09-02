@@ -363,6 +363,7 @@ run() {  # run <lane-floor> <name> <command...>
 run fast "guards can still turn red" python3 scripts/guards/selftest.py
 run fast "gates can still turn red"  python3 scripts/gates/selftest.py
 run fast "hooks reach the model"     python3 scripts/context/selftest.py
+run fast "hook commands resolve anywhere" python3 scripts/gates/check_hook_paths.py
 run fast "always-on context budget"  python3 scripts/gates/check_context_budget.py
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
