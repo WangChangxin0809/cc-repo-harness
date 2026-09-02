@@ -64,6 +64,9 @@ import re
 import shutil
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ecosystems import argv_of  # noqa: E402
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -112,7 +115,13 @@ def read_coveragepy_json(path):
         out["branch"] = _pair(t["num_branches"], t.get("covered_branches", 0))
     files = {f: sorted(v.get("missing_lines") or [])
              for f, v in (data.get("files") or {}).items()}
-    return {"tool": "coverage.py", "criteria": out, "files": files}
+    # Whether the suite executed anything in the file at all. A defect in a
+    # file the suite never enters was not missed by the suite; it was never
+    # in front of it, and the replay needs to tell those apart.
+    reached = {f: bool(v.get("executed_lines"))
+               for f, v in (data.get("files") or {}).items()}
+    return {"tool": "coverage.py", "criteria": out, "files": files,
+            "reached": reached}
 
 
 def read_lcov(path):
@@ -356,8 +365,10 @@ class Python:
         `pytest`, a `-m module` invocation, and a script path. Anything else --
         a shell pipeline, a wrapper script, `make test` -- cannot be wrapped
         blind, and saying so is better than guessing at somebody's build."""
-        argv = command if isinstance(command, list) else command.split()
-        if not argv:
+        argv = argv_of(command)
+        if not argv or argv[0] == "bash":
+            # A shell string cannot be wrapped blind: `coverage run bash -c`
+            # would measure bash.
             return None
         head = os.path.basename(argv[0])
         run = [sys.executable, "-m", "coverage", "run", "--branch", "--source=."]
@@ -470,7 +481,7 @@ class Node:
         return self._bin(root) is not None
 
     def measure(self, root, command, work):
-        argv = command if isinstance(command, list) else command.split()
+        argv = argv_of(command)
         if not argv:
             return None, "no test command to instrument"
         r = sh([self._bin(root), "--reporter=lcovonly",

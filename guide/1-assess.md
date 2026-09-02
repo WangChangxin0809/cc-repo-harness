@@ -154,6 +154,14 @@ builds cannot be driven blind.
 
 Where a criterion cannot be produced, the row is absent, not zero.
 
+That table is what can be *read*. What the replay can *run* on its own is
+narrower: `npm test`, `pytest`, `cargo test`, `go test`, `make test`, and a
+command the repository's own documents declare, found at the root or up to
+two directories below it. Java, Kotlin, C#, Ruby and Dart are read from
+reports the repository already produces and are never driven blind. For
+anything else, `--test-command` runs through `bash -c`, in a clean clone of
+`HEAD`, and must exist at the older commits the replay parks at.
+
 *Bad reading costs:* coverage says little upward, since high coverage is not
 evidence of good tests. It is airtight downward: a line no test executes
 **cannot** be caught at `local-suite`. That is the only inference drawn.
@@ -188,6 +196,18 @@ that take?
 A fix from the repository's history is put back: the files it touched are
 returned to their state at its parent, so the defect actually happened here and
 the fix is the answer key.
+
+Two rows keep the ladder honest. **Caught by a test that already existed**
+is the control: the replay keeps the fix's own regression test, which was
+written to fail on exactly this defect, so `local-suite` is near-certain by
+construction. The control puts source *and* tests back to before the fix and
+runs the whole suite; red means a test that predates the fix saw the defect,
+and the ordinary answer is that none did. **Defects outside the suite's
+reach** are the ones nothing went red on *and* the suite never executed the
+file they are in, by the command's own `cd` or by coverage. They are not
+counted as surviving: *one defect survives past the end of a session* is a
+sentence about the repository, and the honest sentence there is about the
+command.
 
 *Bad reading costs:* this is the strongest evidence on the page. A synthetic bug
 only measures whether *our* idea of a defect resembles what this repository
@@ -238,7 +258,11 @@ subject is counted, not guessed at
 -> [0039](../docs/decisions/0039-tidying-is-not-an-untested-change.md)
 
 Tests are located and named directory by directory, so a poor percentage can
-be told apart from a suite the instrument did not find. Changes to the
+be told apart from a suite the instrument did not find. The row carries both
+denominators, typed and every change to source, because a branch whose
+commits carry types and one whose do not would otherwise give two
+percentages that cannot be compared; re-measure against the one whose
+mode matches. Changes to the
 verifying machinery itself are singled out: a workflow change owes no unit
 test and still owes evidence.
 

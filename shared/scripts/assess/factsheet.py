@@ -361,7 +361,11 @@ def main():
                     help="how this repository's tests run. The built-in table "
                          "recognises a handful of conventions and misses most "
                          "repositories that do not follow one — including this "
-                         "one. An agent that has read the repo can say.")
+                         "one. An agent that has read the repo can say. Run "
+                         "through `bash -c`, so `cd app && flutter test` "
+                         "works; it runs in a clean clone of HEAD, so every "
+                         "file it names must be tracked by git, and it must "
+                         "exist at the older commits the replay parks at.")
     # Off by default, and the asymmetry with --full is deliberate. The replay
     # runs the suite once per defect over three defects; mutation runs it once
     # per mutant, and the number of mutants is chosen by the caller. It is the
@@ -445,7 +449,7 @@ def preflight(root, a, work):
     a footnote nobody reads."""
     eco, cmd = catch_mod.find(root)
     if a.test_command:
-        cmd = a.test_command.split()
+        cmd = catch_mod.argv_of(a.test_command)
     ci = catch_mod.ci_command(root)
     lines = [f"  assessing {root}",
              f"  replaying up to {a.instances} of this repository's own "
@@ -459,7 +463,7 @@ def preflight(root, a, work):
     whose = ""
     if cmd and not a.test_command and getattr(eco, "source", None):
         whose = "  (declared in " + eco.source + ")"
-    lines.append("  it will run: " + (" ".join(cmd) + whose if cmd else
+    lines.append("  it will run: " + (catch_mod.display(cmd) + whose if cmd else
                                       "nothing — no runnable test command "
                                       "found. Pass --test-command, or "
                                       "dimension 2 will abstain"))
