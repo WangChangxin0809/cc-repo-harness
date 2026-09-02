@@ -276,6 +276,8 @@ jobs:
       # repository was built to talk about.
       - name: the version check can still turn red
         run: python3 .github/scripts/check_version_bumped.py --self-test --verbose
+      - name: the release tagger can still turn red
+        run: python3 .github/scripts/release_tag.py --self-test --verbose
 
       - name: a change that ships something raises the version
         env:

@@ -843,7 +843,7 @@ def mutation_rows(m, ladder_names, judged=None):
 
 # -- 3 -----------------------------------------------------------------------
 
-def reliable_delivery(root, log, check_dirs=(), gate=None):
+def reliable_delivery(root, log, check_dirs=(), gate=None, pipeline=None):
     """When a change is called done, what is the evidence?"""
     rows = []
     verdicts = [name for f, name in VERDICT_FILES
@@ -1029,9 +1029,174 @@ def reliable_delivery(root, log, check_dirs=(), gate=None):
                             "%s:%d" % (c["file"], c["line"])
                             for c in unexplained[:3]) if unexplained else "")})
 
+    # What the pipeline runs on, whether it is itself checked, whether its
+    # verdict survives a rerun, and what leaves through it. Read by
+    # pipeline.py; every row here is a candidate with its evidence attached,
+    # and the conventions -- matrix, cache, job count -- are not read -> 0044
+    if pipeline:
+        rows += _pipeline_rows(pipeline)
+
     return {"n": 3, "name": "Reliable Delivery",
             "question": "When a change is called done, what is the evidence?",
             "state": state, "headline": headline, "rows": rows}
+
+
+def _pipeline_rows(p):
+    """Rows 3.3 to 3.6, from what pipeline.py read."""
+    rows = []
+    s = p["scope"]
+    if s["on_pull_request"]:
+        if s["unconditional"]:
+            rows.append({
+                "label": "changes that run no check",
+                "value": "none — %d workflow(s) run on every pull request"
+                         % len(s["unconditional"]),
+                "flag": "ok",
+                "note": ", ".join(s["unconditional"][:3])})
+        else:
+            gaps = []
+            for f in s["filtered"]:
+                if f["paths"]:
+                    gaps.append("outside " + ", ".join(f["paths"][:3])
+                                + (" …" if len(f["paths"]) > 3 else ""))
+                if f["paths-ignore"]:
+                    gaps.append("touching only "
+                                + ", ".join(f["paths-ignore"][:3])
+                                + (" …" if len(f["paths-ignore"]) > 3 else ""))
+            rows.append({
+                "label": "changes that run no check",
+                "value": "a pull request %s runs nothing" % (gaps[0] if gaps
+                                                             else "?"),
+                "flag": "warn",
+                "note": "every workflow on pull requests carries a path "
+                        "filter. A filter is usually deliberate; the reading "
+                        "is whether what it skips can break anything — a "
+                        "docs-only change is exactly the one that breaks a "
+                        "routing table"
+                        + ("; also " + "; ".join(gaps[1:3]) if len(gaps) > 1
+                           else "")})
+        if s["self_blind"]:
+            rows.append({
+                "label": "a workflow that does not run when it changes itself",
+                "value": ", ".join(s["self_blind"][:3]),
+                "flag": "warn",
+                "note": "its `paths:` filter does not include "
+                        ".github/workflows, so an edit to the pipeline is "
+                        "the one change the pipeline never checks"})
+        if s["job_filters"]:
+            rows.append({
+                "label": "a job-level filter decides at run time",
+                "value": ", ".join(s["job_filters"][:3]),
+                "flag": "info",
+                "note": "paths-filter or similar: which checks a change runs "
+                        "is computed inside the run and cannot be read from "
+                        "the file"})
+
+    c = p["checked"]
+    present = sorted(c["present"])
+    rows.append({
+        "label": "the pipeline is itself checked",
+        "value": ", ".join(present) if present else "by nothing",
+        "flag": "ok" if present else "warn",
+        "note": ", ".join(sorted(set(c["present"].values())))
+                if present else
+                "a workflow file is code nobody runs locally. Its first test "
+                "is the next push, and a mistake in it turns every verdict "
+                "after it into a guess"})
+    if c["refusing"]:
+        rows.append({
+            "label": "rules a step refuses",
+            "value": "%d step(s)" % len(c["refusing"]),
+            "flag": "info",
+            "note": "search-and-fail steps, the CI-side twin of a guard, "
+                    "paid on every run instead of every turn: "
+                    + "; ".join("%s:%d %s" % (r["file"], r["line"], r["name"])
+                                for r in c["refusing"][:3])})
+
+    a = p.get("audit")
+    if a:
+        by = a["by_severity"]
+        high = by.get("high", 0) + by.get("critical", 0)
+        rows.append({
+            "label": "workflow audit findings",
+            "value": "%d finding(s)" % a["total"]
+                     + (": " + ", ".join("%d %s" % (n, k) for k, n in
+                                         sorted(by.items())) if by else ""),
+            "flag": "bad" if high else ("warn" if a["total"] else "ok"),
+            "note": "by zizmor" + (": " + ", ".join(a["idents"])
+                                   if a["idents"] else "")})
+    else:
+        rows.append({
+            "label": "workflow audit findings",
+            "value": "not run — " + p.get("audit_why", ""),
+            "flag": "info",
+            "note": "the audit is the ecosystem's tool, never reimplemented "
+                    "here; absent, this row abstains"})
+
+    v = p.get("verdicts")
+    if v:
+        rows.append({
+            "label": "reruns that changed the verdict",
+            "value": "%d of %d rerun(s), across %d run(s)"
+                     % (len(v["flipped"]), v["reruns"], v["runs"]),
+            "flag": "warn" if v["flipped"] else "ok",
+            "note": ("median %ds to a verdict" % v["median_seconds"]
+                     if v["median_seconds"] else "")
+                    + ("; a verdict that changed with no change to the code "
+                       "depended on something other than the code: "
+                       + ", ".join("%s %s→%s" % (f["sha"], f["first"],
+                                                f["last"])
+                                   for f in v["flipped"][:3])
+                       if v["flipped"] else "")})
+    else:
+        rows.append({
+            "label": "reruns that changed the verdict",
+            "value": "not readable",
+            "flag": "info",
+            "note": p.get("verdicts_why", "")})
+
+    sh_ = p["shipping"]
+    makers = "; ".join("%s (%s)" % (m["file"], ", ".join(m["what"] + m["trigger"]))
+                       for m in sh_["makers"][:3])
+    if not sh_["tags"] and not sh_["makers"]:
+        rows.append({
+            "label": "what ships from here",
+            "value": "nothing found — no tag, no release or publish step",
+            "flag": "info",
+            "note": "fine for a repository nobody installs; for one somebody "
+                    "does, every install is of an untagged commit"})
+    else:
+        rows.append({
+            "label": "what ships from here",
+            "value": "%d tag(s)%s" % (sh_["tags"], ", latest " + sh_["latest"]
+                                       if sh_["latest"] else ""),
+            "flag": "info",
+            "note": ("made by " + makers) if makers else
+                    "no workflow makes a tag or publishes anything: every "
+                    "release is a person's hands, and the trace is whatever "
+                    "they wrote down"})
+    if sh_["latest"]:
+        ok = bool(sh_["latest_reachable"])
+        rows.append({
+            "label": "the latest tag is on this branch",
+            "value": "yes" if ok else "no — %s at %s is not reachable from HEAD"
+                     % (sh_["latest"], sh_["latest_sha"]),
+            "flag": "ok" if ok else "bad",
+            "note": "" if ok else
+                    "what shipped is not what the default branch says shipped, "
+                    "and nothing reading the branch can tell"})
+    if sh_["manifest_version"] and sh_["tag_version"]:
+        same = sh_["manifest_version"] == sh_["tag_version"]
+        rows.append({
+            "label": "the manifest agrees with the latest tag",
+            "value": "%s says %s, latest tag %s" % (
+                sh_["manifest"], sh_["manifest_version"], sh_["latest"]),
+            "flag": "ok" if same else "warn",
+            "note": "" if same else
+                    "ahead: a version nobody can install yet, or a release "
+                    "somebody forgot; behind: a tag pointing at a version the "
+                    "manifest no longer claims"})
+    return rows
 
 
 def _test_homes(root, check_dirs):
@@ -1583,7 +1748,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
            judged=None, cover=None, cover_why="", observe=None,
            observe_judged=None, gate=None, conflict=None,
            conflict_judged=None, promises=None, units=None,
-           permitted=None, truth_judged=None):
+           permitted=None, truth_judged=None, pipeline=None):
     """`probe` is what `probe_repo.py` found; `truth` is what `truth.assess()`
     read out of the documents, which costs nothing and runs every time; and
     `mutants` is the second injection into dimension 2, which is None unless
@@ -1594,7 +1759,7 @@ def assess(root, probe, blast, catch, catch_why, defects, log, ladder,
                              observe_judged, permitted),
         change_validation(defects, catch, catch_why, ladder, mutants,
                           mutants_why, judged, cover, cover_why, probe, value),
-        reliable_delivery(root, log, check_dirs, gate),
+        reliable_delivery(root, log, check_dirs, gate, pipeline),
         repository_memory(root, log, check_dirs, truth,
                           conflict, conflict_judged, promises, truth_judged,
                           probe),
