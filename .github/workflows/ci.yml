@@ -172,6 +172,14 @@ jobs:
       - name: the drift pass can still tell a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
 
+      # The push into the template repository. It cannot run here -- the
+      # template is a separate repository and this job has no checkout of it --
+      # but the thing that broke once was the *tool*, not the destination: the
+      # first sync copied four gate files and left `gates/selftest.py` behind,
+      # so the template shipped a ceiling its own suite did not know about.
+      - name: the template sync can still see a partial copy
+        run: python3 scripts/sync_template.py --selftest --verbose
+
       # `scripts/check.py` is the one local command, and it works by reading
       # this file rather than restating it -- so the failure mode is a step
       # landing here in a shape it cannot classify, which it would then
