@@ -438,6 +438,34 @@ CASES = [
                   "{\"hooks\": [{\"command\": \"python3 scripts/nothing.py\"}]}\n"
                   "```\n")),
     ),
+    # A ```markdown fence holds sample markup -- the shape of a good how-to
+    # step -- and the paths inside it name nothing in this tree on purpose.
+    # The gate read one as a live command and reported a document that was
+    # doing its job, which is the false red this pair pins.
+    dict(
+        gate="check_docs_runnable.py",
+        why="a command inside a markdown sample is not a command",
+        needle=None,
+        plant=lambda t: write(
+            t, "docs/how-to/writing.md",
+            "# Writing a step\n\nEvery step has three parts:\n\n"
+            "```markdown\n### 3. Rebuild the index\n\n"
+            "    python3 scripts/index/build.py\n\n"
+            "Criterion: `scripts/index/query.py --stats` agrees with git grep.\n"
+            "```\n"),
+    ),
+    # The other half, and the one that keeps the skip narrow: the identical
+    # command in a bash fence is still a finding. Widen SAMPLE_LANGS to every
+    # language and this case is what goes green when it should not.
+    dict(
+        gate="check_docs_runnable.py",
+        why="the same command in a bash fence is still a command",
+        needle="names a script that does not exist",
+        plant=lambda t: write(
+            t, "docs/how-to/writing.md",
+            "# Writing a step\n\n```bash\n"
+            "python3 scripts/index/build.py\n```\n"),
+    ),
     dict(
         gate="check_docs_index.py",
         why="a document nothing routes to",
