@@ -366,7 +366,7 @@ def case_outside_a_repo_is_silent(look):
         # Silence alone does not prove it declined: a hook that tried to probe
         # a directory with no git in it is also silent, and has meanwhile
         # written a marker for somebody's home directory.
-        store = os.path.join(look.config, "repo-agent-harness", "first-look.json")
+        store = os.path.join(look.config, "cc-repo-harness", "first-look.json")
         if os.path.exists(store):
             with open(store, encoding="utf-8") as fh:
                 if plain in fh.read():

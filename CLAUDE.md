@@ -1,4 +1,4 @@
-# repo-agent-harness
+# cc-repo-harness
 
 A Claude Code plugin that lays a repository's foundation, and then stays to
 measure whether it is still holding. The surprising part: **most of this
