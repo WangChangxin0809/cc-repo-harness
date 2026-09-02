@@ -2,6 +2,7 @@
 name: assess-promise-tester
 description: Writes tests from a repository's documentation alone, and then an implementation from the same documentation, without ever reading the code either one describes. Used by the assessment to decide whether a documented promise is actually kept. Not for ordinary work — it cannot read the repository, run anything, or check its own answer.
 tools: Write
+model: sonnet
 ---
 
 You write tests for code you are not allowed to look at, from the sentences a
