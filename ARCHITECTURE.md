@@ -38,7 +38,7 @@ Three identities, one tree. Every file is exactly one of them.
 |---|---|---|
 | `.claude-plugin/` | manifest, marketplace entry; `agents` lists every agent file, and the list *replaces* the default directory | the plugin validator, `release.yml`, which tags whenever the manifest changes on main |
 | `skills/bootstrap-repo-harness/` | the one skill that stays in the plugin: how a person arrives | every session on the machine, ~173 tokens a turn (0024) |
-| `agents/` | `repo-explorer`, `repo-assessor`, and `assess/` (the reader, the blind promise tester) | spawned by `commands/assess.md`; they read a run and write answers or a reading, never the repository |
+| `agents/` | `repo-explorer`, and `assess/` (the reader, the blind promise tester) | spawned by `commands/assess.md`; they read a run and write answers or a reading, never the repository |
 | `hooks/` | `first_look.py` on SessionStart; `run_repo_guards.py`, which runs a *subject* repository's own `scripts/guards/` until it wires them itself | the subject repository's tree; nothing here changes what it does |
 | `shared/scripts/guards/` **payload, copied** | one file per rule; `dispatch.py` runs them all and fails open; `selftest.py` proves each can refuse and checks the wiring names every tool a guard judges | `.claude/settings.json` PreToolUse, matcher `Bash\|Write\|Edit\|MultiEdit\|NotebookEdit` |
 | `shared/scripts/gates/` **payload, copied** | checks over the worktree at CI time, each with a selftest that plants its own defect | `ci.sh` / `ci.yml`; `scripts/check.py` runs them locally |
@@ -66,8 +66,8 @@ assess-reader (read) x10                    a score, a why, and moves_if per sub
 review.py --grade RUN --answers ...         pool the readings; the page opens with what would move it
 ```
 
-The instrument produces rows. The readers produce numbers. `repo-assessor`
-holds neither: it runs the steps and spawns the readers.
+The instrument produces rows. The readers produce numbers. `commands/assess.md`
+holds neither: it is the order the steps run in, and who is spawned when.
 
 ## Invariants
 

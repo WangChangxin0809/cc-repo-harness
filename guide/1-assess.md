@@ -17,8 +17,8 @@ what [re-measuring](5-re-measure.md) will need later; keep it. The defect replay
 is on by default, runs the repository's own tests, and names the command before
 running it; `--no-full` skips it and dimension 2 abstains.
 
-The [`repo-assessor`](../agents/repo-assessor.md) agent does all of this,
-including the reading. It never changes the repository. The reading is done
+The [`/assess`](../commands/assess.md) command does all of this, including
+the reading. It never changes the repository. The reading is done
 by [`assess-reader`](../agents/assess/reader.md), one per dimension, and
 their answers go back onto the page through `--from`, which reads a run back
 without running the suite again and writes it back in place, so the run and

@@ -1,6 +1,6 @@
 ---
 name: assess-reader
-description: Reads one dimension of an assessment run. Answers the questions that dimension left (what an agent can watch, which actions are legitimate, which mutants matter, which document candidates are real) and then scores its sub-items out of ten, each with the change that would move it. Spawned by /assess and repo-assessor, one per dimension. Not for ordinary work.
+description: Answers or scores one dimension of an assessment run. Spawned by /assess, one per dimension; not for ordinary work.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---

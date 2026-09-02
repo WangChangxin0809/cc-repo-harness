@@ -195,11 +195,11 @@ Only the first is charged to every session on your machine. The other five are
 copied into a repository at the tier that earns them, so they cost nothing until
 then and keep working after you uninstall this.
 
-Also included: four subagents with their own context. `repo-explorer`
-answers one question about a codebase; `repo-assessor` runs the assessment
-end to end, spawning `assess-reader` once per dimension and the blind
-`assess-promise-tester` when asked. Plus the once-per-repository notice, and
-a hook that runs a repository's own guards before it has wired them itself.
+Also included: three subagents with their own context. `repo-explorer`
+answers one question about a codebase; `/assess` spawns `assess-reader` once
+per dimension and the blind `assess-promise-tester` when asked. Plus the
+once-per-repository notice, and a hook that runs a repository's own guards
+before it has wired them itself.
 
 ## Trust
 
