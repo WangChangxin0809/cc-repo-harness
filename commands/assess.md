@@ -65,9 +65,13 @@ real. Each is a brief with a flag on `factsheet.py` for feeding the answer
 back.
 
 Spawn an `assess-reader` for dimensions **1**, **2** and **4** at once, each
-with `RUN=W/run.json`, its `N`, `DIR=W/dN`, `PHASE=answer`. Dimensions 3 and
-5 leave nothing to answer. Each reader replies with the answer paths and the
-flags they feed; a reader that says it had nothing is a normal result.
+with `RUN=W/run.json`, its `N`, `DIR=W/dN`, `PHASE=answer`. If the repository
+being assessed carries `docs/readings/*-answers.json`, tell the reader —
+those are kept answers from an earlier run, and a candidate they already
+cover is judged again only if it is new or has expired, never dismissed
+twice. Dimensions 3 and 5 leave nothing to answer. Each reader replies with
+the answer paths and the flags they feed; a reader that says it had nothing
+is a normal result.
 
 If `--promises` was asked for, also spawn **one** `assess-promise-tester`
 with the round-one brief — `promises_brief` in the JSON — and a path to

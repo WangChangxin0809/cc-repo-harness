@@ -246,6 +246,198 @@
    "moved": 1788289325,
    "real": false,
    "why": "The README points at marketplace.json, .claude/settings.json and CONTRIBUTING.md as things that exist and where to find them. The commits changed what is inside each; none changed what the README says about them."
+  },
+  {
+   "id": 0,
+   "real": false,
+   "why": "\"Three rules that shape every row\" is a section heading (the three bullet rules right below it), not a claim about `.claude/rules/`. The tree's rules/ count is irrelevant to this sentence.",
+   "file": "guide/1-assess.md",
+   "claim": "Three rules",
+   "tier": 1
+  },
+  {
+   "id": 1,
+   "real": false,
+   "why": "`scripts/gates/` here is an illustrative example (\"A `scripts/gates/` directory fails it, since checks can live anywhere\") inside a discussion of what counts as a mechanism, not a claim that this path exists in this tree.",
+   "file": "guide/1-assess.md",
+   "claim": "scripts/gates/",
+   "tier": 2
+  },
+  {
+   "id": 2,
+   "real": false,
+   "why": "Read against the tree: the one concrete, checkable claim near the flagged subject (\"no gate reads assessment.md\") is still true today -- grep over shared/scripts/gates/ and scripts/ finds none. The rest of the churn under docs/exec-plans/tech-debt-tracker.md is unrelated entries being added/closed, not this document going stale.",
+   "file": "guide/2-checklist.md",
+   "claim": "18 commit(s) to what it points at (docs/exec-plans/tech-debt-tracker.md, docs/index.md, guide/1-assess.md …) in the 2 days since this was touched",
+   "tier": 3,
+   "moved": 1788177813
+  },
+  {
+   "id": 3,
+   "real": false,
+   "why": "\"An earlier row compared two agents, one with the repository's memory and one [without]\" describes the retired two-run comparison from 0042, i.e. two agent *runs* -- not the three files under agents/.",
+   "file": "guide/1-assess.md",
+   "claim": "two agents",
+   "tier": 1
+  },
+  {
+   "id": 4,
+   "real": false,
+   "why": "\"only true inside `src/billing/`\" is a generic illustrative example directory (also used in the Path convention section), not a claim about this or any specific tree.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "src/billing/",
+   "tier": 2
+  },
+  {
+   "id": 5,
+   "real": false,
+   "why": "The referenced decision (0022) still exists and the surrounding text (an illustrative closed-plan example with a fabricated date, the obligations table, the tier table) is unaffected by the docs/decisions churn since this file was last touched -- nothing in it has gone wrong.",
+   "file": "guide/3-decide.md",
+   "claim": "15 commit(s) to what it points at (.claude/settings.json, docs/decisions/0022-one-assessment-step-that-may-end-in-nothing.md, docs/index.md …) in the 2 days since this was touched",
+   "tier": 3,
+   "moved": 1788177813
+  },
+  {
+   "id": 6,
+   "real": false,
+   "why": "\"six skills are the same coverage as one\" is a ratio used to illustrate that mechanism-counting doesn't matter, not a claim that the tree has six skills.",
+   "file": "guide/1-assess.md",
+   "claim": "six skills",
+   "tier": 1
+  },
+  {
+   "id": 7,
+   "real": false,
+   "why": "The file states outright: \"Bare paths like `scripts/guards/` mean the target repository -- that is where things end up... after the plugin is gone.\" Correctly absent here; this plugin's own guards live under shared/.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/guards/",
+   "tier": 2
+  },
+  {
+   "id": 8,
+   "real": false,
+   "why": "Read against the tree: the referenced workflow, results file and shared/scripts/CLAUDE.md rule are all still present and the quoted rule text still matches shared/scripts/CLAUDE.md. Nothing the churn touched contradicts this document's claims.",
+   "file": "eval/README.md",
+   "claim": "3 commit(s) to what it points at (.github/workflows/nim-agent.yml, eval/results/latest.json, shared/scripts/CLAUDE.md) in the 4 days since this was touched",
+   "tier": 3,
+   "moved": 1788026969
+  },
+  {
+   "id": 9,
+   "real": false,
+   "why": "\"Four rules, and then use your judgement:\" is a section heading introducing the four bullets that follow (Basis, quoting, empty sections, present-and-fine rows) -- not a count of `.claude/rules/`.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "Four rules",
+   "tier": 1
+  },
+  {
+   "id": 10,
+   "real": false,
+   "why": "Same target-repository convention as id 7: `scripts/index/` is where the target repository's index lands at tier C, correctly absent here (ours is shared/scripts/index/).",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/index/",
+   "tier": 2
+  },
+  {
+   "id": 11,
+   "real": false,
+   "why": "This stage is explicitly \"nothing here is specific to assessment\" -- generic process guidance with no counts or paths tied to the churned subjects. Re-read in full; nothing in it is wrong.",
+   "file": "guide/4-do-the-work.md",
+   "claim": "5 commit(s) to what it points at (guide/3-decide.md, guide/5-re-measure.md) in the 2 days since this was touched",
+   "tier": 3,
+   "moved": 1788187346
+  },
+  {
+   "id": 12,
+   "real": false,
+   "why": "\"Never *we added five guards* -- that is a claim about us\" is a quoted anti-example of the wrong thing to write in a re-measure claim, not an assertion that this repository has five guards.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "five guards",
+   "tier": 1
+  },
+  {
+   "id": 13,
+   "real": false,
+   "why": "Same target-repository convention as id 7: `scripts/selftests/` is what a scaffolded repository gets (tier B), correctly absent here.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/selftests/",
+   "tier": 2
+  },
+  {
+   "id": 14,
+   "real": false,
+   "why": "Read the whole file against the tree despite the high churn score: the five steps, the seven delivery moments, the tier table, and the acceptance list are all still accurate. The churn is commits adding/closing unrelated entries in docs/decisions and docs/exec-plans (directories, not files this document makes a specific claim about) plus routine .claude/settings.json edits -- it inflates the T3 score without the document's own claims having moved.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "12 commit(s) to what it points at (.claude/settings.json, docs/decisions, docs/exec-plans …) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788289325
+  },
+  {
+   "id": 15,
+   "real": false,
+   "why": "\"Never *we added three gates* -- that is a claim about us\" is the same anti-example pattern as id 12: a quoted bad claim to avoid, not a statement that this repository has three gates.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "three gates",
+   "tier": 1
+  },
+  {
+   "id": 16,
+   "real": false,
+   "why": "Same target-repository convention as id 7: `scripts/baselines/` is created empty for a scaffolded repository, correctly absent here.",
+   "file": "skills/bootstrap-repo-harness/SKILL.md",
+   "claim": "scripts/baselines/",
+   "tier": 2
+  },
+  {
+   "id": 17,
+   "real": false,
+   "why": "This is payload describing where things go in a scaffolded repository's docs/ (decisions, exec-plans, how-to). It is a routing convention, not a specific factual claim that decays when this repository's own docs/decisions or docs/exec-plans gain entries.",
+   "file": "shared/skills/writing-docs/references/kinds.md",
+   "claim": "11 commit(s) to what it points at (docs/decisions, docs/exec-plans, docs/how-to …) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788289325
+  },
+  {
+   "id": 18,
+   "real": false,
+   "why": "\"Three rules that are easy to get wrong:\" is a heading for the three numbered rules about `Governs:` path matching that follow -- not a count of `.claude/rules/`.",
+   "file": "shared/skills/writing-docs/SKILL.md",
+   "claim": "Three rules",
+   "tier": 1
+  },
+  {
+   "id": 19,
+   "real": false,
+   "why": "`src/bill` is the worked example directly inside the sentence explaining `Governs:` path-segment matching (\"`Governs: src/bill` covers `src/bill` ... does not reach `src/billing_old/`\") -- a deliberately-chosen example path, not a claim about any real tree.",
+   "file": "shared/skills/writing-docs/SKILL.md",
+   "claim": "src/bill",
+   "tier": 2
+  },
+  {
+   "id": 20,
+   "real": false,
+   "why": "Same as id 17: payload describing the target repository's docs/decisions and docs/exec-plans/tech-debt-tracker.md as routing destinations. The claims are conventions, not counts, and are unaffected by this repository's own churn in those directories.",
+   "file": "shared/skills/consolidating-notes/SKILL.md",
+   "claim": "11 commit(s) to what it points at (docs/decisions, docs/exec-plans/tech-debt-tracker.md, docs/reference …) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788289325
+  },
+  {
+   "id": 22,
+   "real": false,
+   "why": "`src/bill/` (with trailing slash) is the same worked example as id 19, quoted a second time a few lines later to show the trailing slash changes nothing -- not a second, independent claim about a real tree.",
+   "file": "shared/skills/writing-docs/SKILL.md",
+   "claim": "src/bill/",
+   "tier": 2
+  },
+  {
+   "id": 23,
+   "real": false,
+   "why": "This whole file is the `repo/` diagram for a scaffolded target repository (its own legend says so). The docs/decisions and docs/exec-plans references subject_of() resolved are this repository's directories of the same name, not what the document is actually describing, so the churn against them is a coincidental binding, not staleness of the diagram.",
+   "file": "skills/bootstrap-repo-harness/references/target-architecture.md",
+   "claim": "11 commit(s) to what it points at (docs/exec-plans, docs/index.md) in the 1 days since this was touched",
+   "tier": 3,
+   "moved": 1788289325
   }
  ]
 }

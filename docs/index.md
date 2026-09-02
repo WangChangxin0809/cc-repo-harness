@@ -49,6 +49,7 @@
 | Know why a rule about one directory is paid where it is read, and why rule 1 is not | [0054](decisions/0054-a-rule-about-one-directory-is-paid-where-its-read.md) |
 | Know why a relative hook path is a gate finding, and why it is a gate and not a guard | [0055](decisions/0055-a-relative-hook-command-is-a-hook-that-is-not-there.md) |
 | Know why every suite in a tree is run, how their verdicts are pooled, and why a root Makefile claims the tree | [0050](decisions/0050-every-ecosystem-is-measured-and-the-verdict-is-pooled.md) |
+| Know why a dismissed truth candidate is kept instead of re-answered on every run | [0056](decisions/0056-answers-that-outlive-a-run.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |
 
