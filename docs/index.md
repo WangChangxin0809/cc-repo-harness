@@ -46,7 +46,7 @@
 | Know why the second pass writes the run back, and why a page without its readers says so | [0051](decisions/0051-the-run-is-the-record-and-the-header-says-what-is-still-open.md) |
 | Know why the third-party scorer left CI, and what a second opinion has to do to stay | [0052](decisions/0052-the-second-opinion-was-read-once-and-then-retired.md) |
 | Know why a file over 2000 lines is a gate finding and not a style opinion | [0053](decisions/0053-a-file-an-agent-cannot-read-in-one-call-is-two-files.md) |
-| Know why a directory-specific hard rule moved out of root `CLAUDE.md` and kept its number | [0054](decisions/0054-a-hard-rule-true-of-one-directory-is-paid-where-its-read.md) |
+| Know why a rule about one directory is paid where it is read, and why rule 1 is not | [0054](decisions/0054-a-rule-about-one-directory-is-paid-where-its-read.md) |
 | Know why every suite in a tree is run, how their verdicts are pooled, and why a root Makefile claims the tree | [0050](decisions/0050-every-ecosystem-is-measured-and-the-verdict-is-pooled.md) |
 | Read a number this repository measured rather than argued | [docs/generated/](generated/) — written by scripts, never by hand |
 | See which assessment candidates were read, and what was decided | [readings](readings/README.md) — 4.2 and 4.4, answered and kept |

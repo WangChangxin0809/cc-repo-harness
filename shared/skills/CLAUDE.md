@@ -1,9 +1,8 @@
 # shared/skills/ — payload, written for a repository you have never seen
 
-This is hard rule 1, at the point it's actually read, and the other half of
-the split root `CLAUDE.md` names: the plugin keeps one skill, and these five
-are copied into a target repository's `.claude/skills/` by `scaffold.py`, at
-the tier that earns them (0024). They are not discovered
+The other half of the split root `CLAUDE.md` names: the plugin keeps one
+skill, and these five are copied into a target repository's `.claude/skills/`
+by `scaffold.py`, at the tier that earns them (0024). They are not discovered
 here: Claude Code lists skills only from `.claude/skills/`, `~/.claude/skills/`
 and a plugin's `skills/`, and this directory is none of those.
 

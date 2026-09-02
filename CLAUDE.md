@@ -33,10 +33,8 @@ arrives -> docs/decisions/0024
 
 ## Hard rules
 
-Rules 1 and 5 are true of one directory only, so they load where that
-directory is actually touched, not here: 1 in `shared/scripts/CLAUDE.md` and
-`shared/skills/CLAUDE.md`, 5 in `.claude/rules/wiring.md`.
-
+1. **Anything under `shared/` ships to strangers.** Write it for a repository
+   you have never seen. Tools only we need go elsewhere.
 2. **A check nobody has watched fail is a file, not a check.** A new gate or
    guard is not done until you have planted its defect, watched it go red, and
    left a selftest case behind that does the same. See `writing-checks`.
@@ -49,6 +47,9 @@ directory is actually touched, not here: 1 in `shared/scripts/CLAUDE.md` and
    reason to keep the plugin installed, and it is also the easiest place to
    smuggle behaviour in — a diagnostic that starts fixing what it finds has
    stopped being a diagnostic -> docs/decisions/0021
+5. Which of `shared/` and `scripts/` a hook points at is decided per hook, and
+   only matters while editing the wiring: `.claude/rules/wiring.md` carries it
+   and loads there.
 
 ## Commands
 
