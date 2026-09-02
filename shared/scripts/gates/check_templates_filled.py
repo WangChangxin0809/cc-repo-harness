@@ -65,6 +65,44 @@ IDENTIFIER = re.compile(r"^[a-z][a-z0-9_.·/…-]*$")
 SKIP_DIRS = {"generated", "node_modules", "vendor", "third_party", ".venv",
              "site-packages", "__pycache__"}
 
+# Markdown on GitHub renders inline HTML, and a README that folds its long tree
+# into <details> is using the platform rather than leaving a blank to fill.
+VOID_HTML = {"area", "base", "br", "col", "embed", "hr", "img", "input",
+             "link", "meta", "param", "source", "track", "wbr"}
+HTML = VOID_HTML | {
+    "a", "abbr", "article", "aside", "b", "blockquote", "caption", "center",
+    "cite", "code", "colgroup", "dd", "del", "details", "div", "dl", "dt",
+    "em", "figcaption", "figure", "footer", "h1", "h2", "h3", "h4", "h5",
+    "h6", "header", "i", "ins", "kbd", "li", "main", "mark", "nav", "ol",
+    "p", "picture", "pre", "q", "s", "samp", "section", "small", "span",
+    "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot",
+    "th", "thead", "time", "tr", "u", "ul", "var", "video", "audio"}
+
+OPEN_TAG = re.compile(r"^([A-Za-z][A-Za-z0-9]*)(?:\s[^<>]*)?/?$")
+CLOSE_TAG = re.compile(r"</([A-Za-z][A-Za-z0-9]*)\s*>")
+
+
+def html_in(text: str):
+    """Which `<...>` in this document are markup rather than a blank to fill.
+
+    An element name alone is not enough -- `<summary>` is a real HTML tag and
+    also a plausible thing to leave unwritten. What separates them is whether
+    the document goes on to use it as markup: a void element such as `<img>`,
+    which never closes, or one whose closing tag is present. So `<details>`
+    above a `</details>` is markup, and a lone `<summary>` under a heading
+    that says what to write there is still reported.
+    """
+    closed = {m.group(1).lower() for m in CLOSE_TAG.finditer(text)}
+
+    def markup(inner: str) -> bool:
+        m = OPEN_TAG.match(inner.strip())
+        if not m:
+            return False
+        name = m.group(1).lower()
+        return name in HTML and (name in VOID_HTML or name in closed)
+
+    return markup
+
 
 def in_prose(inner: str) -> bool:
     inner = inner.strip()
@@ -141,10 +179,11 @@ def scan(path):
         return []
 
     hits = {}
+    markup = html_in(text)
     for body, accept in zip(split_regions(text), (in_prose, in_code)):
         for lineno, line in enumerate(body.splitlines(), 1):
             for m in ANGLE.finditer(line):
-                if accept(m.group(1)):
+                if accept(m.group(1)) and not markup(m.group(1)):
                     hits.setdefault((lineno, m.start()), (lineno, m.group(0)))
     return [v for _, v in sorted(hits.items())]
 
