@@ -507,6 +507,19 @@ HOOKS = [
     for name, pairs, floor in CONTEXT_SCRIPTS for event, matcher in pairs
 ]
 
+# Single files under this script, copied as-is. Not a COPY entry, because
+# `shared/scripts/` also holds things a target repository has no use for --
+# scaffold.py itself, probe_repo.py, the assessment.
+#
+# Both of these are documented by a skill that ships at tier B, and neither was
+# installed. `consolidating-notes` named them behind ${CLAUDE_PLUGIN_ROOT},
+# which resolves only while the plugin is installed; a copied skill that reaches
+# back into the plugin is the failure the whole payload rule exists to prevent.
+SCRIPTS = [
+    ("consolidate.py", "scripts/consolidate.py", "B"),
+    ("drift.py", "scripts/drift.py", "B"),
+]
+
 # rel path -> (template, mode, minimum tier)
 PLAN = [
     ("CLAUDE.md", CLAUDE_MD, 0o644, "A"),
@@ -538,8 +551,6 @@ DIRS = [
     # would be a bypass with a welcome mat.
     (".claude/rules", "B"),
     ("docs/reference", "A"),
-    ("scripts/selftests", "B"),
-    ("scripts/baselines", "B"),
 ]
 
 # source dir under this script -> destination under the repo, minimum tier
@@ -733,6 +744,8 @@ def main():
                   os.path.join(SKILL_SRC, name))]
     context_scripts = [(name, floor) for name, _, floor in CONTEXT_SCRIPTS
                        if at_least(a.tier, floor)]
+    lone_scripts = [(src, dst) for src, dst, floor in SCRIPTS
+                    if at_least(a.tier, floor)]
     wanted_hooks = [(event, matcher, command)
                     for event, matcher, command, floor in HOOKS
                     if at_least(a.tier, floor)]
@@ -754,6 +767,8 @@ def main():
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
             print(f"  {'NEW':<14} scripts/context/{name}")
+        for _, dst in lone_scripts:
+            print(f"  {'NEW':<14} {dst}")
         print(f"  {'APPEND':<14} .gitignore  "
               f"(+{len(IGNORE_LINES)} pattern(s) that must never be committed)")
         print(f"  {'MERGE':<14} .claude/settings.json  "
@@ -805,6 +820,16 @@ def main():
         shutil.copy(os.path.join(HERE, "context", name), target)
         os.chmod(target, 0o755)
         made.append(("NEW", rel, ""))
+
+    for src, dst in lone_scripts:
+        target = os.path.join(root, dst)
+        if os.path.exists(target):
+            made.append(("SKIP", dst, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(HERE, src), target)
+        os.chmod(target, 0o755)
+        made.append(("NEW", dst, ""))
 
     ensure_gitignore(root, made)
     merge_settings(root, wanted_hooks, made)

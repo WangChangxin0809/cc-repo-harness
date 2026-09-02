@@ -97,6 +97,24 @@ def scaffold(root, tier, from_dir=PLUGIN, dry=False):
 
 
 def ci(root, lane="--fast"):
+    """Run the scaffolded repository's own entry point.
+
+    `git add -A` first, and not as housekeeping. `fresh_repo()` commits before
+    the scaffolder runs, so everything the scaffolder writes is untracked --
+    and every gate that enumerates through `git ls-files` (check_docs_runnable,
+    check_no_machine_paths, the nested-CLAUDE.md half of check_context_budget)
+    then reads an empty file list and passes having examined nothing.
+
+    That is the exact failure this whole repository is about: a check that
+    cannot see its subject reports the same green as a check that looked. It
+    hid a real defect for the life of this suite -- two skills documenting
+    `${CLAUDE_PLUGIN_ROOT}/shared/scripts/consolidate.py`, a path that resolves
+    only while the plugin is installed, in a repository whose one promise is
+    that it outlives the plugin.
+
+    Here rather than in each case, because the next case to be added would
+    otherwise have to remember."""
+    sh(["git", "add", "-A"], cwd=root)
     return sh(["./ci.sh", lane], cwd=root)
 
 
