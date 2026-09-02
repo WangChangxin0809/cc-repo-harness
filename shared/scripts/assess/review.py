@@ -315,7 +315,11 @@ def brief(run, dimension=None):
                 ("   [" + flag + "]") if flag else ""))
             note = (row.get("note") or "").strip()
             if note:
-                out.append("  %s\n" % note.replace("\n", " ")[:400])
+                # The note is where a row names its cases -- which changes
+                # verified nothing, which defects survived. Cut at 400 it
+                # named none of them, and the reader's `moves_if` had to
+                # aim at whatever the row happened to mention first.
+                out.append("  %s\n" % note.replace("\n", " ")[:900])
         out.append("\n")
     if unmapped:
         out.append("## Rows no sub-item claims\n\nScore these under whichever "

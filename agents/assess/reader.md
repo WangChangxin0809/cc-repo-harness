@@ -21,7 +21,11 @@ write goes anywhere but the directory you were given.
 - `PHASE` — `answer` or `read`
 
 Whoever spawned you may also name the repository root; otherwise it is the
-`root` in `RUN`.
+`root` in `RUN`. `RUN` also carries `head_sha`, the commit it measured. If
+`git rev-parse HEAD` in the repository gives something else, the tree has
+moved since the measurement: read what the run measured, and say so in
+your reply, in one line, so whoever assembles the page knows the numbers
+and the tree are from different moments.
 
 ## Phase `answer`: what the instrument left
 
@@ -57,8 +61,9 @@ mkdir -p DIR && python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/review.py \
         --brief RUN --dimension N > DIR/reading.md
 ```
 
-Read it. It holds only this dimension's sub-items, with the measured rows
-under each, and it says what the score is for. Then open the repository —
+Read it. It opens with what the score is for; the sub-items come after
+the rule, each with the measured rows under it, and those ids are the only
+ones you may answer. Then open the repository —
 the rows say *what*, the tree says *whether it matters here* — and write
 `DIR/reading.json`:
 

@@ -3366,6 +3366,50 @@ def case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped(t):
     return None
 
 
+def case_shipping_is_read_from_the_default_branch(t):
+    """A branch that bumped the manifest is supposed to be ahead of the tag.
+
+    3.6 read the checkout: on a feature branch with the version raised, the
+    manifest disagreed with the latest tag, and a tag made on main after
+    the branch was cut was not reachable. Both are the ordinary look of
+    open work; a reader of this repository's own page called the row
+    noise, and it was. Shipping now reads the default branch."""
+    repo(t)
+    put(t, "src/app.py", "x = 1\n")
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "1.0.0"}))
+    put(t, ".github/workflows/ci.yml", WORKFLOW % ("", "      - run: pytest\n"))
+    commit(t, "feat: app")
+    git(["tag", "v1.0.0"], t)
+    # A feature branch raises the version; main also gains a tag after the
+    # branch was cut.
+    git(["checkout", "-q", "-b", "feature"], t)
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "1.1.0"}))
+    commit(t, "feat: bump")
+    git(["checkout", "-q", "main"], t)
+    put(t, "src/app.py", "x = 2\n")
+    commit(t, "fix: x")
+    git(["tag", "v1.0.1"], t)
+    git(["checkout", "-q", "feature"], t)
+    rows = pipeline_rows(t)
+    row = rows.get("the latest tag is on this branch")
+    if not row or row["flag"] != "ok":
+        return f"a tag on main read as unreachable from a feature branch: {row}"
+    row = rows.get("the manifest agrees with the latest tag")
+    if not row or row["flag"] != "ok":
+        return f"a branch that bumped the version read as a mismatch: {row}"
+    # And on main, a version raised without a tag is still the finding.
+    git(["checkout", "-q", "main"], t)
+    put(t, ".claude-plugin/plugin.json",
+        json.dumps({"name": "p", "version": "2.0.0"}))
+    commit(t, "feat: two")
+    row = pipeline_rows(t).get("the manifest agrees with the latest tag")
+    if not row or row["flag"] != "warn":
+        return f"a bump on main with no tag was not reported: {row}"
+    return None
+
+
 def case_the_blind_agent_cannot_read_the_repository(t):
     """The tool list is the experiment, not a sentence in the prompt.
 
@@ -5250,6 +5294,8 @@ CASES = [
      case_a_run_is_read_back_instead_of_re_measured),
     ("coverage takes its own command when the suite cannot be wrapped",
      case_coverage_takes_its_own_command_when_the_suite_cannot_be_wrapped),
+    ("shipping is read from the default branch, not the checkout",
+     case_shipping_is_read_from_the_default_branch),
     ("a document nobody loads is not a context cost",
      case_a_document_nobody_loads_is_not_a_context_cost),
     ("a skill's reference is loaded and is counted",

@@ -412,16 +412,44 @@ def verdicts(root, fetch=None):
 # shipping: tags, what makes them, whether the latest is on this branch
 # --------------------------------------------------------------------------
 
-def _manifest_version(root):
+def default_branch(root):
+    """The branch releases are read against, or None to mean HEAD.
+
+    A feature branch that bumps the manifest is *supposed* to be ahead of
+    the latest tag, and a tag made on main is not reachable from a branch
+    cut before it. Both are the ordinary look of open work, and both read
+    as findings when the row is taken from whatever happens to be checked
+    out. So shipping is read from the default branch when one can be
+    named: the remote's HEAD, else a local main or master."""
+    head = sh(["git", "symbolic-ref", "-q", "--short",
+               "refs/remotes/origin/HEAD"], root)
+    if head.returncode == 0 and head.stdout.strip():
+        return head.stdout.strip()
+    for name in ("origin/main", "origin/master", "main", "master"):
+        if sh(["git", "rev-parse", "-q", "--verify", name + "^{commit}"],
+              root).returncode == 0:
+            return name
+    return None
+
+
+def _manifest_version(root, ref=None):
+    """The manifest's version, at `ref` when given and in the tree when
+    not."""
     for rel, kind in _MANIFESTS:
-        full = os.path.join(root, rel)
-        if not os.path.exists(full):
-            continue
-        try:
-            with open(full, encoding="utf-8", errors="replace") as fh:
-                text = fh.read(200000)
-        except OSError:
-            continue
+        if ref:
+            shown = sh(["git", "show", f"{ref}:{rel}"], root)
+            if shown.returncode != 0:
+                continue
+            text = shown.stdout
+        else:
+            full = os.path.join(root, rel)
+            if not os.path.exists(full):
+                continue
+            try:
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read(200000)
+            except OSError:
+                continue
         if kind == "json":
             try:
                 v = json.loads(text).get("version")
@@ -446,10 +474,11 @@ def shipping(root, flows):
         # An annotated tag lists the tag object first and the commit it
         # points at second; a lightweight tag has only the commit.
         latest, latest_sha = parts[0], (parts[2] if len(parts) > 2 else parts[1])
+    base = default_branch(root)
     reachable = None
     if latest:
         reachable = sh(["git", "merge-base", "--is-ancestor", latest_sha,
-                        "HEAD"], root).returncode == 0
+                        base or "HEAD"], root).returncode == 0
     makers = []
     for f in flows:
         ev = f["events"]
@@ -463,12 +492,13 @@ def shipping(root, flows):
         what = sorted({w for needle, w in _SHIPS if needle in low})
         if what or trig:
             makers.append({"file": f["file"], "what": what, "trigger": trig})
-    m_file, m_version = _manifest_version(root)
+    m_file, m_version = _manifest_version(root, base)
     tag_version = re.sub(r"^[^0-9]*", "", latest) if latest else ""
     return {
         "tags": len(lines),
         "latest": latest, "latest_sha": latest_sha[:10],
         "latest_reachable": reachable,
+        "base": base or "HEAD",
         "makers": makers,
         "manifest": m_file, "manifest_version": m_version,
         "tag_version": tag_version,

@@ -1264,10 +1264,12 @@ def _pipeline_rows(p):
                     "they wrote down"})
     if sh_["latest"]:
         ok = bool(sh_["latest_reachable"])
+        base = sh_.get("base") or "HEAD"
         rows.append({
             "label": "the latest tag is on this branch",
-            "value": "yes" if ok else "no — %s at %s is not reachable from HEAD"
-                     % (sh_["latest"], sh_["latest_sha"]),
+            "value": ("yes, on %s" % base) if ok else
+                     "no — %s at %s is not reachable from %s"
+                     % (sh_["latest"], sh_["latest_sha"], base),
             "flag": "ok" if ok else "bad",
             "note": "" if ok else
                     "what shipped is not what the default branch says shipped, "
@@ -1276,8 +1278,9 @@ def _pipeline_rows(p):
         same = sh_["manifest_version"] == sh_["tag_version"]
         rows.append({
             "label": "the manifest agrees with the latest tag",
-            "value": "%s says %s, latest tag %s" % (
-                sh_["manifest"], sh_["manifest_version"], sh_["latest"]),
+            "value": "%s on %s says %s, latest tag %s" % (
+                sh_["manifest"], sh_.get("base") or "HEAD",
+                sh_["manifest_version"], sh_["latest"]),
             "flag": "ok" if same else "warn",
             "note": "" if same else
                     "ahead: a version nobody can install yet, or a release "

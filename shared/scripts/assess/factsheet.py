@@ -552,6 +552,11 @@ def _run(a, root, work):
                   file=sys.stderr)
             return 2
         r["root"] = root
+        # What the run measured, so a reader handed the run later can tell
+        # whether the tree in front of it is still the one on the page.
+        r["head_sha"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True,
+            text=True, timeout=30).stdout.strip()
 
     # Round one, then -- only if its answers arrived -- round two. Both run
     # the agent's own code, which is why both happen in a throwaway clone
