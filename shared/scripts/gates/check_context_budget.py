@@ -36,6 +36,27 @@ three free:
 - **Rules that declare `paths:`.** Same argument: they load only when Claude
   works with matching files, which is the move this gate wants to reward. They
   are reported, not charged.
+
+## The two escape hatches have a ceiling of their own
+
+Neither is charged against the shared cap, and neither is unbounded. An escape
+hatch with no bound is where everything ends up: the cost does not disappear
+when a rule moves out of `CLAUDE.md`, it moves from *every turn* to *every
+matching read*, and at three hundred lines that is the worse of the two.
+
+So the ceiling is **per file, never summed**. Summing would be a charge by
+another name and would undo the incentive to move work out at all. Ten scoped
+rules of thirty lines is exactly the shape this gate wants; one of three
+hundred is not.
+
+- A rule with `paths:` --- `--scoped-cap`, 40 lines. It arrives in full at the
+  moment it matches, competing with the work already in front of the model.
+- A nested `CLAUDE.md` --- `--nested-cap`, 50 lines. Past that it has stopped
+  being "what is true in this directory" and become a second root file.
+
+Only tracked files are read, via `git ls-files`, so vendored trees and fixture
+repositories are out of scope --- somebody else's `CLAUDE.md`, checked in under
+`eval/` or `vendor/`, is not this repository's context cost.
 - **HTML comment lines.** Claude Code strips block-level comments before the
   content enters context, so they cost nothing. The cap charged for them, which
   meant a file could fail on maintainer notes that were never delivered -- two
@@ -48,6 +69,7 @@ import argparse
 import glob
 import os
 import re
+import subprocess
 import sys
 
 TOKENS_PER_WORD = 1.35   # measured against tokenized English prose; identifiers
@@ -127,6 +149,27 @@ def always_on_instructions(root):
     return charged, conditional
 
 
+def nested_claude_files(root):
+    """(rel, lines) for every tracked CLAUDE.md that is not one of the two
+    always-on locations. `git ls-files` and not a walk: it already excludes
+    what .gitignore excludes, which is where fixture repositories live."""
+    out = subprocess.run(["git", "ls-files", "-z", "*CLAUDE.md"],
+                         cwd=root, capture_output=True, text=True)
+    if out.returncode != 0:
+        return None
+    found = []
+    for rel in out.stdout.split("\0"):
+        rel = rel.strip()
+        if not rel or rel in ("CLAUDE.md", ".claude/CLAUDE.md"):
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8") as fh:
+                found.append((rel, len(charged_lines(fh.read()))))
+        except OSError:
+            continue
+    return sorted(found)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -134,6 +177,10 @@ def main():
                     help="max lines of always-on instructions, summed")
     ap.add_argument("--skill-cap", type=int, default=2000,
                     help="max total tokens of always-on skill descriptions")
+    ap.add_argument("--scoped-cap", type=int, default=40,
+                    help="max lines in one .claude/rules/ file with paths:")
+    ap.add_argument("--nested-cap", type=int, default=50,
+                    help="max lines in one nested CLAUDE.md")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
 
@@ -180,6 +227,32 @@ def main():
         failures.append("The always-on instructions have almost no content — a "
                         "template left unfilled is worse than no file, because "
                         "it reads as though the conventions were written down.")
+
+    over = [(rel, n) for rel, n in conditional if n > a.scoped_cap]
+    if over:
+        failures.append(
+            "A scoped rule is longer than one file's worth of context:\n"
+            + "\n".join(f"    {rel:<40} {n:>4} lines  (cap {a.scoped_cap})"
+                        for rel, n in over)
+            + "\n  It is not charged on every turn, but it arrives whole the\n"
+              "  moment it matches, next to the work already in front of the\n"
+              "  model. Split it by path, or move what a script can enforce\n"
+              "  into scripts/guards/ or scripts/gates/.")
+
+    nested = nested_claude_files(root)
+    if nested is None:
+        print("cannot judge: `git ls-files` failed, so the nested CLAUDE.md "
+              "files cannot be enumerated", file=sys.stderr)
+        return 2
+    over = [(rel, n) for rel, n in nested if n > a.nested_cap]
+    if over:
+        failures.append(
+            "A nested CLAUDE.md has become a second root file:\n"
+            + "\n".join(f"    {rel:<40} {n:>4} lines  (cap {a.nested_cap})"
+                        for rel, n in over)
+            + "\n  Everything in it is delivered whenever Claude reads a file\n"
+              "  in that directory. Past this length it is no longer \"what is\n"
+              "  true here\" — route the rest to docs/ and link it.")
 
     total = 0
     per_skill = []
