@@ -1,40 +1,32 @@
+<div align="center">
+
+<img src=".github/assets/harness.svg" alt="A repository holding one dais: Claude Code, with Claude, DeepSeek, Gemini, Kimi and Grok standing on it" width="560">
+
 # repo-agent-harness
 
-**A repository-side harness for coding agents, and an instrument for checking
-it later.** It lays the foundation that makes a repository teach coding agents
-how to work in it — then stays around to tell you whether that foundation is
-still holding.
+**A repository-side harness for coding agents — and the instrument that tells you
+whether it is still holding.**
 
-Two halves, and which half lives where is the whole architecture:
+[![CI](https://github.com/WangChangxin0809/repo-agent-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/WangChangxin0809/repo-agent-harness/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-A8492E.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-A8492E.svg)](#requirements)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-A8492E.svg)](#requirements)
 
-**The repository keeps the harness.** Everything the bootstrap installs lives in
-the target repository — `CLAUDE.md`, `.claude/settings.json`, `docs/`,
-`scripts/` — under version control, reviewable in a pull request, working for
-teammates who have never heard of this plugin. The acceptance test is literal:
-**uninstall the plugin**, hand a fresh agent a real task, and the repository
-must still teach it the conventions.
+</div>
 
-**The plugin keeps the instrument.** `assess/` is a diagnostic, so it is never
-copied into anybody's tree. Run it in three months and it answers the question
-a harness cannot answer about itself: has the standing per-turn cost crept up,
-are defects that used to be refused before the write now reaching CI, have
-documents fallen behind the code they claim. Uninstalling costs you the
-measurement, never the machinery — which is why the uninstall test is about
-independence rather than about being done with it.
+It does three things:
 
-### Scope, stated so the name cannot overclaim
+| | | Start with |
+|---|---|---|
+| **Scaffold** | lay the foundation in a repository that has none | `bootstrap-repo-harness` |
+| **Assess** | measure a repository that already exists, on five dimensions | `/assess` |
+| **Improve** | work what the assessment found, then re-measure in the same units | [the guide](guide/1-assess.md) |
 
-*Harness* is an overloaded word, and the two meanings are worth separating
-before the first command:
-
-- **This is not the agent's execution loop.** In the Claude Agent SDK, "harness"
-  names the runtime that drives a model through tool calls. Nothing here touches
-  that. This is the *other* side: the repository the loop is pointed at.
-- **What it is:** conventions, guards, gates, and retrieval, placed in the
-  repository at the moments an agent actually reads them. It changes what the
-  repository tells an agent, never how the agent runs.
-- **What it is not:** an evaluation framework, a model router, a memory system,
-  or anything that persists outside version control.
+> [!NOTE]
+> **The repository keeps the harness; the plugin keeps the instrument.** Everything
+> the scaffold writes lands in your repository under version control, reviewable in
+> a pull request, working for teammates who never installed this. Uninstalling costs
+> you the measurement, never the machinery.
 
 ## Install
 
@@ -43,152 +35,42 @@ before the first command:
 /plugin install repo-agent-harness@wangchangxin-plugins
 ```
 
-If you added the marketplace under the old name `WangChangxin0809/agent-harness`,
-it keeps working — GitHub serves a permanent redirect for both the web URL and
-`git clone`. Nothing needs to be re-added.
+Installing changes nothing on its own. The first session in a repository gets one
+paragraph — standing per-turn cost, which delivery moments are wired, what checks
+exist — and then never speaks again. It reads files and asks git for a list; it
+executes nothing.
 
-From a local clone instead, point the first line at the checkout directory —
-the marketplace manifest is at `.claude-plugin/marketplace.json`.
+## Scaffold
 
-Then, in the repository you want to set up: *"set this repo up so the rules
-actually get enforced"* — or invoke `bootstrap-repo-harness` directly.
+In the repository you want set up: *"set this repo up so the rules actually get
+enforced"*, or invoke `bootstrap-repo-harness` directly.
 
-## What is in it
+A repository has seven moments where knowledge can reach an agent, each with a
+different cost and reach. Most use one — a `CLAUDE.md` paid on every turn, read
+once, followed unevenly. The scaffold places conventions, guards, gates and
+retrieval at the moments an agent actually reads them.
 
-| Skill | Enter it when | Where it lives |
-|---|---|---|
-| `bootstrap-repo-harness` | Once, to lay the foundation | the plugin |
-| `writing-docs` | Every time you write or restructure a document | your repo |
-| `writing-checks` | Every time a rule needs enforcing rather than documenting | your repo |
-| `writing-github-docs` | README, CONTRIBUTING, and the community health files | your repo |
-| `repo-index` | Large repo; an agent cannot find the relevant code | your repo |
-| `consolidating-notes` | Notes have accumulated, drifted, or contradicted | your repo |
-
-Only the first is charged to every session on your machine. The other five are
-copied into the repository during bootstrap, at the tier that earns them — so
-they cost nothing until a repository asks for them, they arrive for teammates
-who never installed this, and they survive uninstalling it
-([why](docs/decisions/0024-skills-are-payload-except-the-one-that-finds-them.md)).
-
-The assessment is a four-stage walkthrough, one file per stage:
-[assess](guide/1-assess.md) · [write the checklist](guide/2-checklist.md) ·
-[decide](guide/3-decide.md) · [do the work](guide/4-do-the-work.md) ·
-[re-measure](guide/5-re-measure.md). Deciding to change nothing is a valid
-ending, and stage 5 is why stage 1 exists.
-
-Plus `/assess`, which measures a repository against five dimensions and writes
-one page; two subagents (`repo-explorer` and `repo-assessor`, own context); and
-two hooks: the once-per-repository notice described below, and one that runs a
-repository's own guards during the window before it has wired them — see
-[Trust](#trust), because that second one executes code from the repository and
-therefore asks first.
-
-## The argument
-
-Knowledge only changes behaviour if it arrives at the moment of acting. A
-repository has seven such moments and each has a different cost and reach; most
-repositories use one of them — a `CLAUDE.md` that is paid on every turn, read
-once, and followed unevenly.
-
-Two rules follow, and everything else is detail:
+Two rules decide what goes where:
 
 - **Knowledge lives in the repository, not in agent memory.** Memory is
-  per-machine, invisible to review, and cannot be corrected by a teammate.
+  per-machine, invisible to review, and no teammate can correct it.
 - **What cannot tolerate a miss never goes through retrieval.** Retrieval is
-  best-effort by construction. Rules whose violation is irreversible or silent
-  become a guard that blocks the action or a gate that fails the build.
+  best-effort by construction. A rule whose violation is irreversible or silent
+  becomes a guard that blocks the action or a gate that fails the build.
 
-And the correction that keeps the second rule honest: **a guard is a speed bump,
-not a boundary.** It matches command text and it fails open by design, so
-`B=push; git $B origin main` walks straight past it. For a rule that genuinely
-cannot tolerate a miss, the guard is the third line — after `permissions.deny`
-and after server-side branch protection. What it adds is the paragraph
-explaining why, delivered at the moment of the attempt, which is the one place
-prose is guaranteed to be read.
+> [!WARNING]
+> **A guard is a speed bump, not a boundary.** It matches command text and fails
+> open by design, so `B=push; git $B origin main` walks straight past it. For a
+> rule that genuinely cannot tolerate a miss, the guard is the third line — after
+> `permissions.deny` and after server-side branch protection. What it adds is the
+> paragraph explaining why, delivered at the moment of the attempt.
 
-## What happens after you install it
+<details>
+<summary><b>What the repository ends up with</b> — every path under version control, working with this plugin uninstalled</summary>
 
-Installing changes nothing. The first session in a repository gets one
-paragraph — the standing per-turn cost, which of the seven delivery moments are
-wired, what checks exist — and then never speaks again in that repository. That
-paragraph reads files and asks git for a list; it executes nothing, because the
-rest of the assessment fires a repository's own hooks and runs its test suite,
-and doing either because somebody installed a plugin helps itself to a machine
-that was never offered.
-
-```mermaid
-flowchart TD
-    I(["install"]) --> N["first session in a repository<br/>standing cost · which moments are wired · what checks exist<br/>reads files, executes nothing, said once and never again"]
-    N --> Q0{"assess it?"}
-    Q0 -->|"not now"| Z(["it sits there.<br/>nothing else runs until it is asked"])
-    Q0 -->|"yes"| A["assess · one step<br/>measure the standing cost and what is wired<br/>aim six irreversible actions at it, unexecuted<br/>replay a real defect from its own history, or abstain<br/>then the agent reads the docs and hooks, holding the numbers"]
-    A --> L["the assessment checklist<br/>five sections, fixed order, one row per finding"]
-    L --> Q1{"worth changing?"}
-    Q1 -->|"no"| Z2(["write that down and stop.<br/>an outcome, not a failed run"])
-    Q1 -->|"yes"| P["docs/exec-plans/&lt;name&gt;/<br/>the README owns the state, the steps own the substance<br/>and one section says what is deliberately not being done"]
-    P --> W["work the steps"]
-    W --> R["re-measure<br/>in the units the checklist was written in"]
-    R --> C(["rows close, or they do not"])
-    C -->|"months later, to find out whether it rotted"| A
-```
-
-Four things the shape is arguing.
-
-**Assessing is one step, not a procedure.** It runs five probes and it is still
-one command and one answer, because which probes ran is this plugin's business
-and not the reader's. The step ends when there is a checklist, and the only
-thing between the command and the checklist is an agent reading.
-
-**The agent is in that step, and it is handed the numbers rather than asked for
-them.** It reads what the probes cannot: whether the standing context earns its
-tokens or restates the file next to it, which sentences are waffle, whether each
-wired hook addresses a mistake *this* repository actually makes. It does not
-count, because a model cannot count tokens, will not produce the same figure
-twice, and — the part that matters — if the agent produces the numbers then
-comparing before with after compares two opinions.
-
-**The checklist has a fixed shape, so two assessments can be compared.** Five
-sections in one order — the order in which ignoring something costs you:
-
-| | Section | Means |
-|---|---|---|
-| 1 | **Irreversible** | work can be destroyed. Nothing below matters until this is empty |
-| 2 | **Silent** | wrong, and produces no symptom |
-| 3 | **Late** | caught at CI, or never |
-| 4 | **Expensive** | paid every turn and not earning it |
-| 5 | **Fine** | present, correct, deliberately left alone |
-
-One row per finding: *finding · evidence · proposed change · basis*.
-
-| Finding | Evidence | Proposed change | Basis |
-|---|---|---|---|
-| Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
-| 612 tokens/turn restate the directory layout | `CLAUDE.md:14-31`, against `docs/index.md` | cut to the routing table | judged |
-
-**Basis** is `measured` or `judged`, never blank, and a **judged** row must
-quote. A claim you cannot quote is one nobody can check, and "the docs are
-verbose" has never once caused a deletion. A section with nothing in it says
-*none* — that is a result, not a gap to go and fill.
-
-**"Nothing here is worth changing" is an outcome.** It is written down, not
-treated as a run that failed to find work. A harness that cannot say *this is
-theirs, and it is fine* will rewrite everything it touches — and in this
-plugin's corpus, seventeen of twenty repositories have no `Requirements` section
-in their README, which is a fact about README conventions rather than seventeen
-defects.
-
-**`cannot judge` is a branch, not a score.** A repository whose tests will not
-run here abstains; it never scores zero. Scoring a missing toolchain as a
-failure is how an instrument starts lying, and it discards exactly the
-repositories whose suites are fine.
-
-## What the repository ends up with
-
-Every path below is in the target repository, under version control, working
-with this plugin uninstalled. `◆` is written by `scaffold.py`, `◇` is authored
-by hand because nothing can generate it, and **A/B/C is the tier that installs
-it** — installing above tier leaves machinery nobody needs, and its rot teaches
-everyone that the machinery is decorative.
+`◆` is written by `scaffold.py`, `◇` is authored by hand because nothing can
+generate it, and **A/B/C is the tier that installs it.** Installing above tier
+leaves machinery nobody needs.
 
 ```
 repo/
@@ -222,24 +104,76 @@ repo/
     └── index/                 ◆ C  build.py · query.py, plus a gold set
 ```
 
-Two of these cannot be generated and are the ones people skip. `CLAUDE.md` is
-paid on every turn of every session, so it is scoped by hand — what it covers
-and what it does not, so the next person knows where new material goes instead
-of appending. `ARCHITECTURE.md` answers *how does this work* for someone who
-does not yet know what to ask; a generated rollup describes the current
-accident, a written one describes the intent.
-
-The full annotated tree, and what each directory is for, is in
+`CLAUDE.md` and `ARCHITECTURE.md` are the two nothing can generate, and the two
+people skip. Full annotated tree:
 [`references/target-architecture.md`](skills/bootstrap-repo-harness/references/target-architecture.md).
 
-## A day in a repository that has it
+</details>
 
-The bootstrap is a morning's work and it happens once. This is what the months
-after it look like: a fresh agent, an ordinary task, and what reaches it at each
-moment. **Solid arrows are wired and automatic. Dashed arrows are the agent's
-own initiative** — moments 3 and 6 are never wired by the scaffolder, so
-retrieval and the decision record are read because an agent thought to, or not
-at all.
+## Assess
+
+`/assess` measures a repository and writes one page. It is one command and one
+answer: five probes run, an agent reads what the probes cannot, and the step ends
+when there is a checklist.
+
+The agent is handed the numbers rather than asked for them — a model cannot count
+tokens and will not produce the same figure twice, and if it produced them, then
+comparing before with after would compare two opinions.
+
+The checklist has a fixed shape, so two assessments can be compared. Five sections
+in the order in which ignoring something costs you:
+
+| | Section | Means |
+|---|---|---|
+| 1 | **Irreversible** | work can be destroyed. Nothing below matters until this is empty |
+| 2 | **Silent** | wrong, and produces no symptom |
+| 3 | **Late** | caught at CI, or never |
+| 4 | **Expensive** | paid every turn and not earning it |
+| 5 | **Fine** | present, correct, deliberately left alone |
+
+One row per finding — *finding · evidence · proposed change · basis*:
+
+| Finding | Evidence | Proposed change | Basis |
+|---|---|---|---|
+| Deleting tracked work is not refused | the `rm -rf` probe walked through | a guard | measured |
+
+**Basis** is `measured` or `judged`, never blank, and a *judged* row must quote.
+A section with nothing in it says *none* — a result, not a gap to go and fill.
+
+> [!TIP]
+> Two endings are outcomes, not failures. **"Nothing here is worth changing"** gets
+> written down. And **`cannot judge`** is a branch, not a score — a repository whose
+> tests will not run here abstains rather than scoring zero.
+
+## Improve
+
+Five stages, one file each:
+[assess](guide/1-assess.md) ·
+[write the checklist](guide/2-checklist.md) ·
+[decide](guide/3-decide.md) ·
+[do the work](guide/4-do-the-work.md) ·
+[re-measure](guide/5-re-measure.md)
+
+Stage 5 is why stage 1 exists: re-measuring in the units the checklist was written
+in is what turns a row into closed or still open.
+
+```mermaid
+flowchart TD
+    A["assess · one command, one page"] --> L["the checklist · five sections, fixed order"]
+    L --> Q{"worth changing?"}
+    Q -->|"no"| Z(["write that down and stop"])
+    Q -->|"yes"| P["docs/exec-plans/&lt;name&gt;/<br/>one section says what is deliberately not being done"]
+    P --> W["work the steps"]
+    W --> R["re-measure, in the units the checklist used"]
+    R --> C(["rows close, or they do not"])
+    C -->|"months later, to find out whether it rotted"| A
+```
+
+<details>
+<summary><b>A day in a repository that has it</b> — what reaches a fresh agent, and when</summary>
+
+**Solid arrows are wired and automatic. Dashed arrows are the agent's own
+initiative** — moments 3 and 6 are never wired by the scaffolder.
 
 ```mermaid
 flowchart TD
@@ -272,26 +206,38 @@ flowchart TD
     CI -.->|"not finished this session"| PLAN["docs/exec-plans/&lt;name&gt;/README.md<br/>the context does not survive the session · this does"]
 ```
 
-The loop in the bottom right is the only part that compounds. Everything else
-holds a line that was already drawn; that one is how a new line gets drawn —
-a rule that keeps causing trouble stops being prose and becomes a file, and the
-harness a repository has two years in is mostly made of those.
+The loop on the right is the only part that compounds: a rule that keeps causing
+trouble stops being prose and becomes a file. The harness a repository has two
+years in is mostly made of those.
 
-Nothing counts the hits. That was built and removed: no mainstream agent product
-counts repetitions either — Cursor, Devin, Claude Code and Copilot all have a
-model notice and a person approve — and the number this arrow used to carry
-("the third time") had nothing behind it. See
-[0023](docs/decisions/0023-nothing-counts-how-often-a-rule-is-hit.md), which is
-mostly about what reading four counting implementations taught, since that
-outlived the code.
+</details>
+
+## Skills
+
+| Skill | Enter it when | Lives in |
+|---|---|---|
+| `bootstrap-repo-harness` | Once, to lay the foundation | the plugin |
+| `writing-docs` | Writing or restructuring a document | your repo |
+| `writing-checks` | A rule needs enforcing rather than documenting | your repo |
+| `writing-github-docs` | README, CONTRIBUTING, community health files | your repo |
+| `repo-index` | Large repo; an agent cannot find the relevant code | your repo |
+| `consolidating-notes` | Notes have drifted or contradicted | your repo |
+
+Only the first is charged to every session on your machine. The other five are
+copied into the repository at the tier that earns them, so they cost nothing until
+a repository asks for them and they survive uninstalling this.
+
+Also included: two subagents with their own context (`repo-explorer`,
+`repo-assessor`), and two hooks — the once-per-repository notice, and one that runs
+a repository's own guards before it has wired them.
 
 ## Trust
 
-The plugin's `PreToolUse` hook runs `scripts/guards/dispatch.py` from whatever
-repository you are in, and that dispatcher imports every `.py` beside it. Left
-ungated, cloning an unread repository and typing one command would execute its
-code — laundered through an approval you gave to *this* plugin, bypassing the
-prompt Claude Code shows for a project's own hooks.
+> [!IMPORTANT]
+> That second hook runs `scripts/guards/dispatch.py` from whatever repository you
+> are in, and that dispatcher imports every `.py` beside it. Ungated, cloning an
+> unread repository and typing one command would execute its code — laundered
+> through an approval you gave to *this* plugin.
 
 So nothing runs until you trust it, by path and by content:
 
@@ -301,59 +247,45 @@ python3 hooks/run_repo_guards.py --trust    # after reading the files it lists
 python3 hooks/run_repo_guards.py --forget
 ```
 
-Editing any guard revokes trust until you look again. Trust is per-machine
-state, not knowledge, so it lives in `~/.claude/repo-agent-harness/` — a repository
-that could grant itself trust in a pull request would not be granting anything.
+Editing any guard revokes trust until you look again. Trust is per-machine state,
+so it lives in `~/.claude/repo-agent-harness/` — a repository that could grant
+itself trust in a pull request would not be granting anything.
 
-The better answer is to skip this hook entirely: once `scripts/guards/dispatch.py`
-is wired in the repository's own `.claude/settings.json` — which `scaffold.py`
-does for you — the repo owns its guards, the normal project-trust prompt
-applies, and this hook exits silently. It exists only for the window in between.
+Better still, skip this hook: once `scripts/guards/dispatch.py` is wired into the
+repository's own `.claude/settings.json` — which `scaffold.py` does for you — the
+repo owns its guards, the normal project-trust prompt applies, and this hook exits
+silently. It exists only for the window in between.
 
-**Cost**: an interpreter start (~45 ms) before every Bash call in every
-repository the plugin is enabled for, doubled in the trusted-but-unwired window.
-Wiring the dispatcher into the repo removes the second one. The first is the
-price of a plugin hook and cannot be optimised away from inside it.
+**Cost:** an interpreter start (~45 ms) before every Bash call, doubled in the
+trusted-but-unwired window.
 
 ## Verifying the plugin itself
 
 ```bash
+python3 scripts/check.py                    # everything CI runs, ~77s
 python3 shared/scripts/guards/selftest.py
 python3 shared/scripts/gates/selftest.py --verbose
-
-# and the gates that ship, turned on this repository
-python3 shared/scripts/gates/check_templates_filled.py --root .
-python3 shared/scripts/gates/check_community_health.py --root .
 ```
 
-The selftests build throwaway repositories, plant a defect each check must
-catch, and assert the check turns red **and names the defect** — then that it
-turns green without it. A check nobody has watched fail is a file, not a check.
-
-The second pair matters for a different reason. `check_templates_filled.py`
-exists because the version of this plugin that shipped before it could not
-detect its own scaffolder's output: a `CLAUDE.md` of twenty `<placeholder>`
-lines passed every gate here, including the one whose stated job was to catch
-it. Pointing the shipped gates at this repository is the cheapest way to keep
-finding out that the thing was built for a repository nobody actually has.
+The selftests build throwaway repositories, plant a defect each check must catch,
+and assert the check turns red **and names the defect** — then that it turns green
+without it. A check nobody has watched fail is a file, not a check.
 
 ## Requirements
 
-- Python 3.9+ (standard library only — no dependencies)
-- git
-- Claude Code with plugin support
+- **Python 3.9+** — standard library only, no dependencies, none optional
+- **git**
+- **Claude Code** with plugin support
 
-No optional dependencies either. The index extracts symbols with per-language
-regexes, and `scripts/index/build.py` writes what that leaves out to
-`docs/generated/index-report.md` — the files it skipped, the imports it could
-not resolve, the dispatch it cannot see. The report is generated rather than
-committed, so it exists once the index has been built; read it before trusting
-an absence in the graph.
+> [!NOTE]
+> This is not the agent's execution loop. In the Claude Agent SDK, *harness* names
+> the runtime that drives a model through tool calls; nothing here touches that.
+> This is the other side — the repository that loop is pointed at. It changes what
+> the repository tells an agent, never how the agent runs.
 
-This section used to promise that installing `tree-sitter-languages` upgraded
-extraction. It did not, and the report said `tree-sitter` anyway — see
-[0003](docs/decisions/0003-the-extractor-is-regexes-and-says-so.md) for what
-that broke and what it would take to build the extractor for real.
+The index extracts symbols with per-language regexes, and `scripts/index/build.py`
+writes what that leaves out to `docs/generated/index-report.md`. Read it before
+trusting an absence in the graph.
 
 ## Contributing
 
