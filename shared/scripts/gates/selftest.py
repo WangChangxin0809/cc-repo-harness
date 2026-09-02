@@ -231,6 +231,31 @@ CASES = [
     ),
     dict(
         gate="check_templates_filled.py",
+        why="HTML markup GitHub renders, which must NOT be reported",
+        needle=None,
+        plant=lambda t: write(t, "README.md",
+                              "# demo\n\nA demonstration repository that exists so the "
+                              "gates in this directory have something real to judge, "
+                              "rather than being asserted against a mock.\n\n"
+                              '<div align="center">\n\n'
+                              '<img src="logo.svg" alt="the project logo" width="480">\n\n'
+                              "</div>\n\n<details>\n<summary>The long tree</summary>\n\n"
+                              "It is folded away because nobody reads it first.\n\n"
+                              "</details>\n\n"
+                              "## Requirements\n\n- python 3.9\n\n"
+                              "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
+                              "## License\n\nMIT.\n"),
+    ),
+    dict(
+        gate="check_templates_filled.py",
+        why="a tag-shaped placeholder nothing ever closes, which IS still reported",
+        needle="unfilled placeholder",
+        plant=lambda t: write(t, "CLAUDE.md",
+                              "# demo\n\n## What to write here\n\n<summary>\n\n"
+                              "<section>\n"),
+    ),
+    dict(
+        gate="check_templates_filled.py",
         why="generics and one-word stand-ins in code, which must NOT be reported",
         needle=None,
         plant=lambda t: write(t, "README.md",
