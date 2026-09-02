@@ -39,7 +39,6 @@ import blast as blast_mod          # noqa: E402
 import catch as catch_mod          # noqa: E402
 import dimensions as dim_mod       # noqa: E402
 import history as history_mod      # noqa: E402
-import memory as memory_mod        # noqa: E402
 import truth as truth_mod          # noqa: E402
 import value as value_mod          # noqa: E402
 import arid as arid_mod            # noqa: E402
@@ -2065,202 +2064,6 @@ def _memwork(t):
     return w
 
 
-def case_the_probe_cannot_reach_the_history(t):
-    """The one cheat that would look like a brilliant result.
-
-    Every micro question is "given this commit subject, which files would you
-    change" -- and one `git log --grep` answers all of them perfectly. A rule
-    saying not to look could be broken silently, and the run would come back
-    with a flawless score that meant nothing. So the history is not forbidden,
-    it is absent: both copies are made without `.git`, and the probe agent is
-    given no Bash to reach one with."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    commit(t, "feat: thing")
-    put(t, "app.py", "x = 2\n")
-    commit(t, "fix: thing was wrong")
-
-    w = _memwork(t)
-    brief = memory_mod.prepare(t, w)
-    if brief is None:
-        return "the history could not be read in a repository that has one"
-    for name in ("with", "without"):
-        tree = os.path.join(w, name)
-        if not os.path.isdir(tree):
-            return f"the {name!r} copy was not made"
-        for here, dirs, _files in os.walk(tree):
-            if ".git" in dirs or os.path.basename(here) == ".git":
-                return (f"the {name!r} copy carries a .git directory — one "
-                        f"`git log --grep` answers every question in it")
-    if not brief["micro"]:
-        return "no question was asked of a repository with a focused commit"
-    return None
-
-
-def case_the_second_copy_has_no_memory(t):
-    """The measurement is a difference, so the second copy must really differ.
-
-    Everything the repository keeps in order to explain itself comes out --
-    including a CLAUDE.md nested three directories down, which is memory
-    wherever it sits. If the strip misses one, the two runs are the same run
-    and the difference is zero for the wrong reason."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    put(t, "CLAUDE.md", "# the repo\n")
-    put(t, "src/deep/CLAUDE.md", "# a nested one\n")
-    put(t, ".claude/rules/style.md", "always do the thing\n")
-    put(t, "README.md", "# readme\n")
-    put(t, ".gitignore", "build/\n")
-    commit(t, "feat: thing")
-    # Untracked and ignored: neither is this repository.
-    put(t, "node_modules/dep/x.js", "// somebody else's code\n")
-    put(t, "build/out.js", "// generated\n")
-    # Not in any skip list, and not in the repository either. Only asking git
-    # what it tracks keeps this out, so this is the file that tells the two
-    # mechanisms apart.
-    put(t, "scratch/notes.md", "my own working notes\n")
-
-    w = _memwork(t)
-    memory_mod.prepare(t, w)
-    kept, stripped = os.path.join(w, "with"), os.path.join(w, "without")
-    for rel in ("CLAUDE.md", "src/deep/CLAUDE.md", ".claude/rules/style.md"):
-        if not os.path.exists(os.path.join(kept, rel)):
-            return f"{rel} is missing from the copy that should keep it"
-        if os.path.exists(os.path.join(stripped, rel)):
-            return (f"{rel} survived into the copy with no memory — the two "
-                    f"runs would be the same run")
-    if not os.path.exists(os.path.join(stripped, "README.md")):
-        return "the README was stripped; only what explains the repo comes out"
-    if not os.path.exists(os.path.join(stripped, "app.py")):
-        return "the code was stripped; there would be nothing left to find"
-
-    # Only what git tracks. Walking the tree instead copies build output,
-    # dependencies, and — on this project — 25 cloned repositories under
-    # `eval/.work/` that are somebody else's code entirely. A probe reading
-    # those answers questions about the wrong repository, and both live probe
-    # runs reported having to exclude them from every search.
-    for tree in (kept, stripped):
-        if os.path.exists(os.path.join(tree, "node_modules", "dep", "x.js")):
-            return ("an untracked dependency was copied into the probe's "
-                    "tree — it would be answering about somebody else's code")
-        if os.path.exists(os.path.join(tree, "build", "out.js")):
-            return "ignored build output was copied into the probe's tree"
-        if os.path.exists(os.path.join(tree, "scratch", "notes.md")):
-            return ("an untracked file with no give-away name was copied — "
-                    "the copy is being walked rather than asked of git")
-    return None
-
-
-def case_only_a_focused_commit_becomes_a_question(t):
-    """"Did you find the right files?" needs there to be right files.
-
-    A commit touching thirty files is answered correctly by naming almost any
-    of them, so it is not a question. Dimensions 2 and 3 draw this line
-    already; dimension 4 not drawing it is the bug that made every
-    repository's biggest router look like its most reworked file."""
-    repo(t)
-    names = [f"m{i}.py" for i in range(8)]
-    for n in names:
-        put(t, n, "x = 1\n")
-    commit(t, "feat: everything at once")
-    put(t, "m0.py", "x = 2\n")
-    commit(t, "fix: just this one")
-
-    picked = memory_mod.pick_commits(t, k=5)
-    subjects = [c["subject"] for c in picked]
-    if "feat: everything at once" in subjects:
-        return ("an eight-file commit became a question; naming almost any "
-                "file would answer it")
-    if "fix: just this one" not in subjects:
-        return f"the focused commit was not asked about: {subjects}"
-    return None
-
-
-def case_a_pull_request_number_is_not_part_of_the_question(t):
-    """`(#123)` is a handle, not a description.
-
-    A squash merge leaves it on the subject, and a probe that cannot reach the
-    history cannot look it up — so it is either dead weight or, worse, a way to
-    tell two commits apart without understanding either. A live probe run
-    reported doing exactly that."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    commit(t, "feat: thing")
-    put(t, "app.py", "x = 2\n")
-    commit(t, "fix: the thing was wrong (#412)")
-    picked = memory_mod.pick_commits(t, k=1)
-    if not picked:
-        return "no question was asked at all"
-    if "#412" in picked[0]["subject"]:
-        return f"the pull request number is still in the question: " \
-               f"{picked[0]['subject']!r}"
-    if picked[0]["subject"] != "fix: the thing was wrong":
-        return f"the subject came out {picked[0]['subject']!r}"
-    return None
-
-
-def case_a_question_whose_answer_was_deleted_is_not_asked(t):
-    """The probe reads the tree as it is. A commit whose files are gone has no
-    answer in that tree, so grading against it would mark a correct reading
-    wrong for not naming a file that does not exist."""
-    repo(t)
-    put(t, "gone.py", "x = 1\n")
-    put(t, "here.py", "y = 1\n")
-    commit(t, "feat: two files")
-    put(t, "gone.py", "x = 2\n")
-    commit(t, "fix: only the doomed one")
-    os.remove(os.path.join(t, "gone.py"))
-    commit(t, "chore: delete it")
-
-    picked = memory_mod.pick_commits(t, k=5)
-    for c in picked:
-        if "gone.py" in c["files"]:
-            return ("a commit was asked about whose only file no longer "
-                    "exists — no answer to it can be right")
-    return None
-
-
-def case_the_difference_is_reported_as_rows_not_a_rate(t):
-    """Three questions do not support a percentage.
-
-    A sample of three reporting 66% is a number invented to look like a
-    measurement. The rows say what happened, and can be argued with. The row
-    also carries how many files the answer named, because recall alone is
-    gameable: an answer listing two hundred files finds everything."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    put(t, "CLAUDE.md", "app.py is where the thing lives\n")
-    commit(t, "feat: thing")
-    put(t, "app.py", "x = 2\n")
-    commit(t, "fix: the thing was wrong")
-
-    w = _memwork(t)
-    brief = memory_mod.prepare(t, w)
-    qid = brief["micro"][0]["id"]
-    got = memory_mod.compare(
-        brief,
-        {"answers": {qid: "I would change app.py"}, "tool_calls": {qid: 4}},
-        {"answers": {qid: "maybe README.md or setup.py or main.py"},
-         "tool_calls": {qid: 19}})
-
-    if "rate" in got or "percent" in json.dumps(got):
-        return "the comparison reported a rate from a sample of three"
-    row = got["rows"][0]
-    if row["with"]["found"] != 1:
-        return f"naming the right file scored {row['with']['found']}, not 1"
-    if row["without"]["found"] != 0:
-        return (f"naming three wrong files scored "
-                f"{row['without']['found']}, not 0")
-    if row["without"]["named"] != 3:
-        return (f"the row says {row['without']['named']} files were named, "
-                f"not 3 — recall without that is gameable by listing the tree")
-    if got["lift"] != 1:
-        return f"the difference between the runs came out {got['lift']}, not 1"
-    if not got["removed"]:
-        return "the comparison does not say what was taken away"
-    return None
-
-
 def case_a_pipeline_that_runs_nothing_is_not_a_verdict(t):
     """Having CI and running the tests are different facts.
 
@@ -2330,90 +2133,6 @@ def case_the_page_names_where_it_looked_for_tests(t):
         return "a dependency's own tests were counted as this repository's"
     if row["flag"] != "ok":
         return f"two real suites were flagged {row['flag']!r}"
-    return None
-
-
-def case_an_unprobed_repository_abstains_rather_than_scoring_zero(t):
-    """Nobody has spent the two agents, so nothing is known.
-
-    A repository nobody has probed is not a repository an agent cannot
-    navigate. Reporting it as zero would throw away exactly the repositories
-    that read well, which is the same mistake as scoring a missing toolchain
-    as a failing test suite."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    put(t, "CLAUDE.md", "# the repo\n")
-    commit(t, "init")
-    d4 = dims_of(t, with_blast=False)[4]
-    if d4["name"] != "Repository Memory":
-        return f"dimension 4 is called {d4['name']!r}"
-    if d4["state"] != "abstained":
-        return f"an unprobed repository was {d4['state']!r}, not 'abstained'"
-    row = [r for r in d4["rows"] if "finding its way" in r["label"]]
-    if not row:
-        return "nothing says the probe was never run"
-    if row[0]["flag"] in ("ok", "bad"):
-        return (f"a measurement nobody made was flagged {row[0]['flag']!r} — "
-                f"an abstention is not a verdict in either direction")
-    return None
-
-
-def case_the_memory_is_the_difference_not_the_thickness(t):
-    """A repository is not graded on what it keeps, but on what removing it
-    costs.
-
-    Counting skills, hooks and rules would grade a repository on whether it
-    adopted our conventions and would score installing this plugin as an
-    improvement to the repository being measured. So a thick CLAUDE.md that
-    changes nothing must come out bad, and a thin one that halves the search
-    must come out ok."""
-    repo(t)
-    put(t, "app.py", "x = 1\n")
-    put(t, "CLAUDE.md", "# pages and pages that help nobody\n" * 200)
-    commit(t, "init")
-    probe_repo = load_probe().probe(t)
-    log = history_mod.commits(t)
-
-    def dim(with_found, without_found):
-        got = {"rows": [{"subject": "fix: the thing",
-                         "with": {"found": with_found, "of": 1, "named": 2,
-                                  "tool_calls": 5},
-                         "without": {"found": without_found, "of": 1,
-                                     "named": 9, "tool_calls": 21}}],
-               "lift": with_found - without_found,
-               "removed": ["CLAUDE.md"]}
-        return dim_mod.repository_memory(t, log, (), got)
-
-    # Three outcomes, and the first live run of this dimension produced the
-    # middle one -- which the first implementation called 'bad'. It is not:
-    # the repository was navigable, and what carried the agent was
-    # `docs/decisions/`, read rather than loaded. Marking that a failure would
-    # penalise a repository for keeping its memory somewhere an agent has to
-    # open.
-    lifted = dim(1, 0)
-    if lifted["rows"][-1]["flag"] != "ok":
-        return "a CLAUDE.md that found a file reading alone missed scored badly"
-
-    legible = dim(1, 1)
-    if legible["rows"][-1]["flag"] == "ok":
-        return ("a CLAUDE.md that changed nothing was credited as memory — "
-                "thickness is not the measurement")
-    if legible["rows"][-1]["flag"] == "bad":
-        return ("a navigable repository was failed for keeping its memory "
-                "somewhere read rather than loaded")
-
-    lost = dim(0, 0)
-    if lost["rows"][-1]["flag"] != "bad":
-        return (f"a repository an agent could not navigate either way was "
-                f"flagged {lost['rows'][-1]['flag']!r}, not 'bad'")
-    nav = [r for r in lost["rows"] if "finding its way" in r["label"]][0]
-    if nav["flag"] != "bad":
-        return "nothing reported that the agent found no files at all"
-
-    if "%" in json.dumps(lifted):
-        return "a percentage was reported from a single question"
-    if probe_repo is None:
-        return "the probe could not read the repository"
     return None
 
 
@@ -3733,6 +3452,30 @@ def case_a_reading_of_the_candidates_can_be_recorded(t):
     return None
 
 
+def case_a_dimension_that_read_nothing_abstains(t):
+    """The rule that outlived the measurement it was written for.
+
+    Dimension 4 used to have a navigation half that cost two agents, and this
+    case said an unprobed repository must abstain rather than score zero --
+    a repository nobody has probed is not a repository nobody can navigate.
+    That half is gone -> 0042, and the rule is now about the half that stayed:
+    a tree `truth.assess()` could not read is not a tree whose documentation
+    is sound, and `every reference resolves` said over zero documents is the
+    same false clean bill in a cheaper form."""
+    got = dim_mod.repository_memory(t, [], (), None)
+    if got["state"] != "abstained":
+        return "a dimension that read nothing reported %r" % got["state"]
+    if "resolve" in got["headline"]:
+        return "an unread tree was given a clean bill: " + got["headline"]
+
+    read = dim_mod.repository_memory(t, [], (), {
+        "thickness": {"documents": 1}, "proven": [], "candidates": [],
+        "checked": 1})
+    if read["state"] != "measured":
+        return "a tree that was read still abstained"
+    return None
+
+
 def case_every_printed_row_is_claimed_by_a_sub_item(t):
     """A measurement no sub-item claims is a measurement nobody scores.
 
@@ -4551,7 +4294,7 @@ def case_a_judged_conflict_can_reach_the_page(t):
         return "a dismissal could not be recorded: %s" % why
     if graded["judged"] != 1 or graded["real"]:
         return "a dismissed candidate came back as a finding: %r" % (graded,)
-    got = dim_mod.repository_memory(t, [], (), None, None, r, graded)
+    got = dim_mod.repository_memory(t, [], (), None, r, graded)
     hit = [x for x in got["rows"] if "contradict each other" in x["label"]]
     if not hit:
         return "the judged row never reached the page"
@@ -4860,26 +4603,12 @@ CASES = [
      case_a_scoped_rule_file_is_not_on_the_floor),
     ("an installed plugin's tokens are not charged to the repository",
      case_plugin_tokens_are_not_charged_to_the_repository),
-    ("the probe cannot reach the history it is being tested on",
-     case_the_probe_cannot_reach_the_history),
-    ("the copy with no memory really has none, nested ones included",
-     case_the_second_copy_has_no_memory),
-    ("only a focused commit becomes a question",
-     case_only_a_focused_commit_becomes_a_question),
-    ("a pull request number is not part of the question",
-     case_a_pull_request_number_is_not_part_of_the_question),
-    ("a question whose answer was deleted is not asked",
-     case_a_question_whose_answer_was_deleted_is_not_asked),
-    ("the difference is reported as rows, not as a rate",
-     case_the_difference_is_reported_as_rows_not_a_rate),
     ("a pipeline that runs nothing is not counted as a verdict",
      case_a_pipeline_that_runs_nothing_is_not_a_verdict),
     ("the page names the directories it took the verdict from",
      case_the_page_names_where_it_looked_for_tests),
-    ("an unprobed repository abstains rather than scoring zero",
-     case_an_unprobed_repository_abstains_rather_than_scoring_zero),
-    ("the memory is the difference removing it makes, not the thickness",
-     case_the_memory_is_the_difference_not_the_thickness),
+    ("a dimension that read nothing abstains rather than reporting a clean bill",
+     case_a_dimension_that_read_nothing_abstains),
     ("a record of mistakes nobody reads is not scored as learning",
      case_a_record_nobody_reads_is_not_scored_as_learning),
 ]

@@ -18,20 +18,6 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
         --root "${1:-.}" --html assessment.html --json assessment.json
 ```
 
-If the caller asked for `--memory`, dimension 4 is measured too. It costs
-**exactly two agents** — that budget is the design, not a suggestion:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/memory.py \
-        --root "${1:-.}" --work "$WORK" --prepare
-```
-
-Spawn two `repo-probe` agents on `$WORK/with` and `$WORK/without`, give both
-**the same questions** from `$WORK/brief.json`, save their JSON replies, and
-score with `--score --with-answers … --without-answers …`. The difference
-between the runs is the measurement; the `with` run alone is not a score.
-Without this, dimension 4 abstains, which is a result and not a zero.
-
 The replay runs by default: it takes real defects from the repository's own
 history and finds how late each one is caught. It costs minutes and it runs
 that repository's tests, so the command is printed before it runs. Pass

@@ -121,38 +121,6 @@ gets there: a repository that stops destruction with a hand-written `bash` hook
 is fully protected, and a repository that keeps its checks in `tools/` keeps
 its checks.
 
-## Dimension 4, when it is asked for
-
-Dimension 4 is the only one that costs agents, and it **abstains** unless the
-caller asked for it. When they did:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/memory.py \
-        --root . --work "$WORK" --prepare
-```
-
-That writes two copies and `$WORK/brief.json`. Then spawn **exactly two**
-`repo-probe` agents — no more, the budget is the design:
-
-1. one on `$WORK/with`, given the brief's questions
-2. one on `$WORK/without`, given **the same questions**
-
-Save each one's JSON reply, then:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/memory.py \
-        --work "$WORK" --score \
-        --with-answers with.json --without-answers without.json
-```
-
-**The difference between the two runs is the measurement.** Two rules follow
-from that, and both are about staying out of it:
-
-- Read the pair, not the `with` run. That run on its own measures how legible
-  the code is, which is a different thing from what the repository keeps.
-- Let the two probes answer. You have already read this repository, so you are
-  the one agent in the building who cannot be one.
-
 ## Do the documents keep their promises, when it is asked for
 
 Off by default, and the dearest thing on the page: two agent rounds and up to
@@ -190,8 +158,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/assess/factsheet.py \
 Three rules, and the first is the one that is easy to break by being helpful:
 
 - **Spawn the agent, do not answer for it.** You have read this repository, so
-  you are the one agent in the building who cannot write these tests — the
-  same reason you cannot be the `repo-probe`. `repo-promise-tester` has
+  you are the one agent in the building who cannot write these tests.
+  `repo-promise-tester` has
   `Write` and nothing else, which is what makes the blind a fact rather than a
   request.
 - **An empty result is not a clean bill.** CASCADE reports recall 0.21: it

@@ -9,14 +9,13 @@ Exit codes:
 
 ## Why this exists
 
-Dimension 4 asks whether an agent can find its way here. `memory.py` answers it
-by running two agents and measuring the difference between them, which is the
-right measurement and an expensive, noisy one: two agents per assessment, and a
-single reading of a non-deterministic thing.
-
-This is the cheap half, and it asks a different question that turns out to
-matter more: **not how much the repository writes down, but how much of it is
-still true.** A `CLAUDE.md` that confidently describes a directory that was
+Dimension 4 used to answer this by running two agents -- one on the tree, one
+on a copy with the standing context removed -- and scoring the difference. That
+was the better question and it is gone: two runs of the same pair disagreed by
+more than the effect being measured, so the number moved when nothing did
+-> 0042. This module is what stayed, because it asks something a single
+deterministic read can answer: **not how much the repository writes down, but
+how much of it is still true.** A `CLAUDE.md` that confidently describes a directory that was
 deleted last spring is worse than no `CLAUDE.md`, because an agent believes it.
 There is measured harm here -- retrieval that returns only stale context put
 stale references into 15 of 17 outputs, against zero with no retrieval at all.
