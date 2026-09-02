@@ -133,11 +133,13 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
     repo(t)
     put(t, "app.py", "x = 1\n")
     put(t, "scripts/viewcheck.mjs",
-        # A placeholder name on purpose. The dimension-1 check reads the
-        # *shape* of the path, so `you` exercises it exactly as a real
-        # username would -- and a real-looking one in a committed fixture is
-        # the thing check_no_machine_paths.py exists to stop.
-        "const CHROME = '/home/you/.cache/chrome'\n")
+        # Assembled, not written. A real-looking username in a committed
+        # fixture is what check_no_machine_paths.py exists to stop, and this
+        # file is committed -- so the name is joined at runtime, the way that
+        # gate's own cases do it. It used to say `you`, and that made this
+        # case pass for the wrong reason: a placeholder is the shape of a
+        # name, not a person, and the case below is the one that says so.
+        "const CHROME = '/ho" + "me/js" + "mith/.cache/chrome'\n")
     # The second shape, and the one a home-directory matcher misses. Both were
     # in one real repository: a Linux script and a Windows script, so no single
     # machine could run both, while from outside it looked like coverage.
@@ -176,6 +178,64 @@ def case_a_check_only_its_author_can_run_is_not_coverage(t):
     rows = dims_of(t, with_blast=False)[3]["rows"]
     if [r for r in rows if "one machine" in r["label"]]:
         return "a pinned path that exists on this machine was called dead"
+    return None
+
+
+def case_a_placeholder_where_the_username_goes_is_not_a_dead_check(t):
+    """`/home/you/.cache/chrome` names nobody. It is the shape of a path,
+    written for a reader, and a check carrying one is a fixture or a line of
+    documentation -- not a check that runs on one machine only.
+
+    This repository reported itself as having one, and it was its own
+    selftest fixture for the case above. Two instruments in one tree
+    disagreed about one string: `check_no_machine_paths.py` let it through as
+    a placeholder while this row called it a check nobody can run. The gate
+    was right, so the probe now reads the username slot the same way."""
+    repo(t)
+    put(t, "app.py", "x = 1\n")
+    put(t, "scripts/viewcheck.mjs", "const CHROME = '/home/you/.cache/chrome'\n")
+    commit(t, "init")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    if [r for r in rows if "one machine" in r["label"]]:
+        return "a placeholder username was counted as somebody's machine"
+
+    # And the same file with a name in it still is one, or the half above
+    # passes because nothing matches rather than because the rule holds.
+    put(t, "scripts/viewcheck.mjs",
+        "const CHROME = '/ho" + "me/js" + "mith/.cache/chrome'\n")
+    commit(t, "chore: a real name")
+    rows = dims_of(t, with_blast=False)[3]["rows"]
+    if not [r for r in rows if "one machine" in r["label"]]:
+        return "a path naming a person stopped being counted"
+    return None
+
+
+def case_the_placeholder_names_match_the_gate_that_owns_them(t):
+    """Two lists of the same names, in two files, is one list that will drift.
+
+    `check_no_machine_paths.py` owns the rule -- it is the one that blocks a
+    commit -- and dimension 3 reads the same slot. When they disagree the
+    tree gets a red from one instrument and a pass from the other about one
+    string, which is how this pair was found. Keeping the copy is cheaper
+    than an import across the payload's directories; this case is the price
+    of keeping it."""
+    gate = os.path.join(PARENT, "gates", "check_no_machine_paths.py")
+    if not os.path.exists(gate):
+        # A tree that took the assessment without the gates. Nothing to
+        # compare, and inventing a failure would be a finding about a
+        # directory this repository chose not to copy.
+        return None
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_gate_names", gate)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    theirs, ours = set(mod.PLACEHOLDERS), set(dim_mod.PLACEHOLDER_USER)
+    if theirs != ours:
+        only_gate = sorted(theirs - ours)
+        only_dim = sorted(ours - theirs)
+        return (f"the two placeholder lists have drifted — "
+                f"only in the gate: {only_gate}; only in dimensions: "
+                f"{only_dim}")
     return None
 
 
@@ -416,6 +476,10 @@ CASES = [
      case_verification_is_found_where_the_repository_put_it),
     ('a check only one machine can run is not counted as coverage',
      case_a_check_only_its_author_can_run_is_not_coverage),
+    ('a placeholder where the username goes is not a dead check',
+     case_a_placeholder_where_the_username_goes_is_not_a_dead_check),
+    ('the placeholder names match the gate that owns them',
+     case_the_placeholder_names_match_the_gate_that_owns_them),
     ('an unverified change to the machinery itself is singled out',
      case_an_unverified_change_to_the_machinery_is_singled_out),
     ('a test suite is recognised by its name, wherever it lives',

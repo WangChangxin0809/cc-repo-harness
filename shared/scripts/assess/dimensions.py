@@ -104,6 +104,33 @@ PINNED_PATH = re.compile(
     r"""|[A-Za-z]:\\{1,2}Users\\{1,2}[^\\'"]+[^'"]*"""
     r"""|[A-Za-z]:\\{1,2}Program Files[^'"]*)['"]""")
 
+# The username slot filled with the shape rather than a person. A check
+# reading `/home/you/.cache/chrome` is a fixture or a line of documentation,
+# not a check that runs on one machine only, and `check_no_machine_paths.py`
+# already decided this for the whole tree -- it lets a placeholder through and
+# stops a real name. This list is that one, kept in step by a selftest case
+# that fails when the two drift apart.
+PLACEHOLDER_USER = {
+    "you", "user", "username", "your-name", "yourname", "me", "name",
+    "someone", "somebody", "example", "alice", "bob", "carol", "dev",
+    "developer", "test", "tester", "foo", "bar", "myuser", "my-user",
+    "runner", "root", "ubuntu", "vagrant", "docker", "circleci", "travis",
+    "jenkins", "builder", "codespace", "vscode", "node", "app",
+}
+
+_USER_SLOT = re.compile(r"^(?:/(?:home|Users)/|[A-Za-z]:\\Users\\)([^/\\]+)")
+
+
+def _only_the_shape(path):
+    """Is the username slot filled with a placeholder rather than a person?
+
+    A path with no username slot at all -- `C:\\Program Files\\...` -- is not a
+    placeholder; it is an install root that exists on one kind of machine, and
+    that is the finding."""
+    m = _USER_SLOT.match(path)
+    return bool(m) and m.group(1).lower() in PLACEHOLDER_USER
+
+
 RUNNABLE_EXT = (".py", ".js", ".mjs", ".cjs", ".ts", ".sh", ".bash", ".rb",
                 ".pl", ".ps1")
 
@@ -1256,6 +1283,8 @@ def _stranded_checks(root, check_dirs):
                     continue
                 for m in PINNED_PATH.finditer(body):
                     hit = m.group(1).replace("\\\\", "\\")
+                    if _only_the_shape(hit):
+                        continue
                     if not os.path.exists(hit):
                         out.append((os.path.relpath(full, root), hit))
                         break
