@@ -80,7 +80,8 @@ SUBITEMS = (
      "this repository's own defects, put back, and where each was caught",
      ("defects available to replay", "how the defect got in",
       "where each was first caught", "and how long that took",
-      "defects that could not be put back")),
+      "defects that could not be put back", "already existed",
+      "outside the suite's reach")),
     ("2.4", "the layers behind the ladder",
      "which rungs exist, which are wired and silent, which are absent",
      ("what could have caught it",)),
@@ -360,15 +361,28 @@ def radar(dims, size=400):
                      % (cx, cy, x, y))
     parts.append("</g>")
 
-    pts = []
-    for i, k in enumerate(order):
-        pts.append(at(i, R * (dims.get(k, 0) / 10.0)))
-    parts.append('<polygon points="%s" fill="#0E6C66" fill-opacity="0.17" '
-                 'stroke="#0E6C66" stroke-width="2" stroke-linejoin="round"/>'
-                 % " ".join("%.1f,%.1f" % p for p in pts))
+    # An axis nobody scored gets no vertex. The first version put it at the
+    # centre with a solid dot, which is exactly what a zero looks like -- the
+    # one thing 0041 says a chart may never do. The polygon runs through the
+    # scored axes only, and an unscored one is marked at its rim, hollow.
+    pts = [(i, at(i, R * (dims[k] / 10.0)))
+           for i, k in enumerate(order) if k in dims]
+    if len(pts) >= 2:
+        parts.append('<polygon points="%s" fill="#0E6C66" fill-opacity="0.17" '
+                     'stroke="#0E6C66" stroke-width="2" '
+                     'stroke-linejoin="round"%s/>'
+                     % (" ".join("%.1f,%.1f" % p for _i, p in pts),
+                        "" if len(pts) == 5 else ' stroke-dasharray="5 4"'))
     parts.append('<g fill="#0E6C66">')
-    for x, y in pts:
+    for _i, (x, y) in pts:
         parts.append('<circle cx="%.1f" cy="%.1f" r="3.4"/>' % (x, y))
+    parts.append("</g>")
+    parts.append('<g fill="none" stroke="#9aa5a3" stroke-width="1.2" '
+                 'stroke-dasharray="2 2">')
+    for i, k in enumerate(order):
+        if k not in dims:
+            x, y = at(i, R)
+            parts.append('<circle cx="%.1f" cy="%.1f" r="5"/>' % (x, y))
     parts.append("</g>")
     parts.append('<g font-size="11.5" fill="#4a5654" '
                  'font-family="ui-monospace, monospace">')
@@ -377,7 +391,7 @@ def radar(dims, size=400):
         x, y = at(i, R * 1.24)
         parts.append('<text x="%.1f" y="%.1f" text-anchor="%s">%s  %s</text>'
                      % (x, y + 4, anc, n,
-                        ("%g" % dims[k]) if k in dims else "--"))
+                        ("%g" % dims[k]) if k in dims else "not scored"))
     parts.append("</g></svg>")
     return "".join(parts)
 

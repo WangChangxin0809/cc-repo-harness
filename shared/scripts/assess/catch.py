@@ -59,7 +59,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from ecosystems import DID_NOT_RUN, find, run, sh  # noqa: E402
+from ecosystems import DID_NOT_RUN, argv_of, display, find, run, sh  # noqa: E402
 from history import candidates, mine  # noqa: E402
 
 LADDER = ("before-write", "same-turn", "local-suite", "ci", "never")
@@ -213,6 +213,28 @@ def _entry_missing(repo, cmd):
     return False
 
 
+_PATHISH = re.compile(r"(?<![\w-])(?:\./)?[\w.-]+(?:/[\w.-]+)+|[\w.-]+\.(?:py|sh|js|ts|mjs)\b")
+
+
+def untracked_entry(root, repo, command):
+    """The path a given command names that is in the working tree and not in
+    the clone -- an untracked helper, usually.
+
+    The replay runs in a clean clone, which is right: what the suite catches
+    must not depend on somebody's local scratch. But the escape hatch for
+    repositories the table does not recognise is `--test-command`, and those
+    are the repositories most likely to need a helper script that was never
+    committed. Saying which file is missing and why beats `No such file`."""
+    text = command if isinstance(command, str) else " ".join(command or [])
+    for part in _PATHISH.findall(text):
+        rel = part.lstrip("./")
+        if os.path.exists(os.path.join(repo, rel)):
+            continue
+        if os.path.exists(os.path.join(root, rel)):
+            return rel
+    return None
+
+
 def park(repo, sha):
     # --force, because parking is also how an instance is undone: the tree
     # carries the injected defect at that point.
@@ -225,11 +247,10 @@ def blob(repo, sha, path):
     return out.stdout if out.returncode == 0 else ""
 
 
-def inject(repo, row):
-    """Put the source half back to its pre-fix state; leave the tests fixed."""
+def _revert(repo, row, paths):
     at_parent = set(git(["ls-tree", "-r", "--name-only", row["sha"] + "^"],
                         repo).stdout.split())
-    for p in row["source"]:
+    for p in paths:
         if p in at_parent:
             git(["checkout", row["sha"] + "^", "--", p], repo)
         else:
@@ -239,6 +260,31 @@ def inject(repo, row):
             full = os.path.join(repo, p)
             if os.path.exists(full):
                 os.remove(full)
+
+
+def inject(repo, row):
+    """Put the source half back to its pre-fix state; leave the tests fixed."""
+    _revert(repo, row, row["source"])
+
+
+def prior_suite(repo, row, cmd, codes):
+    """Does the suite *as it was before the fix* catch the defect?
+
+    The replay keeps the tests the fix brought and reverts the source, so a
+    fix that arrived with its own regression test is caught at local-suite
+    almost by construction -- the test was written to fail on exactly this.
+    That is the SWE-bench construction and it is the right one for *where*
+    a defect is caught, but it says nothing about whether the suite would
+    have caught it without the fix's own test.
+
+    So a second injection: source and tests both back to the parent, then
+    the whole suite. Red means a test that already existed sees the defect.
+    Green means only the fix's own test does, which is the ordinary case and
+    not a fault -- it is the denominator the interesting rows are read
+    against. `caught` / `missed` / None when it could not run."""
+    _revert(repo, row, list(row["source"]) + list(row.get("tests") or []))
+    verdict, _detail = run(repo, cmd, codes)
+    return {"red": "caught", "green": "missed"}.get(verdict)
 
 
 def ci_command(repo):
@@ -407,7 +453,13 @@ def assess(root, instances, work, command=None):
     repo = bench(root, work)
     eco, cmd = find(repo)
     if command:
-        cmd = command if isinstance(command, list) else command.split()
+        missing = untracked_entry(root, repo, command)
+        if missing:
+            return None, (f"cannot judge: --test-command names {missing}, "
+                          f"which is in the working tree and not tracked by "
+                          f"git. The replay runs in a clean clone, so commit "
+                          f"it or name a tracked command")
+        cmd = argv_of(command)
         eco = eco or type("Given", (), {
             "name": "given", "tool": None,
             # A command somebody passed on the command line is theirs, and
@@ -466,11 +518,13 @@ def assess(root, instances, work, command=None):
         got, detail, _h, secs = rung(repo, row, pre, post, scoped, ci,
                                      ci_secs)
         park(repo, row["sha"])
+        prior = prior_suite(repo, row, cmd, eco.did_not_run) if got else None
+        park(repo, row["sha"])
         out.append({"sha": row["sha"][:10], "subject": row["subject"],
                     "rung": got, "detail": detail, "false_block": wrong,
                     "seconds": secs, "tests": tests,
-                    "source": row["source"]})
-    return {"ecosystem": eco.name, "command": " ".join(cmd),
+                    "source": row["source"], "prior_suite": prior})
+    return {"ecosystem": eco.name, "command": display(cmd),
             "ci": " ".join(ci) if ci else "", "ci_seconds": ci_secs,
             "hooks": {
                 "PreToolUse": len(pre), "PostToolUse": len(post)},
@@ -521,8 +575,10 @@ def main():
     ap.add_argument("--work", default="")
     ap.add_argument("--test-command", default="",
                     help="how to run this repository's tests, when the "
-                         "ecosystem table does not recognise it. The table is "
-                         "a fast path, not the only one.")
+                         "ecosystem table does not recognise it. Run through "
+                         "`bash -c`, so `cd cli && go test ./...` works. It "
+                         "runs in a clean clone: every file it names must be "
+                         "tracked by git.")
     ap.add_argument("--json", default="")
     a = ap.parse_args()
 

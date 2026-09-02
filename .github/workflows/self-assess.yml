@@ -54,7 +54,12 @@ jobs:
       - name: measure this repository the way it measures others
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 shared/scripts/assess/factsheet.py --root . --test-command "python3 scripts/check.py" --json assessment.json --html assessment.html | tee assessment.txt
+          # Not scripts/check.py: the replay parks at older commits, and the
+          # command has to exist there too. The selftests do; the glob only
+          # matches the ones a given commit had. The fact sheet runs this
+          # through `bash -c` itself, so the `$f` is meant for that shell.
+          TEST_COMMAND: for f in shared/scripts/*/selftest.py; do python3 "$f" || exit 1; done
+        run: python3 shared/scripts/assess/factsheet.py --root . --test-command "$TEST_COMMAND" --json assessment.json --html assessment.html | tee assessment.txt
 
       - name: put the page where it will actually be read
         run: |
