@@ -96,18 +96,6 @@ The guide, five files in order:
 The last stage is why the first exists. Measuring again, in the units the
 checklist was written in, is what turns a row into closed or still open.
 
-```mermaid
-flowchart TD
-    A["assess · one command, one page"] --> L["the checklist"]
-    L --> Q{"worth changing?"}
-    Q -->|"no"| Z(["write that down and stop"])
-    Q -->|"yes"| P["an exec-plan<br/>with a section for what is deliberately not being done"]
-    P --> W["work the steps"]
-    W --> R["re-measure, in the same units"]
-    R --> C(["rows close, or they do not"])
-    C -->|"months later, to see whether it rotted"| A
-```
-
 ## Scaffold
 
 A repository has seven moments at which it can put something in front of an
@@ -121,6 +109,15 @@ land:
 - a rule whose violation is irreversible becomes a **guard**, which blocks the command
 - a rule whose violation is silent becomes a **gate**, which fails the build
 - the reasoning goes in a decision record, so nobody re-argues it next quarter
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/agent-turn.dark.svg">
+  <img src=".github/assets/agent-turn.light.svg" alt="One turn of an agent: a spine from session start to push, with instructions and docs delivered from above, guards and gates holding back from below, and a WikiSkill loop feeding this turn's trace back into the next turn's skills" width="960">
+</picture>
+
+Time runs only along the spine. Everything around it is always there; the
+arrows say how it reaches the agent — pushed in, held back, or, for `docs/`
+alone, pulled. The source is `.github/assets/agent-turn.workflow.json`.
 
 Two principles decide the rest. Knowledge lives in the repository, never in an
 agent's memory, because memory is per-machine and no teammate can correct it.
