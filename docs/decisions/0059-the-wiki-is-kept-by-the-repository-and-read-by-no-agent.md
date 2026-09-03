@@ -1,7 +1,8 @@
 # 0059 · The wiki is kept by the repository and read by no agent
 
-**Date:** 2026-09-03. **Status:** accepted. Built: the seed and its gate; the
-extractor, the replay and the maintainer behind `/learn`. Next: the proposer.
+**Date:** 2026-09-03. **Status:** accepted, and built: the seed and its gate,
+the extractor, the replay, the maintainer, and the proposer behind
+`/learn --propose`.
 
 ## Context
 
