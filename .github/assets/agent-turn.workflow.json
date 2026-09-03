@@ -1,0 +1,518 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "One spine, and what it can reach",
+    "subtitle": "An agent's turn once this plugin is installed — and how this turn becomes the next turn's skill",
+    "locale": "en",
+    "animation": "none",
+    "visual_preset": "blueprint",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "spine",
+        "label": "The turn",
+        "focus": [
+          "start",
+          "pick",
+          "look",
+          "load",
+          "touch",
+          "verify",
+          "local",
+          "ship"
+        ],
+        "note": "Time runs only along this line. The middle three are ordered by the agent and revisited until it believes the work is done."
+      },
+      {
+        "id": "give",
+        "label": "Delivered",
+        "focus": [
+          "claude",
+          "scoped",
+          "skills",
+          "docs"
+        ],
+        "note": "Three ways to arrive: at launch, on touch, by description. docs/ is the exception: nothing pushes it, the agent must pull."
+      },
+      {
+        "id": "take",
+        "label": "Held back",
+        "focus": [
+          "guards",
+          "refused",
+          "gates",
+          "actions"
+        ],
+        "note": "Refusal is before the act: the call never happens and the reason goes back. Judgment is after: red returns the turn."
+      },
+      {
+        "id": "wiki",
+        "label": "Distilled",
+        "focus": [
+          "trace",
+          "maintainer",
+          "wiki",
+          "proposer",
+          "vgate",
+          "skills"
+        ],
+        "note": "This turn's trace becomes the next turn's skill, but only past a gate: strictly beat the held-out best, or revert."
+      }
+    ],
+    "output": ".github/assets/agent-turn.html"
+  },
+  "lanes": [
+    {
+      "id": "wiki",
+      "label": "Distilled — WikiSkill"
+    },
+    {
+      "id": "up",
+      "label": "Delivered to the agent"
+    },
+    {
+      "id": "rail",
+      "label": "The turn"
+    },
+    {
+      "id": "down",
+      "label": "Held back",
+      "variant": "exception"
+    }
+  ],
+  "groups": [
+    {
+      "id": "g-wiki",
+      "label": "From this turn's trace to the next turn's skill (right → left)",
+      "lane": "wiki",
+      "fromCol": 1,
+      "toCol": 5,
+      "variant": "dashed"
+    },
+    {
+      "id": "g-rules",
+      "label": "Instructions — pushed",
+      "lane": "up",
+      "fromCol": 0,
+      "toCol": 2,
+      "variant": "emphasis"
+    },
+    {
+      "id": "g-docs",
+      "label": "Knowledge — pulled",
+      "lane": "up",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "dashed"
+    },
+    {
+      "id": "g-guard",
+      "label": "Refusal — before the act",
+      "lane": "down",
+      "fromCol": 0,
+      "toCol": 2,
+      "variant": "security"
+    },
+    {
+      "id": "g-gate",
+      "label": "Judgment — after the act",
+      "lane": "down",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "start",
+    "pick",
+    "touch",
+    "verify",
+    "local",
+    "ship"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "lane": "rail",
+      "col": 0,
+      "type": "external",
+      "label": "Session start",
+      "sublabel": "branch · plan in flight",
+      "width": 128
+    },
+    {
+      "id": "pick",
+      "lane": "rail",
+      "col": 1,
+      "type": "backend",
+      "label": "Decide next",
+      "sublabel": "no fixed order",
+      "width": 128,
+      "tag": "loops here"
+    },
+    {
+      "id": "load",
+      "lane": "rail",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Load a skill",
+      "sublabel": "on demand, not resident",
+      "yOffset": -96,
+      "width": 128
+    },
+    {
+      "id": "look",
+      "lane": "rail",
+      "col": 2,
+      "type": "external",
+      "label": "Consult",
+      "sublabel": "docs · git history",
+      "width": 128
+    },
+    {
+      "id": "touch",
+      "lane": "rail",
+      "col": 2,
+      "type": "frontend",
+      "label": "Act on files",
+      "sublabel": "bash · write · edit",
+      "yOffset": 96,
+      "width": 128
+    },
+    {
+      "id": "verify",
+      "lane": "rail",
+      "col": 3,
+      "type": "backend",
+      "label": "Verify",
+      "sublabel": "run it · add tests",
+      "width": 128
+    },
+    {
+      "id": "local",
+      "lane": "rail",
+      "col": 4,
+      "type": "backend",
+      "label": "Local checks",
+      "sublabel": "the full suite",
+      "width": 128
+    },
+    {
+      "id": "ship",
+      "lane": "rail",
+      "col": 5,
+      "type": "cloud",
+      "label": "Push",
+      "sublabel": "PR · merge",
+      "width": 128
+    },
+    {
+      "id": "claude",
+      "lane": "up",
+      "col": 0,
+      "type": "backend",
+      "label": "CLAUDE.md",
+      "sublabel": "at launch, every turn",
+      "width": 128
+    },
+    {
+      "id": "scoped",
+      "lane": "up",
+      "col": 1,
+      "type": "backend",
+      "label": "Scoped rules",
+      "sublabel": "rules · nested CLAUDE.md",
+      "width": 128
+    },
+    {
+      "id": "skills",
+      "lane": "up",
+      "col": 2,
+      "type": "messagebus",
+      "label": "skills/",
+      "sublabel": "descriptions only",
+      "width": 128
+    },
+    {
+      "id": "docs",
+      "lane": "up",
+      "col": 3,
+      "type": "external",
+      "label": "docs/",
+      "sublabel": "reference · how-to · ADRs",
+      "width": 128,
+      "tag": "never pushed"
+    },
+    {
+      "id": "refused",
+      "lane": "down",
+      "col": 1,
+      "type": "security",
+      "label": "Reason returned",
+      "sublabel": "with a viable alternative",
+      "width": 128
+    },
+    {
+      "id": "guards",
+      "lane": "down",
+      "col": 2,
+      "type": "security",
+      "label": "guards",
+      "sublabel": "dangerous ops · branches",
+      "width": 128
+    },
+    {
+      "id": "gates",
+      "lane": "down",
+      "col": 4,
+      "type": "security",
+      "label": "gates",
+      "sublabel": "same turn · stop · push",
+      "width": 128
+    },
+    {
+      "id": "actions",
+      "lane": "down",
+      "col": 5,
+      "type": "cloud",
+      "label": "GitHub Actions",
+      "sublabel": "coverage · lint · checks",
+      "width": 128,
+      "tag": "cannot skip"
+    },
+    {
+      "id": "trace",
+      "lane": "wiki",
+      "col": 5,
+      "type": "database",
+      "label": "Execution trace",
+      "sublabel": "the whole turn, recorded",
+      "width": 128
+    },
+    {
+      "id": "maintainer",
+      "lane": "wiki",
+      "col": 4,
+      "type": "backend",
+      "label": "Wiki maintainer",
+      "sublabel": "root cause → pattern",
+      "width": 128
+    },
+    {
+      "id": "wiki",
+      "lane": "wiki",
+      "col": 3,
+      "type": "database",
+      "label": "wiki/",
+      "sublabel": "patterns · verdicts",
+      "width": 128
+    },
+    {
+      "id": "proposer",
+      "lane": "wiki",
+      "col": 2,
+      "type": "backend",
+      "label": "Skill proposer",
+      "sublabel": "reads wiki, edits a skill",
+      "width": 128
+    },
+    {
+      "id": "vgate",
+      "lane": "wiki",
+      "col": 1,
+      "type": "security",
+      "label": "Gate",
+      "sublabel": "must beat held-out best",
+      "width": 128,
+      "tag": "else revert"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-open",
+      "from": "start",
+      "to": "pick",
+      "label": "task received",
+      "variant": "default"
+    },
+    {
+      "id": "e-load",
+      "from": "pick",
+      "to": "load",
+      "label": "load",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-look",
+      "from": "pick",
+      "to": "look",
+      "label": "consult",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-touch",
+      "from": "pick",
+      "to": "touch",
+      "label": "edit",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-m2",
+      "from": "look",
+      "to": "verify",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-m3",
+      "from": "touch",
+      "to": "verify",
+      "label": "thinks it's done",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-local",
+      "from": "verify",
+      "to": "local",
+      "label": "it runs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-ship",
+      "from": "local",
+      "to": "ship",
+      "label": "all green locally",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-claude",
+      "from": "claude",
+      "to": "start",
+      "label": "at launch",
+      "variant": "default"
+    },
+    {
+      "id": "e-scoped",
+      "from": "scoped",
+      "to": "pick",
+      "label": "on touch",
+      "variant": "default"
+    },
+    {
+      "id": "e-skills",
+      "from": "skills",
+      "to": "load",
+      "label": "by description",
+      "variant": "default"
+    },
+    {
+      "id": "e-docs",
+      "from": "look",
+      "to": "docs",
+      "label": "pulls, unprompted",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "e-guard",
+      "from": "guards",
+      "to": "touch",
+      "label": "call never happens",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "e-refuse",
+      "from": "guards",
+      "to": "refused",
+      "variant": "security"
+    },
+    {
+      "id": "e-back",
+      "from": "refused",
+      "to": "pick",
+      "label": "try another way",
+      "variant": "security",
+      "role": "return"
+    },
+    {
+      "id": "e-gate",
+      "from": "gates",
+      "to": "local",
+      "label": "red: turn returned",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "e-actions",
+      "from": "actions",
+      "to": "ship",
+      "label": "before merge",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "e-trace",
+      "from": "ship",
+      "to": "trace",
+      "label": "leaves a trace",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "e-w1",
+      "from": "trace",
+      "to": "maintainer",
+      "label": "wins and failures",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-w2",
+      "from": "maintainer",
+      "to": "wiki",
+      "label": "writes patterns",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-w3",
+      "from": "wiki",
+      "to": "proposer",
+      "label": "reads",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-w4",
+      "from": "proposer",
+      "to": "vgate",
+      "label": "one change",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-w5",
+      "from": "vgate",
+      "to": "skills",
+      "label": "accepted → next turn",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Arrow direction is the rule",
+      "items": [
+        "Everything around points into the spine: pushed in, or held back",
+        "The one reversed arrow is Consult → docs/: nothing pushes it",
+        "Time runs only on the spine; the surroundings are always there"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "WikiSkill: a closed loop, with a gate",
+      "items": [
+        "trace → maintainer → wiki → proposer → gate → skills/",
+        "No strict gain on the held-out set: reject, revert, record",
+        "The wiki feeds the proposer, never the working agent (ablation: worse)"
+      ]
+    }
+  ]
+}
