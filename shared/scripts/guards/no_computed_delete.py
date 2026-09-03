@@ -21,7 +21,11 @@ whether anyone can see the path at all before it runs.
 So three narrow rules, and everything else is allowed on purpose:
 
 * a delete whose arguments contain `$(...)`, backticks, or an unset-looking
-  variable expansion -- the target is invisible until it is too late
+  variable expansion -- the target is invisible until it is too late, unless
+  the same command already wrote that variable's value out in plain text
+  (`VAR=literal`, or `for VAR in a b c`) earlier than the delete -- then the
+  path was reviewable a line up, and it is the value that matters, not the
+  spelling
 * a recursive delete of the tree itself: `.`, `..`, `/`, `~`, `$HOME`
 * `find ... -delete` and `find ... -exec rm` -- the same fan-out with a
   different spelling
@@ -47,6 +51,24 @@ _FIND_DELETE = re.compile(
 
 # A path that only exists once the shell has run something.
 _COMPUTED = re.compile(r"\$\(|`|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?")
+
+# `$(...)` or a backtick anywhere in the arguments -- always computed, no
+# variable can be reviewed around it away.
+_SUBSHELL = re.compile(r"\$\(|`")
+
+# The bare variables a delete's arguments actually reference.
+_VAR_REF = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+
+# `NAME=value` at the start of a statement, where `value` is the plain text
+# that will reach the variable -- no `$`, no backtick, so it is already on
+# the screen. `[^\s;&|]+` stops the value at the next separator, same as
+# ARG_END does for a command's own arguments.
+_LITERAL_ASSIGN = re.compile(
+    r"(?:^|[;\n]|&&)\s*([A-Za-z_][A-Za-z0-9_]*)=([^\s;&|]+)")
+
+# `for NAME in a b c` -- a loop whose list is written out, not produced.
+_FOR_LITERAL = re.compile(
+    r"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([^;\n]+?)\s*(?:;|\n)")
 
 # The tree itself, in the spellings that reach it.
 _THE_TREE = re.compile(
@@ -101,6 +123,51 @@ def _prefix(command: str) -> str:
     return command.strip().split("$(")[0].split("`")[0].strip() or "rm ..."
 
 
+def _plain(value: str) -> bool:
+    return "$" not in value and "`" not in value and not _is_tree(value)
+
+
+def _literal_names(command: str, before: int) -> set[str]:
+    """Every name the text before `before` has spelled out in full, by a plain
+    assignment or a loop over a written-out list.
+
+    Last write wins, and a later one that is not plain takes the name back:
+    `T=build; T=$(echo /); rm -rf "$T"` spells T out once and then computes it,
+    and only the computed value is the one that reaches the delete."""
+    spelled = {}
+    head = command[:before]
+    for m in _LITERAL_ASSIGN.finditer(head):
+        spelled[m.group(1)] = _plain(m.group(2))
+    for m in _FOR_LITERAL.finditer(head):
+        items = m.group(2)
+        spelled[m.group(1)] = ("$" not in items and "`" not in items
+                               and all(_plain(w) for w in items.split()))
+    return {name for name, plain in spelled.items() if plain}
+
+
+def _is_tree(value: str) -> bool:
+    """A literal value is still unreviewable if the literal *is* the tree:
+    `T=.` then `rm -rf "$T"` reads exactly like the safe case this exemption
+    is for, and deletes the same thing `_THE_TREE` exists to stop -- `_THE_TREE`
+    only sees the text `"$T"`, never the value `.` it stands for."""
+    return value.strip("'\"").rstrip("/") in ("", ".", "..", "~")
+
+
+def _reviewable(command: str, pos: int, rest: str) -> bool:
+    """True when every computed-looking thing in `rest` is a variable whose
+    value was already written out in plain text earlier in `command`."""
+    if _SUBSHELL.search(rest):
+        return False
+    # `D=/tmp/x; rm -rf $D/../..` deletes `/`. The value was spelled out and
+    # the path still is not: what a reader reviewed is not where this lands.
+    if ".." in rest:
+        return False
+    referenced = set(_VAR_REF.findall(rest))
+    if not referenced:
+        return False
+    return referenced <= _literal_names(command, pos)
+
+
 def check(tool_name: str, tool_input: dict) -> str | None:
     if tool_name != "Bash":
         return None
@@ -116,7 +183,10 @@ def check(tool_name: str, tool_input: dict) -> str | None:
 
     for m in _RM.finditer(command):
         rest = m.group("rest")
-        if _COMPUTED.search(rest):
+        # `and not` rather than a nested `continue`: waiving the computed rule
+        # must not skip the rule below it. `T=build; rm -rf "$T" .` is a
+        # reviewable variable AND the tree, and the tree is why the rule exists.
+        if _COMPUTED.search(rest) and not _reviewable(command, m.start(), rest):
             return REASON_COMPUTED.format(
                 command=command[:160], command_prefix=_prefix(command))
         if _RECURSIVE.search(" " + rest) and _THE_TREE.search(" " + rest):
@@ -134,6 +204,25 @@ CASES = [
     ("Bash", {"command": "rm -r $HOME"}, True),
     ("Bash", {"command": "find . -name '*.tmp' -delete"}, True),
     ("Bash", {"command": "find build -type f -exec rm {} \\;"}, True),
+    # A variable is not enough on its own -- it must have been *set* to
+    # something plain. Assigning it from a subshell is exactly as
+    # unreviewable as using the subshell directly.
+    ("Bash", {"command": "T=$(mktemp -d)\nrm -rf \"$T\""}, True),
+    ("Bash", {"command": "for f in $(ls); do rm -rf \"$f\"; done"}, True),
+    # A literal assignment can still spell out the tree itself. `_THE_TREE`
+    # never sees it -- it only reads the argument text, `"$T"` -- so this
+    # exemption must refuse it on its own.
+    ("Bash", {"command": "T=.\nrm -rf \"$T\""}, True),
+    ("Bash", {"command": "T=~\nrm -rf \"$T\""}, True),
+    ("Bash", {"command": "for d in . build; do rm -rf \"$d\"; done"}, True),
+    # Waiving the computed rule must not waive the tree rule underneath it.
+    ("Bash", {"command": "T=build\nrm -rf \"$T\" ."}, True),
+    ("Bash", {"command": "T=build\nrm -rf \"$T\" /"}, True),
+    # Spelled out once, then computed. The computed value is the one that
+    # reaches the delete.
+    ("Bash", {"command": "T=build\nT=$(echo /)\nrm -rf \"$T\""}, True),
+    # A spelled-out value is not a spelled-out path.
+    ("Bash", {"command": "D=/tmp/x\nrm -rf $D/../.."}, True),
     # Near misses. Every one of these is ordinary work somewhere, and a guard
     # that refuses them is a guard that gets switched off -- which is the
     # failure this file's twin in dimension 1.2 is there to catch.
@@ -155,4 +244,17 @@ CASES = [
     # Arguments stop at a newline. Without that one `rm` swallowed every
     # following line and found a `$` twenty lines away.
     ("Bash", {"command": "rm -rf build/\necho ${HOME}"}, False),
+    # A scratch directory the command just assigned to a variable, one line
+    # up -- recorded refusing real work four times in one session.
+    ("Bash", {"command": "T=~/developing/cc-repo-harness-template\n"
+                         "rm -rf \"$T\"; mkdir -p \"$T\""}, False),
+    ("Bash", {"command": "W=/tmp/x/scratch/tpl-dry\n"
+                         "test -e \"$W\" && rm -rf \"$W\""}, False),
+    ("Bash", {"command": "S=/tmp/x/scratch\n"
+                         "rm -rf \"$S/brieftest\" && mkdir -p \"$S/brieftest\""}, False),
+    # A loop variable walking a short, literal, written-out list.
+    ("Bash", {"command": "for d in guards gates context; do\n"
+                         "  rm -rf \"scripts/$d\"\n"
+                         "  mkdir -p \"scripts/$d\"\n"
+                         "done"}, False),
 ]
