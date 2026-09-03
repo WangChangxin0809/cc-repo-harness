@@ -45,7 +45,8 @@ import tempfile
 # fix in a decision record reaches no installed client, and requiring a version
 # bump for it would train everyone to bump reflexively, which is the failure
 # this check exists to prevent rather than a milder version of it.
-SHIPPED = (".claude-plugin/", "skills/", "agents/", "hooks/", "shared/")
+SHIPPED = (".claude-plugin/", "skills/", "agents/", "commands/", "hooks/",
+           "shared/")
 MANIFEST = ".claude-plugin/plugin.json"
 
 
@@ -273,6 +274,28 @@ def _case_a_linked_worktree_is_judgeable():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def _case_a_command_is_shipped_too():
+    """A slash command reaches an installed client like everything else here.
+
+    `commands/` was missing from the list until a step added to `/learn`
+    reached every installation without a release. Nothing was wrong with the
+    change; the check simply had a hole in its idea of the plugin's surface.
+    """
+    root = _repo()
+    try:
+        base = sh(["git", "rev-parse", "HEAD"], cwd=root).stdout.strip()
+        _write(root, "commands/demo.md", "---\ndescription: d\n---\n\nRun.\n")
+        _commit(root, "change a command")
+        code, msg = check(base, root)
+        if code != 1:
+            return f"expected 1, got {code}: {msg}"
+        if "commands/demo.md" not in msg:
+            return f"red, but does not name the file that changed: {msg}"
+        return None
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 SELF_TEST = [
     ("a shipped file changed with no bump is caught",
      _case_shipped_change_without_bump),
@@ -283,6 +306,7 @@ SELF_TEST = [
     ("a version that went backwards is caught",
      _case_string_comparison_would_be_wrong),
     ("a linked worktree is judgeable", _case_a_linked_worktree_is_judgeable),
+    ("a command is shipped too", _case_a_command_is_shipped_too),
 ]
 
 
