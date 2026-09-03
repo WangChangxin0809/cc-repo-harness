@@ -96,7 +96,11 @@ The guide, five files in order:
 The last stage is why the first exists. Measuring again, in the units the
 checklist was written in, is what turns a row into closed or still open.
 
-## Scaffold
+### Lay the harness
+
+Step four of that guide, and the only stage with machinery behind it. The
+three before it decide *whether* to lay anything and *which rows to act on*;
+this is what happens once they have.
 
 A repository has seven moments at which it can put something in front of an
 agent: every turn, session start, each prompt, opening a subtree, before an
@@ -110,7 +114,10 @@ land:
 - a rule whose violation is silent becomes a **gate**, which fails the build
 - the reasoning goes in a decision record, so nobody re-argues it next quarter
 
-Two ways in, and `git ls-files` decides which:
+Two ways in, and `git ls-files` decides which. Neither is a whole-repository
+rewrite: the scaffolder is additive and idempotent, and everything already
+present is left alone.
+
 
 | The repository | Gets | How |
 |---|---|---|
