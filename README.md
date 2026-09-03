@@ -8,9 +8,12 @@
 foundation where it has none.**
 
 [![CI](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-A8492E.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-A8492E.svg)](#requirements)
-[![Dependencies](https://img.shields.io/badge/dependencies-none-A8492E.svg)](#requirements)
+[![release](https://img.shields.io/github/v/release/WangChangxin0809/cc-repo-harness?display_name=tag&label=release&color=A8492E&labelColor=24292F)](https://github.com/WangChangxin0809/cc-repo-harness/releases)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?labelColor=24292F)](https://docs.claude.com/en/docs/claude-code/plugins)
+[![template](https://img.shields.io/badge/new_repository-template-3E7A8C?logo=github&logoColor=white&labelColor=24292F)](https://github.com/WangChangxin0809/cc-repo-harness-template)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white&labelColor=24292F)](#requirements)
+[![dependencies](https://img.shields.io/badge/dependencies-none-4C6B54?labelColor=24292F)](#requirements)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6E5494?labelColor=24292F)](LICENSE)
 
 </div>
 
