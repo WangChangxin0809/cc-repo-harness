@@ -51,6 +51,7 @@
 | Know why the starting point for a new repository is a repository and not a string in scaffold.py | [0057](decisions/0057-the-template-is-a-repository-not-a-string.md) |
 | Know why the plugin checker left the payload, and where the per-file context caps came from | [0058](decisions/0058-an-instrument-that-ships-switched-off-is-not-payload.md) |
 | Know why the wiki is kept by the repository and read by no agent | [0059](decisions/0059-the-wiki-is-kept-by-the-repository-and-read-by-no-agent.md) |
+| Know why a new repository is sent to the template, by link, and an existing one to the scaffold | [0060](decisions/0060-a-new-repository-is-sent-to-the-template-by-link.md) |
 | Push this repository's machinery into the template repository | `python3 scripts/sync_template.py --to <path>` — reads scaffold.py's own tier tables |
 | Know why every suite in a tree is run, how their verdicts are pooled, and why a root Makefile claims the tree | [0050](decisions/0050-every-ecosystem-is-measured-and-the-verdict-is-pooled.md) |
 | Know why a dismissed truth candidate is kept instead of re-answered on every run | [0056](decisions/0056-answers-that-outlive-a-run.md) |

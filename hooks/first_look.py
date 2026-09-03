@@ -66,6 +66,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.path.dirname(HERE)
 ASSESS = os.path.join(PLUGIN, "shared", "scripts", "assess")
 FACTSHEET = os.path.join(ASSESS, "factsheet.py")
+TEMPLATE = "https://github.com/WangChangxin0809/cc-repo-harness-template"
 PROBE = os.path.join(PLUGIN, "shared", "scripts", "probe_repo.py")
 
 
@@ -190,6 +191,17 @@ def look(root):
         f"{','.join(empty) or 'none'} empty",
         f"  checks: {d['gates']} gates, {d['guards']} guards, "
         f"{d['selftests']} selftests",
+    ]
+    # A repository with nothing in it has nothing to assess. It has a
+    # starting point, and the one thing worth saying is where.
+    if p["source_files"] == 0 and p["tracked_files"] <= 3:
+        lines += [
+            "",
+            "  Nothing tracked yet. A new repository starts from the template --",
+            "  CI, checks and docs layout included, START-HERE.md as the list:",
+            f"    {TEMPLATE}",
+        ]
+    lines += [
         "",
         "That is the free half of the assessment: files read, git asked for a",
         "list. The rest needs saying so, because it fires this repository's own",
