@@ -77,6 +77,10 @@ def plan_for(tier):
         if sc.at_least(tier, floor):
             files.append((os.path.join("agents", name),
                           os.path.join(".claude", "agents", name)))
+    for name, floor in sc.WIKI:
+        if sc.at_least(tier, floor):
+            files.append((os.path.join("wiki", name),
+                          os.path.join(".claude", "wiki", name)))
     for src, dst, floor in sc.SCRIPTS:
         if sc.at_least(tier, floor):
             files.append((os.path.join("scripts", src), dst))

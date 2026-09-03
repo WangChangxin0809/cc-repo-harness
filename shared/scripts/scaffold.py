@@ -43,6 +43,12 @@ AGENT_SRC = os.path.join(os.path.dirname(HERE), "agents")
 # check_context_budget.py bounds each one at 40 lines. A rule without `paths:`
 # would be a permanent context charge and does not belong in payload at all.
 RULE_SRC = os.path.join(os.path.dirname(HERE), "rules")
+# The seed of `.claude/wiki/`: the catalogue, the run log and the impact
+# table, each a header and an empty table. `/learn` fills `patterns/` from the
+# transcripts on the machine that runs it; the seed is copied once and never
+# overwritten, because after the first run the wiki is the repository's own
+# state, not ours.
+WIKI_SRC = os.path.join(os.path.dirname(HERE), "wiki")
 
 CLAUDE_MD = """\
 # <project>
@@ -379,9 +385,12 @@ run fast "always-on context budget"  python3 scripts/gates/check_context_budget.
 run fast "templates filled in"       python3 scripts/gates/check_templates_filled.py
 run fast "docs routing table"        python3 scripts/gates/check_docs_index.py
 run fast "docs top level"            python3 scripts/gates/check_docs_layout.py
+run fast "exec-plan hygiene"         python3 scripts/gates/check_plan_hygiene.py
 run fast "no file too long to read"  python3 scripts/gates/check_file_size.py
 run fast "documented commands run"   python3 scripts/gates/check_docs_runnable.py
 run fast "public face"               python3 scripts/gates/check_community_health.py
+run fast "the wiki stays a record"   python3 scripts/gates/check_wiki_hygiene.py
+run fast "nobody's home directory"   python3 scripts/gates/check_no_machine_paths.py
 
 
 # --- unit: minutes -----------------------------------------------------------
@@ -576,6 +585,7 @@ PLAN = [
 DIRS = [
     ("docs/how-to", "A"),
     ("docs/reference", "A"),
+    (".claude/wiki/patterns", "B"),
 ]
 
 # source dir under this script -> destination under the repo, minimum tier
@@ -611,6 +621,14 @@ AGENTS = [
 RULES = [
     ("comments.md", "A"),
     ("for-a-person.md", "B"),
+]
+
+# The wiki seed. Tier B with the gates, because the gate that keeps it honest
+# is a gate, and a record nothing checks is a pile with a nicer name.
+WIKI = [
+    ("index.md", "B"),
+    ("logs.md", "B"),
+    ("impact.md", "B"),
 ]
 
 SKILLS = [
@@ -786,6 +804,9 @@ def main():
     agents = [name for name, floor in AGENTS
               if at_least(a.tier, floor) and os.path.isfile(
                   os.path.join(AGENT_SRC, name))]
+    wiki = [name for name, floor in WIKI
+            if at_least(a.tier, floor) and os.path.isfile(
+                os.path.join(WIKI_SRC, name))]
     skills = [name for name, floor in SKILLS
               if at_least(a.tier, floor) and os.path.isdir(
                   os.path.join(SKILL_SRC, name))]
@@ -814,6 +835,8 @@ def main():
             print(f"  {'COPY':<14} .claude/agents/{name}")
         for name in rules:
             print(f"  {'COPY':<14} .claude/rules/{name}")
+        for name in wiki:
+            print(f"  {'COPY':<14} .claude/wiki/{name}")
         # Driven by the same list as the real run. A preview whose only job is
         # to be trusted before you approve it must not describe a different run.
         for name, _ in context_scripts:
@@ -880,6 +903,16 @@ def main():
             continue
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy(os.path.join(RULE_SRC, name), target)
+        made.append(("NEW", rel, ""))
+
+    for name in wiki:
+        target = os.path.join(root, ".claude", "wiki", name)
+        rel = os.path.relpath(target, root)
+        if os.path.exists(target):
+            made.append(("SKIP", rel, "already exists"))
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy(os.path.join(WIKI_SRC, name), target)
         made.append(("NEW", rel, ""))
 
     for name in agents:

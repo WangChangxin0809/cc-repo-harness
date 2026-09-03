@@ -40,6 +40,13 @@ CHECKS = (
     ("documented commands still run", "gates/check_docs_runnable.py"),
     ("templates are filled in", "gates/check_templates_filled.py"),
     ("docs/ top level is the agreed one", "gates/check_docs_layout.py"),
+    # The only exec-plan rule whose cost is charged per turn rather than
+    # per pull request: a finished plan's CLAUDE.md keeps being injected
+    # into every session that touches the folder. CI catches it too, one
+    # review cycle later, by which time it has been delivered a hundred
+    # times. A cost measured in turns is objected to at a turn boundary.
+    ("a finished plan is still shipping its CLAUDE.md",
+     "gates/check_plan_hygiene.py"),
 )
 
 BUDGET_SECONDS = 45

@@ -151,6 +151,7 @@ readable at a glance while one step may carry pages of decisions.
 ```
 docs/exec-plans/migrate-verifier/
     README.md              # state — the whole plan, at a glance
+    CLAUDE.md              # only while in flight; deleted when it lands
     steps/
         01-shadow-verify.md
         03-cache-flush.md  # 02 has no file, deliberately
@@ -180,6 +181,28 @@ Four rules, each because it is the thing that will be quietly violated:
 4. **A step file is written when the step is entered, not upfront.** Written in
    advance it is fiction, and fiction in a plan is indistinguishable from a
    decision that was actually made.
+5. **`CLAUDE.md` lives and dies with the plan.** An active folder carries one,
+   capped at 50 lines, holding only what is true *while this is in flight* — the
+   invariant not to break, the branch, the one command that proves a step
+   landed. Not the plan itself: that is the `README.md` next to it. The runtime
+   delivers this file whenever anything in the folder is read, so the moment the
+   last step closes, every line in it has stopped being true and none of it has
+   stopped being delivered. `scripts/gates/check_plan_hygiene.py` fails on that,
+   and `scripts/context/on_stop.py` runs it too — it is the only rule here whose
+   cost is charged per turn instead of per pull request.
+
+**The README's rows are milestones, not a task list.** What the current step
+breaks into for the next ten minutes belongs in the runtime's own todo list: it
+is live in the interface, it costs nothing to update, and it vanishes with the
+session — which is correct, because nobody outside that session needed it. The
+plan holds what outlives the session, and the test for which is one question:
+*would someone opening this repository next week need it?* The goal, the abort
+condition, and which steps exist pass. "Rerun the fixture builder" does not.
+
+Get this wrong in the direction of detail and the README becomes a checklist
+that needs updating twice an hour, which means it stops being updated at all,
+which turns the one file whose whole job is stating where things stand into the
+one file that is confidently wrong.
 
 Every step file opens with `## Consulted` — existing skills, prior art in other
 people's **code**, research. It may say "none, because this step only executes
