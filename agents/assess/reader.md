@@ -1,6 +1,6 @@
 ---
 name: assess-reader
-description: Answers or scores one dimension of an assessment run. Spawned by /assess, one per dimension.
+description: Scores one assessment dimension. Spawned by /assess.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---

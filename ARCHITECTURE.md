@@ -37,7 +37,7 @@ Three identities, one tree. Every file is exactly one of them.
 | Directory | Holds | Talks to |
 |---|---|---|
 | `.claude-plugin/` | manifest, marketplace entry; `agents` lists every agent file, and the list *replaces* the default directory | the plugin validator, `release.yml`, which tags whenever the manifest changes on main |
-| `skills/bootstrap-repo-harness/` | the one skill that stays in the plugin: how a person arrives | every session on the machine, ~54 tokens a turn (0024); the whole plugin is capped at 150 by `check_plugin_structure.py` |
+| `skills/bootstrap-repo-harness/` | the one skill that stays in the plugin: how a person arrives | every session on the machine, ~39 tokens a turn (0024); the whole plugin is capped at 100 by `check_plugin_structure.py` |
 | `agents/` | `assess/` only: the reader, and the blind promise tester | spawned by `commands/assess.md`; they read a run and write answers or a reading, never the repository |
 | `hooks/` | `first_look.py` on SessionStart; `run_repo_guards.py`, which runs a *subject* repository's own `scripts/guards/` until it wires them itself | the subject repository's tree; nothing here changes what it does |
 | `shared/agents/` **payload, copied** | `repo-explorer`, copied to `.claude/agents/` at tier C beside the `repo-index` skill that names it | the repository that asked for it; nothing is charged to the ones that did not |
@@ -46,7 +46,7 @@ Three identities, one tree. Every file is exactly one of them.
 | `shared/scripts/context/` **payload, copied** | `before_write.py` delivers `Governs:` documents and the rules the native loader misses; `same_turn.py` runs the selftest beside an edited file; `on_stop.py`; `session_brief.py` is generated per repository | PreToolUse, PostToolUse, Stop, SessionStart |
 | `shared/scripts/index/` **payload, copied** | the repo graph: `build.py`, `query.py`, a gold set | tier C repositories only |
 | `shared/scripts/scaffold.py` **payload, run from here** | the `COPY` table and the `PLAN`: what lands where, at which tier; the only thing that has to know about a new payload directory | a fresh repository, once |
-| `shared/scripts/probe_repo.py` `drift.py` **run from here** | what a repository has and lacks; pairs of files that used to move together and stopped | `factsheet.py` |
+| `shared/scripts/probe_repo.py` `drift.py` `check_plugin_structure.py` **run from here** | what a repository has and lacks; pairs of files that used to move together and stopped; the plugin surface, which only this repository has | `factsheet.py` |
 | `shared/scripts/assess/` **the instrument, run from here** | `factsheet.py` measures five dimensions and writes a run; `briefs.py` writes what the instrument could not answer; `review.py` turns readings into a page | the reader agents; the repository under assessment, in a bench clone, never in place |
 | `shared/skills/` **payload, copied by tier** | five skills, each with a `Governs:` line naming the paths it is delivered for | `scaffold.py` copies them into `.claude/skills/`; here, `before_write.py` delivers them on a write to the governed path |
 | `CLAUDE.md` `ARCHITECTURE.md` `docs/` `guide/` | the two nothing can generate; the routing table; every decision; the reader's guide to the assessment | people, and the model on every turn (`CLAUDE.md` only) |

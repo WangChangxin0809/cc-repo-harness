@@ -1,6 +1,6 @@
 ---
 name: find-skill
-description: Find a Claude Code skill or plugin somebody else has already written, and judge whether to install it. Use when about to write a skill for something that sounds common, when asked whether a tool integration exists, when looking for a marketplace or a plugin by capability rather than by name, or before adding a skill that would duplicate one already installed.
+description: Find a Claude Code skill or plugin somebody else has already written, and judge whether to install it. Use before writing a skill for something that sounds common, when asked whether an integration exists, when looking for a plugin by capability rather than name, or before adding a skill that would duplicate one installed.
 ---
 
 # Finding somebody else's skill

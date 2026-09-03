@@ -1,6 +1,6 @@
 ---
 name: repo-index
-description: Give a repository a code-and-docs graph an agent can query — tree-sitter symbols, import and call edges, doc-to-code edges, ranked by personalized PageRank from whatever the current task touches. Use this when an agent cannot find the relevant code in a large repo, when grep returns hundreds of hits or none, when someone asks for RAG / semantic search / a code index / an embedding store for their codebase, when onboarding to unfamiliar code, and when you need to know what a change would break.
+description: Query the repository's own graph before grepping: which modules, files and documents a symbol, an import or a Governs edge touches, and what a change would reach. Use when a question spans directories, when asked what depends on something, when grep returns hundreds of hits or none, or when someone asks for RAG, semantic search or a code index for their codebase.
 ---
 
 # One graph, two tiers

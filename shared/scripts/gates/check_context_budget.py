@@ -49,10 +49,17 @@ another name and would undo the incentive to move work out at all. Ten scoped
 rules of thirty lines is exactly the shape this gate wants; one of three
 hundred is not.
 
-- A rule with `paths:` --- `--scoped-cap`, 40 lines. It arrives in full at the
-  moment it matches, competing with the work already in front of the model.
+- A rule with `paths:` --- `--rule-tok-cap`, 50 tokens, and `--scoped-cap`,
+  40 lines. It arrives in full at the moment it matches, competing with the
+  work already in front of the model. Fifty tokens is one sentence and a
+  pointer: the test, and where the reasoning lives. A rule that needs more is
+  a document with a rule's file extension.
 - A nested `CLAUDE.md` --- `--nested-cap`, 50 lines. Past that it has stopped
   being "what is true in this directory" and become a second root file.
+- One skill's `description` --- `--skill-desc-cap`, 100 tokens. The sum is
+  capped too, but a sum lets one description eat the budget of five. What
+  triggers a skill is a sentence; a description that lists every symptom has
+  become the skill's body in the wrong place.
 
 Only tracked files are read, via `git ls-files`, so vendored trees and fixture
 repositories are out of scope --- somebody else's `CLAUDE.md`, checked in under
@@ -149,6 +156,20 @@ def always_on_instructions(root):
     return charged, conditional
 
 
+def rule_tokens(path):
+    """Tokens a scoped rule delivers when it matches: the body, not the
+    frontmatter, and not block comments. Same estimate as the descriptions
+    use, so the two caps are in one unit."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return 0
+    m = FRONTMATTER.match(text)
+    body = text[m.end():] if m else text
+    return int(len(" ".join(charged_lines(body)).split()) * TOKENS_PER_WORD)
+
+
 def nested_claude_files(root):
     """(rel, lines) for every tracked CLAUDE.md that is not one of the two
     always-on locations. `git ls-files` and not a walk: it already excludes
@@ -181,6 +202,10 @@ def main():
                     help="max lines in one .claude/rules/ file with paths:")
     ap.add_argument("--nested-cap", type=int, default=50,
                     help="max lines in one nested CLAUDE.md")
+    ap.add_argument("--rule-tok-cap", type=int, default=50,
+                    help="max tokens one .claude/rules/ file with paths: delivers")
+    ap.add_argument("--skill-desc-cap", type=int, default=100,
+                    help="max tokens in one skill's description")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
 
@@ -239,6 +264,20 @@ def main():
               "  model. Split it by path, or move what a script can enforce\n"
               "  into scripts/guards/ or scripts/gates/.")
 
+    heavy = []
+    for rel, _ in conditional:
+        cost = rule_tokens(os.path.join(root, rel))
+        if cost > a.rule_tok_cap:
+            heavy.append((rel, cost))
+    if heavy:
+        failures.append(
+            "A scoped rule costs more than one sentence and a pointer:\n"
+            + "\n".join(f"    {rel:<40} ~{c:>4} tok  (cap {a.rule_tok_cap})"
+                        for rel, c in heavy)
+            + "\n  Keep the test and where the reasoning lives; move the\n"
+              "  reasoning itself to docs/decisions/ or the directory's own\n"
+              "  CLAUDE.md, and what a script could enforce to scripts/.")
+
     nested = nested_claude_files(root)
     if nested is None:
         print("cannot judge: `git ls-files` failed, so the nested CLAUDE.md "
@@ -262,6 +301,15 @@ def main():
         cost = int(len(desc.split()) * TOKENS_PER_WORD)
         total += cost
         per_skill.append((os.path.basename(os.path.dirname(path)), cost))
+    big = [(n, c) for n, c in per_skill if c > a.skill_desc_cap]
+    if big:
+        failures.append(
+            "A skill description costs more than a trigger should:\n"
+            + "\n".join(f"    {n:<32} ~{c:>4} tok  (cap {a.skill_desc_cap})"
+                        for n, c in big)
+            + "\n  Say what it does and when it fires. The symptoms, the\n"
+              "  steps and the caveats are the body, which is free until\n"
+              "  the skill triggers.")
     if total > a.skill_cap:
         listing = "\n".join(f"    {n:<32} ~{c} tok"
                             for n, c in sorted(per_skill, key=lambda t: -t[1]))

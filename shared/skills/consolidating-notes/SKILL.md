@@ -1,11 +1,11 @@
 ---
 name: consolidating-notes
-description: Merge an accumulated pile of agent notes, memories, or scratch documents into repository knowledge — freezing the input, synthesizing into a separate output, diffing, and routing each surviving entry to a doc, a guard, a subtree CLAUDE.md, or the small remainder that really is user-scoped. Also covers pruning docs and code the same way. Use this when notes contradict each other, when memory has drifted, when a note references something that no longer exists, when someone asks to clean up or compact memory, or when knowledge is trapped in a private note pile instead of the repo.
+description: Fold a pile of agent notes, memories or scratch files back into the repository: freeze the input, synthesize separately, diff, and route each surviving entry to a doc, a guard, a subtree CLAUDE.md, or the little that is truly personal. Use when notes contradict each other or name things that no longer exist, or when asked to clean up or compact memory.
 ---
 
 # Consolidation
 
-Governs: shared/scripts/consolidate.py
+Governs: scripts/consolidate.py
 
 Notes accumulate faster than they are corrected. After a few months a pile
 contains contradictions, entries about flags that were removed, and — buried in

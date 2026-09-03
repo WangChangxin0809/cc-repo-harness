@@ -1,5 +1,5 @@
 ---
-description: Measure this repository as a place for an agent to work — five dimensions, one page, nothing changed
+description: Measure this repository as a place for an agent to work. Nothing changed.
 argument-hint: "[path] [--no-full] [--test-command CMD] [--coverage-command CMD] [--mutate N] [--promises] [--once]"
 allowed-tools: Bash, Read, Grep, Glob, Task
 ---

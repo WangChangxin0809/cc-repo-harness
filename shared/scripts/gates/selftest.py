@@ -61,21 +61,6 @@ def make_repo(tmp):
         ("src/types/model.py", "class Model:\n    pass\n"),
         ("src/service/use.py", "from src.types.model import Model\n\n"
                                "def use():\n    return Model()\n"),
-        # The demo repository is also a minimal plugin. check_plugin_structure
-        # exits 2 -- cannot judge -- without a manifest, and every case here
-        # asserts a green baseline first, so the surface has to exist before a
-        # defect can be planted in it.
-        (".claude-plugin/plugin.json", json.dumps({
-            "name": "demo-plugin",
-            "version": "0.1.0",
-            "description": "A demonstration plugin.",
-        }, indent=2) + "\n"),
-        ("skills/demo/SKILL.md",
-         "---\nname: demo\ndescription: Demonstrate something, when asked to.\n"
-         "---\n\n# Demo\n\nGuidance lives here.\n"),
-        ("agents/helper.md",
-         "---\nname: helper\ndescription: Helps with demonstrations.\n---\n\n"
-         "You help.\n"),
         (".claude/guards.json", json.dumps({
             "protected_branches": ["main"],
             "layers": [{"name": "types", "paths": ["src/types/"]},
@@ -271,117 +256,14 @@ CASES = [
                               "## Contributing\n\nSee [CONTRIBUTING.md](CONTRIBUTING.md).\n\n"
                               "## License\n\nMIT.\n"),
     ),
-    # The plugin surface. This is the half of the repository that Claude Code
-    # actually loads, and until this gate existed it had no coverage at all --
-    # payload is code and code gets selftests, while a skill is markdown and
-    # nobody writes a test for a paragraph.
-    dict(
-        gate="check_plugin_structure.py",
-        why="a skill telling an agent to guess the plugin's location",
-        needle="hand-invented placeholder",
-        plant=lambda t: write(t, "skills/demo/SKILL.md",
-                              "---\nname: demo\ndescription: Demonstrate "
-                              "something, when asked to.\n---\n\n"
-                              "Read `<plugin>/references/moments.md` first.\n"),
-    ),
     # Bodies are free -- they load when the thing is invoked. The frontmatter
     # is not: every skill, agent and command is listed by name and description
     # on every turn, in every repository on the machine, including the ones
     # that never touch this plugin. Nothing measured that, and this repository
     # drifted to 350 tokens a turn, most of it one description that had grown a
     # clause for every symptom anyone might type.
-    dict(
-        gate="check_plugin_structure.py",
-        args=["--always-on-cap", "60"],
-        why="a description that has grown a clause for every symptom",
-        needle="on every turn, cap is 60",
-        plant=lambda t: write(t, "skills/demo/SKILL.md",
-                              "---\nname: demo\ndescription: Demonstrate "
-                              "something, when asked to. " +
-                              "Use it when somebody mentions a thing. " * 12 +
-                              "\n---\n\n# Demo\n\nGuidance lives here.\n"),
-    ),
     # The other direction: a long *body* is not a cost, and charging for it
     # would push guidance out of the one place it is free.
-    dict(
-        gate="check_plugin_structure.py",
-        args=["--always-on-cap", "60"],
-        why="a long body behind a short description",
-        needle=None,
-        plant=lambda t: write(t, "skills/demo/SKILL.md",
-                              "---\nname: demo\ndescription: Demonstrate "
-                              "something, when asked to.\n---\n\n# Demo\n\n"
-                              + "A paragraph of guidance.\n" * 400),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="component directories nested inside .claude-plugin/",
-        needle="not inside .claude-plugin/",
-        plant=lambda t: write(t, ".claude-plugin/skills/x/SKILL.md",
-                              "---\nname: x\ndescription: Does x.\n---\n\nx\n"),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="a skill whose frontmatter has no description",
-        needle="deciding whether this skill is ever activated",
-        plant=lambda t: write(t, "skills/demo/SKILL.md",
-                              "---\nname: demo\n---\n\nGuidance lives here.\n"),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="a manifest version that is not semver",
-        needle="is not semver",
-        plant=lambda t: write(t, ".claude-plugin/plugin.json",
-                              json.dumps({"name": "demo-plugin",
-                                          "version": "v0.1",
-                                          "description": "A demo plugin."},
-                                         indent=2) + "\n"),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="an agents list that drops the agent at the top level",
-        needle="leaves out agents/helper.md",
-        # A listed path replaces the default directory. The manifest names
-        # the new agent and forgets the old one, and the loader says nothing.
-        plant=lambda t: (write(t, "agents/assess/reader.md",
-                               "---\nname: reader\ndescription: Reads one "
-                               "thing.\n---\n\nYou read.\n"),
-                         write(t, ".claude-plugin/plugin.json",
-                               json.dumps({"name": "demo-plugin",
-                                           "version": "0.1.0",
-                                           "description": "A demo plugin.",
-                                           "agents": ["./agents/assess/reader.md"]},
-                                          indent=2) + "\n")),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="an agents list naming a file that is not there",
-        needle="does not exist",
-        plant=lambda t: write(t, ".claude-plugin/plugin.json",
-                              json.dumps({"name": "demo-plugin",
-                                          "version": "0.1.0",
-                                          "description": "A demo plugin.",
-                                          "agents": ["./agents/helper.md",
-                                                     "./agents/gone.md"]},
-                                         indent=2) + "\n"),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="an agent in a subdirectory with no description",
-        needle="agents/assess/reader.md frontmatter has no `description`",
-        plant=lambda t: write(t, "agents/assess/reader.md",
-                              "---\nname: reader\n---\n\nYou read.\n"),
-    ),
-    dict(
-        gate="check_plugin_structure.py",
-        why="the variable itself, which must NOT be reported",
-        needle=None,
-        plant=lambda t: write(t, "skills/demo/SKILL.md",
-                              "---\nname: demo\ndescription: Demonstrate "
-                              "something, when asked to.\n---\n\n"
-                              "Read `${CLAUDE_PLUGIN_ROOT}/references/"
-                              "moments.md` first.\n"),
-    ),
 
     # A script whose real interface the documents below either match or do not.
     # `--tier` exists, `--dry-run` exists, `--flavour` never did.
@@ -663,7 +545,9 @@ CASES = [
         needle=None,
         plant=lambda t: write(t, ".claude/rules/api.md",
                               '---\npaths:\n  - "src/**"\n---\n\n'
-                              + "".join(f"- rule {i}\n" for i in range(1, 30))),
+                              # one word a line: over the line cap, under the
+                              # token cap, so only the charging is on trial
+                              + "".join(f"{i}\n" for i in range(1, 30))),
     ),
     # Uncharged is not unbounded. The two cases above prove neither escape
     # hatch is billed on every turn; these two prove each still has a ceiling
@@ -705,6 +589,29 @@ CASES = [
                               + "\n<!--\n"
                               + "".join(f"note {i}\n" for i in range(1, 90))
                               + "-->\n"),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--rule-tok-cap", "50"],
+        why="a scoped rule that has grown into a document",
+        needle="more than one sentence and a pointer",
+        plant=lambda t: write(t, ".claude/rules/long.md", '---\npaths:\n  - "src/**"\n---\n\nword0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59\n'),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--rule-tok-cap", "50"],
+        # Thirty words is a sentence and a pointer; the cap must leave room
+        # for exactly that, or every rule fails and the gate is switched off.
+        why="a scoped rule of one sentence, which must NOT be reported",
+        needle=None,
+        plant=lambda t: write(t, ".claude/rules/short.md", '---\npaths:\n  - "src/**"\n---\n\nword0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29\n'),
+    ),
+    dict(
+        gate="check_context_budget.py",
+        args=["--skill-desc-cap", "100"],
+        why="one skill description listing every symptom it has ever met",
+        needle="more than a trigger should",
+        plant=lambda t: write(t, ".claude/skills/big/SKILL.md", '---\nname: big\ndescription: symptom0 symptom1 symptom2 symptom3 symptom4 symptom5 symptom6 symptom7 symptom8 symptom9 symptom10 symptom11 symptom12 symptom13 symptom14 symptom15 symptom16 symptom17 symptom18 symptom19 symptom20 symptom21 symptom22 symptom23 symptom24 symptom25 symptom26 symptom27 symptom28 symptom29 symptom30 symptom31 symptom32 symptom33 symptom34 symptom35 symptom36 symptom37 symptom38 symptom39 symptom40 symptom41 symptom42 symptom43 symptom44 symptom45 symptom46 symptom47 symptom48 symptom49 symptom50 symptom51 symptom52 symptom53 symptom54 symptom55 symptom56 symptom57 symptom58 symptom59 symptom60 symptom61 symptom62 symptom63 symptom64 symptom65 symptom66 symptom67 symptom68 symptom69 symptom70 symptom71 symptom72 symptom73 symptom74 symptom75 symptom76 symptom77 symptom78 symptom79 symptom80 symptom81 symptom82 symptom83 symptom84 symptom85 symptom86 symptom87 symptom88 symptom89\n---\n\n# Big\n'),
     ),
     dict(
         gate="check_docs_index.py",

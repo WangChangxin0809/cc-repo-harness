@@ -1,6 +1,6 @@
 ---
 name: github-surface
-description: Write everything GitHub itself reads — README.md, CONTRIBUTING.md, the community health files (SECURITY, CODE_OF_CONDUCT, LICENSE, issue and pull request templates), and the workflows under .github/workflows/. Use this when creating or rewriting any of those, when deciding whether a sentence belongs in the README or in CONTRIBUTING, when GitHub's Community Standards page reports something missing, when adding or reviewing CI, or when a repository is going public. Not for docs/ — that is the writing-docs skill.
+description: Write what GitHub itself reads: README, CONTRIBUTING, the community-health files (SECURITY, CODE_OF_CONDUCT, LICENSE, issue and PR templates) and the workflows under .github/workflows/. Use when creating or rewriting any of these, when Community Standards reports a gap, when adding or reviewing CI, or when a repository goes public. Not for docs/, which is writing-docs.
 ---
 
 # The GitHub surface

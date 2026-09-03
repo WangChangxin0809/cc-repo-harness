@@ -119,11 +119,7 @@ def gates_of():
     if not os.path.isdir(GATES_DIR):
         return []
     return sorted(f for f in os.listdir(GATES_DIR)
-                  if f.startswith("check_") and f.endswith(".py")
-                  # Ships commented out of the generated ci.sh: it checks a
-                  # .claude-plugin/ that no corpus repository has, so it would
-                  # abstain twenty times and say nothing either way.
-                  and f != "check_plugin_structure.py")
+                  if f.startswith("check_") and f.endswith(".py"))
 
 
 def run_gates(path):
