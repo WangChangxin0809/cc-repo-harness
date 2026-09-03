@@ -79,6 +79,11 @@ of a command can show.
 pattern asks. A pattern about a false positive makes the guard refuse
 *less*; do not take the chance to make it refuse more at the same time.
 
+A guard usually holds more than one rule. Waiving one of them must not
+waive the others: an exemption written as `continue` skips every rule below
+it in the same loop, so the guard stops refusing things the pattern never
+mentioned. Check each remaining rule still fires, by hand.
+
 Either way, `CASES` at the bottom is the guard's own test, and it is read by
 `guards/selftest.py`:
 
@@ -112,6 +117,13 @@ repository ever made. Read two columns:
 For a patch that removes a false positive the reading reverses: `fired` must
 go **down**, the newly-allowed calls must be the pattern's instances, and no
 `expected` line may become `MISSED`.
+
+**The replay is necessary and not sufficient.** It measures what happened,
+so a hole in a shape this repository never typed is invisible to it. After
+it comes back clean, write out by hand the half-dozen commands your change
+now allows that you would not want allowed, run `check()` on each, and say
+in the pull request what you probed. A widening change gets this scrutiny;
+a new guard gets the near-miss list instead.
 
 ## 5. Hand it over
 
