@@ -123,20 +123,26 @@ def _prefix(command: str) -> str:
     return command.strip().split("$(")[0].split("`")[0].strip() or "rm ..."
 
 
+def _plain(value: str) -> bool:
+    return "$" not in value and "`" not in value and not _is_tree(value)
+
+
 def _literal_names(command: str, before: int) -> set[str]:
-    """Every name the text before `before` has already spelled out in full,
-    by a plain assignment or a loop over a written-out list."""
-    names = set()
-    for m in _LITERAL_ASSIGN.finditer(command[:before]):
-        name, value = m.group(1), m.group(2)
-        if "$" not in value and "`" not in value and not _is_tree(value):
-            names.add(name)
-    for m in _FOR_LITERAL.finditer(command[:before]):
-        name, items = m.group(1), m.group(2)
-        if ("$" not in items and "`" not in items
-                and not any(_is_tree(w) for w in items.split())):
-            names.add(name)
-    return names
+    """Every name the text before `before` has spelled out in full, by a plain
+    assignment or a loop over a written-out list.
+
+    Last write wins, and a later one that is not plain takes the name back:
+    `T=build; T=$(echo /); rm -rf "$T"` spells T out once and then computes it,
+    and only the computed value is the one that reaches the delete."""
+    spelled = {}
+    head = command[:before]
+    for m in _LITERAL_ASSIGN.finditer(head):
+        spelled[m.group(1)] = _plain(m.group(2))
+    for m in _FOR_LITERAL.finditer(head):
+        items = m.group(2)
+        spelled[m.group(1)] = ("$" not in items and "`" not in items
+                               and all(_plain(w) for w in items.split()))
+    return {name for name, plain in spelled.items() if plain}
 
 
 def _is_tree(value: str) -> bool:
@@ -151,6 +157,10 @@ def _reviewable(command: str, pos: int, rest: str) -> bool:
     """True when every computed-looking thing in `rest` is a variable whose
     value was already written out in plain text earlier in `command`."""
     if _SUBSHELL.search(rest):
+        return False
+    # `D=/tmp/x; rm -rf $D/../..` deletes `/`. The value was spelled out and
+    # the path still is not: what a reader reviewed is not where this lands.
+    if ".." in rest:
         return False
     referenced = set(_VAR_REF.findall(rest))
     if not referenced:
@@ -173,9 +183,10 @@ def check(tool_name: str, tool_input: dict) -> str | None:
 
     for m in _RM.finditer(command):
         rest = m.group("rest")
-        if _COMPUTED.search(rest):
-            if _reviewable(command, m.start(), rest):
-                continue
+        # `and not` rather than a nested `continue`: waiving the computed rule
+        # must not skip the rule below it. `T=build; rm -rf "$T" .` is a
+        # reviewable variable AND the tree, and the tree is why the rule exists.
+        if _COMPUTED.search(rest) and not _reviewable(command, m.start(), rest):
             return REASON_COMPUTED.format(
                 command=command[:160], command_prefix=_prefix(command))
         if _RECURSIVE.search(" " + rest) and _THE_TREE.search(" " + rest):
@@ -204,6 +215,14 @@ CASES = [
     ("Bash", {"command": "T=.\nrm -rf \"$T\""}, True),
     ("Bash", {"command": "T=~\nrm -rf \"$T\""}, True),
     ("Bash", {"command": "for d in . build; do rm -rf \"$d\"; done"}, True),
+    # Waiving the computed rule must not waive the tree rule underneath it.
+    ("Bash", {"command": "T=build\nrm -rf \"$T\" ."}, True),
+    ("Bash", {"command": "T=build\nrm -rf \"$T\" /"}, True),
+    # Spelled out once, then computed. The computed value is the one that
+    # reaches the delete.
+    ("Bash", {"command": "T=build\nT=$(echo /)\nrm -rf \"$T\""}, True),
+    # A spelled-out value is not a spelled-out path.
+    ("Bash", {"command": "D=/tmp/x\nrm -rf $D/../.."}, True),
     # Near misses. Every one of these is ordinary work somewhere, and a guard
     # that refuses them is a guard that gets switched off -- which is the
     # failure this file's twin in dimension 1.2 is there to catch.
