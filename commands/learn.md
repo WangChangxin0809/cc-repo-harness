@@ -64,6 +64,9 @@ gh pr view <n> --repo <ROOT's remote> --json state --jq .state
   run does not propose the same fix again.
 - `OPEN` — leave both alone.
 
+No `gh`, no remote, or a repository it cannot see: leave every pattern alone
+and say so in one line. A status you could not confirm is not a status.
+
 Without this, a proposal that landed still reads as pending, and `impact.md`
 never says whether the loop works.
 
