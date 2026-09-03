@@ -15,7 +15,7 @@ dropping the `.` — which is the retyping drift a slash command exists to end.
 
 This is not `/check`. It isn't wired into `ci.yml`, so `scripts/check.py`
 never runs it, and it stays a separate manual step for that reason. Nor is it
-a substitute for `python3 shared/scripts/gates/check_plugin_structure.py`,
+a substitute for `python3 shared/scripts/check_plugin_structure.py`,
 which `/check` already runs: that gate reads the *prose* in `commands/`,
 `skills/` and `agents/` for paths nothing but `${CLAUDE_PLUGIN_ROOT}` can
 resolve, which this checker has no way to see. Run this one whenever

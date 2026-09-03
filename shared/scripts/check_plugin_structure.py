@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The plugin surface is prose, and prose has no compiler. Give it one.
 
-    python3 scripts/gates/check_plugin_structure.py [--root .]
+    python3 shared/scripts/check_plugin_structure.py [--root .]
+    python3 shared/scripts/check_plugin_structure.py --selftest [--verbose]
 
     0 = the manifest and components hold      1 = something is wrong
     2 = cannot judge (no .claude-plugin/ — not a plugin repository)
@@ -25,6 +26,13 @@ method and platform.
 this at manifest schema. It is not a substitute: it needs the CLI installed,
 and it does not know that a *skill's prose* must not tell an agent to guess a
 path. Run both.
+
+This lived in `gates/` and shipped, commented out of every generated `ci.sh`,
+because a target repository has no `.claude-plugin/` to judge. A check that
+arrives switched off is not payload; it is our instrument in a stranger's
+tree. So it sits beside `probe_repo.py` and `drift.py`, run from here and
+copied nowhere, and carries its own selftest for the same reason they do:
+the gates' harness only knows the gates directory -> docs/decisions/0058
 """
 
 from __future__ import annotations
@@ -250,7 +258,12 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--always-on-cap", type=int, default=400,
                     help="max tokens of component name+description, summed")
+    ap.add_argument("--selftest", action="store_true",
+                    help="plant each defect in a throwaway plugin, watch it go red")
+    ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
+    if a.selftest:
+        return selftest(a.verbose)
     root = os.path.abspath(a.root)
 
     manifest, err = load(root)
@@ -294,6 +307,135 @@ def main():
     print(f"plugin surface intact: manifest, {n} component director(ies), "
           f"portable paths, ~{total} tok/turn always-on")
     return 0
+
+
+# --- selftest ----------------------------------------------------------------
+# Every case starts from a plugin that passes, plants one defect, and expects
+# the named complaint. The two with needle=None plant the thing most easily
+# mistaken for a defect and expect silence; the last expects exit 2, because a
+# checker that answers 0 when there is nothing to look at is the worse bug.
+
+DEMO_SKILL = ("---\nname: demo\ndescription: Demonstrate something, when asked "
+              "to.\n---\n\n# Demo\n\nGuidance lives here.\n")
+
+
+def _manifest(**extra):
+    m = {"name": "demo-plugin", "version": "0.1.0",
+         "description": "A demonstration plugin."}
+    m.update(extra)
+    return json.dumps(m, indent=2) + "\n"
+
+
+def _write(root, rel, body):
+    path = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(body)
+
+
+def _fixture(root):
+    _write(root, MANIFEST, _manifest())
+    _write(root, "skills/demo/SKILL.md", DEMO_SKILL)
+    _write(root, "agents/helper.md",
+           "---\nname: helper\ndescription: Helps with demonstrations.\n---\n\n"
+           "You help.\n")
+
+
+# (why, extra args, expected exit, needle in stderr or None, plant)
+CASES = [
+    ("a skill telling an agent to guess the plugin's location", [], 1,
+     "hand-invented placeholder",
+     lambda t: _write(t, "skills/demo/SKILL.md",
+                      "---\nname: demo\ndescription: Demonstrate something, "
+                      "when asked to.\n---\n\n"
+                      "Read `<plugin>/references/moments.md` first.\n")),
+    # Bodies are free -- they load when the thing is invoked. The frontmatter
+    # is not: every skill, agent and command is listed by name and description
+    # on every turn, in every repository on the machine.
+    ("a description that has grown a clause for every symptom",
+     ["--always-on-cap", "60"], 1, "on every turn, cap is 60",
+     lambda t: _write(t, "skills/demo/SKILL.md",
+                      "---\nname: demo\ndescription: Demonstrate something, "
+                      "when asked to. "
+                      + "Use it when somebody mentions a thing. " * 12
+                      + "\n---\n\n# Demo\n\nGuidance lives here.\n")),
+    ("a long body behind a short description, which must NOT be reported",
+     ["--always-on-cap", "60"], 0, None,
+     lambda t: _write(t, "skills/demo/SKILL.md",
+                      DEMO_SKILL + "A paragraph of guidance.\n" * 400)),
+    ("component directories nested inside .claude-plugin/", [], 1,
+     "not inside .claude-plugin/",
+     lambda t: _write(t, ".claude-plugin/skills/x/SKILL.md",
+                      "---\nname: x\ndescription: Does x.\n---\n\nx\n")),
+    ("a skill whose frontmatter has no description", [], 1,
+     "deciding whether this skill is ever activated",
+     lambda t: _write(t, "skills/demo/SKILL.md",
+                      "---\nname: demo\n---\n\nGuidance lives here.\n")),
+    ("a manifest version that is not semver", [], 1, "is not semver",
+     lambda t: _write(t, MANIFEST, _manifest(version="v0.1"))),
+    # A listed path replaces the default directory. The manifest names the
+    # new agent and forgets the old one, and the loader says nothing.
+    ("an agents list that drops the agent at the top level", [], 1,
+     "leaves out agents/helper.md",
+     lambda t: (_write(t, "agents/assess/reader.md",
+                       "---\nname: reader\ndescription: Reads one thing.\n"
+                       "---\n\nYou read.\n"),
+                _write(t, MANIFEST,
+                       _manifest(agents=["./agents/assess/reader.md"])))),
+    ("an agents list naming a file that is not there", [], 1, "does not exist",
+     lambda t: _write(t, MANIFEST, _manifest(agents=["./agents/helper.md",
+                                                     "./agents/gone.md"]))),
+    ("an agent in a subdirectory with no description", [], 1,
+     "agents/assess/reader.md frontmatter has no `description`",
+     lambda t: _write(t, "agents/assess/reader.md",
+                      "---\nname: reader\n---\n\nYou read.\n")),
+    ("the variable itself, which must NOT be reported", [], 0, None,
+     lambda t: _write(t, "skills/demo/SKILL.md",
+                      "---\nname: demo\ndescription: Demonstrate something, "
+                      "when asked to.\n---\n\n"
+                      "Read `${CLAUDE_PLUGIN_ROOT}/references/moments.md` "
+                      "first.\n")),
+    ("no manifest at all, which is COULD NOT JUDGE and never a pass", [], 2,
+     "not a plugin repository",
+     lambda t: os.remove(os.path.join(t, MANIFEST))),
+]
+
+
+def selftest(verbose=False):
+    import shutil
+    import subprocess
+    import tempfile
+
+    def run(root, args):
+        return subprocess.run([sys.executable, __file__, "--root", root, *args],
+                              capture_output=True, text=True)
+
+    bad = 0
+    for why, args, want, needle, plant in CASES:
+        tmp = tempfile.mkdtemp(prefix="plugin-surface-")
+        try:
+            _fixture(tmp)
+            base = run(tmp, args)
+            if base.returncode != 0:
+                bad += 1
+                print(f"FAIL {why}\n     baseline not green: exit "
+                      f"{base.returncode}\n{base.stderr}")
+                continue
+            plant(tmp)
+            got = run(tmp, args)
+            ok = got.returncode == want and (needle is None
+                                             or needle in got.stderr)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        bad += not ok
+        if verbose or not ok:
+            print(f"{'ok  ' if ok else 'FAIL'} {why}")
+        if not ok:
+            print(f"     wanted exit {want}"
+                  + (f" saying {needle!r}" if needle else "")
+                  + f", got exit {got.returncode}\n{got.stderr}")
+    print(f"\n{len(CASES) - bad}/{len(CASES)} cases pass")
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":

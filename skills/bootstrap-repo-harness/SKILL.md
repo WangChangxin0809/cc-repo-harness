@@ -1,6 +1,6 @@
 ---
 name: bootstrap-repo-harness
-description: Lay a repository's harness — CLAUDE.md, hook wiring, docs/, gates and guards. Use when an agent repeats a mistake, when CLAUDE.md rules go ignored, or when a repository has no agent conventions.
+description: Lay a repository's agent harness: CLAUDE.md, hooks, docs/, gates, guards. Use when an agent repeats a mistake or a repository has none.
 ---
 
 # Bootstrap a repository harness

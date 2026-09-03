@@ -1,6 +1,6 @@
 ---
 name: writing-docs
-description: Write or restructure documentation that agents and people actually read — choosing which of the four directories it belongs in (how-to, reference, decisions, exec-plans), knowing what belongs in a failure message instead of a file, and keeping the routing table honest. Use this whenever writing a doc, a runbook, a README, an ADR, a design doc, or a plan; whenever someone says the docs are stale, contradictory, ignored, or too long; whenever deciding where a convention or a prohibition should live; whenever moving knowledge out of CLAUDE.md or out of agent memory into the repo; and whenever a document does not obviously belong in exactly one of those four directories.
+description: Write or restructure documentation agents and people actually read: which of the four directories it belongs in (how-to, reference, decisions, exec-plans), what belongs in a failure message instead of a file, and keeping the routing table honest. Use for any doc, runbook, README, ADR or plan; when docs are stale, contradictory or ignored; when deciding where a convention lives; when moving knowledge out of CLAUDE.md or agent memory.
 ---
 
 # Writing docs an agent will actually use
@@ -223,7 +223,10 @@ does not, something can say so. It buys two things:
   It advises; it does not prevent. Measured, the first write lands wrong and
   the agent corrects on the retry. A rule that must not be violated belongs in
   a guard, which can refuse.
-- **A checkable claim.** See `drift.py` below.
+- **A checkable claim.** *This document describes that code* is a pair a
+  reader can compare, and the plugin's `/assess` reads the pairs whose code
+  moved after the document did. Nothing in this repository runs that pass;
+  it is an instrument, and instruments stay in the plugin.
 
 Be honest about the standing of this: **no measured work exists on declared
 doc-to-code relationships at all.** Of 70 major repositories surveyed, 8
@@ -247,45 +250,6 @@ Three rules that are easy to get wrong:
    `src/` makes every edit deliver a document that answers nothing, and then the
    hook's output stops being read.
 
-## Read the pairs back: `drift.py`
-
-`Governs:` buys a third thing, and it is the one that pays later. A pair is a
-named, checkable claim — *this document describes that code* — which turns "is
-the documentation still true" from a summarising job into a small number of
-specific comparisons.
-
-```bash
-python3 scripts/drift.py pairs      # which pairs are worth reading, and why
-python3 scripts/drift.py prepare    # one packet per suspect pair, plus a brief
-python3 scripts/drift.py report     # collect the findings
-```
-
-Three things about it are the whole design:
-
-**The triage is free.** Git already knows whether the code moved after the
-document did. Pairs where nothing governed has changed since the document's last
-commit are skipped, which is the difference between a pass you run and one you
-do not. It is a prior and not a verdict — a document can be wrong on the day it
-is written, and `--all` reads every pair.
-
-**It is not a gate.** Findings are *claims that two things disagree*, and a check
-that is sometimes wrong gets switched off within a week. `check_docs_runnable.py`
-is the gate: it catches a documented command that would not run, which is the
-mechanical half of drift and the smaller half.
-
-**A finding never says the document is wrong.** It says the two disagree. A
-document encodes intent, and intent legitimately runs ahead of code — a rule the
-team decided and has not built, a limitation recorded before it was removed. A
-pass that quietly aligns documents to code deletes exactly that material and
-reads beautifully afterwards. Which side moves is a human decision, and it is
-often the code.
-
-The first pass over this repository found six: two documents teaching a
-workaround for a bug that had been fixed, a document denying a measurement
-sitting in the directory it governed, two wrong line counts, and an incomplete
-inventory. The second pass found nothing, which is also a result — `report`
-records a pair as read-and-quiet, because an unreviewed pair and a clean one
-must never print the same.
 
 ## References
 
@@ -294,5 +258,4 @@ must never print the same.
 | `references/kinds.md` | Templates for the four directories, and what is not a directory |
 
 Related skills: `writing-checks` (the gates named above),
-`consolidating-notes` (merging accumulated notes into these kinds),
-`repo-index` (what the `governs` edges are used for).
+`consolidating-notes` (merging accumulated notes into these kinds).

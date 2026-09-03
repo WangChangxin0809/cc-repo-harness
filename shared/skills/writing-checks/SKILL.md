@@ -1,6 +1,6 @@
 ---
 name: writing-checks
-description: Build the machinery that enforces a convention instead of documenting it — PreToolUse guards that block an action before it runs, CI gates that judge the worktree, selftests that prove a check can turn red, and structural tests that enforce layering. Use this whenever a rule keeps getting violated despite being written down, whenever adding a lint/check/CI step, whenever asked to enforce architecture boundaries or protect a branch or stop a destructive command, and whenever a check exists but nobody has ever seen it fail.
+description: Enforce a convention with machinery instead of prose: PreToolUse guards that refuse an action before it runs, gates that judge the worktree in CI, selftests that prove a check can turn red, layering tests. Use when a written rule keeps being violated, when adding any lint or CI step, when asked to protect a branch or stop a destructive command, or when a check exists that nobody has seen fail.
 ---
 
 # Guards and gates
