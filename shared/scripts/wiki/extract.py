@@ -3,6 +3,8 @@
 
     python3 wiki/extract.py --root REPO [--since YYYY-MM-DD] [--sessions N]
                             [--transcripts DIR] [--out packet.json]
+                            [--digest digest.md]
+    python3 wiki/extract.py --from packet.json --match REGEX [--kind KIND]
     python3 wiki/extract.py --selftest
 
     0 = a packet was written    2 = cannot judge (no transcripts found)
@@ -36,6 +38,14 @@ without a model:
 Nothing else is kept. In particular no assistant text, no file contents, no
 tool output beyond a first line: the wiki is committed, the transcript is
 not, and the extractor is the first of the two walls between them.
+
+## Reading a packet back
+
+`--from ... --match` is the second mode, and it exists for the proposer: given
+a packet and a regular expression, it prints every event whose tool input
+matches, as JSON. That is how one pattern's own instances are recovered from
+a run that recorded thousands of calls -- the cases a candidate guard must
+refuse, and the near misses beside them that it must not.
 
 ## Redaction
 
@@ -205,6 +215,24 @@ def build(root, files, since=None):
             "sessions": sessions, "totals": totals}
 
 
+KINDS = ("refusals", "declined", "errors")
+
+
+def find(packet, rx, kinds=KINDS):
+    """Every recorded event whose tool input matches. The input is matched,
+    not the reason: a pattern is about what was attempted, and matching the
+    refusal text would only ever find what some guard already says."""
+    out = []
+    for ses in packet["sessions"]:
+        for kind in kinds:
+            for e in ses.get(kind, []):
+                blob = json.dumps(e.get("input", {}), ensure_ascii=False)
+                if rx.search(blob):
+                    out.append(dict(e, kind=kind, session=ses["file"],
+                                    date=(ses["started"] or "")[:10]))
+    return out
+
+
 def _show(ev):
     i = ev["input"]
     return i.get("command") or i.get("file_path") or ",".join(i.get("keys", []))
@@ -364,6 +392,12 @@ def selftest(verbose=False):
                "the user's decline is its own kind")
         expect(s["harness_failures"] == 1 and len(s["errors"]) == 2,
                "the classifier being unreachable is counted, not listed")
+        hits = find(packet, re.compile(r"git push"))
+        expect(len(hits) == 2 and {h["kind"] for h in hits} == {"refusals", "declined"}
+               and all("git push" in h["input"]["command"] for h in hits),
+               "--match finds a pattern's instances across every event kind")
+        expect(find(packet, re.compile("Blocked")) == [],
+               "--match reads the attempt, not the refusal text")
         d = digest(packet)
         expect("**1×** [hook dispatch.py] Blocked: git push" in d and "不对" in d
                and "ghp_" not in d, "the digest groups, keeps the user, and leaks nothing")
@@ -401,11 +435,33 @@ def main():
     ap.add_argument("--out", help="write the packet here (default: stdout)")
     ap.add_argument("--digest", help="also write the maintainer's markdown "
                     "digest here")
+    ap.add_argument("--from", dest="packet", help="read a packet back "
+                    "instead of the transcripts, and query it with --match")
+    ap.add_argument("--match", help="regular expression over a recorded "
+                    "tool input; prints the matching events as JSON")
+    ap.add_argument("--kind", choices=KINDS + ("all",), default="all")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     if a.selftest:
         return selftest(a.verbose)
+
+    if a.packet:
+        if not a.match:
+            print("cannot judge: --from needs --match", file=sys.stderr)
+            return 2
+        try:
+            with open(a.packet, encoding="utf-8") as fh:
+                packet = json.load(fh)
+            rx = re.compile(a.match)
+        except (OSError, ValueError, re.error) as exc:
+            print(f"cannot judge: {exc}", file=sys.stderr)
+            return 2
+        kinds = KINDS if a.kind == "all" else (a.kind,)
+        hits = find(packet, rx, kinds)
+        print(json.dumps(hits, ensure_ascii=False, indent=1))
+        print(f"{len(hits)} event(s) matched {a.match!r}", file=sys.stderr)
+        return 0
 
     root = os.path.abspath(a.root)
     d = a.transcripts or transcript_dir(root)
