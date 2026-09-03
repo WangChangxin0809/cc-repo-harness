@@ -8,9 +8,12 @@
 foundation where it has none.**
 
 [![CI](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/WangChangxin0809/cc-repo-harness/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-A8492E.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-A8492E.svg)](#requirements)
-[![Dependencies](https://img.shields.io/badge/dependencies-none-A8492E.svg)](#requirements)
+[![release](https://img.shields.io/github/v/release/WangChangxin0809/cc-repo-harness?display_name=tag&label=release&color=A8492E&labelColor=24292F)](https://github.com/WangChangxin0809/cc-repo-harness/releases)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?labelColor=24292F)](https://docs.claude.com/en/docs/claude-code/plugins)
+[![template](https://img.shields.io/badge/new_repository-template-3E7A8C?logo=github&logoColor=white&labelColor=24292F)](https://github.com/WangChangxin0809/cc-repo-harness-template)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white&labelColor=24292F)](#requirements)
+[![dependencies](https://img.shields.io/badge/dependencies-none-4C6B54?labelColor=24292F)](#requirements)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6E5494?labelColor=24292F)](LICENSE)
 
 </div>
 
@@ -96,7 +99,11 @@ The guide, five files in order:
 The last stage is why the first exists. Measuring again, in the units the
 checklist was written in, is what turns a row into closed or still open.
 
-## Scaffold
+### Lay the harness
+
+Step four of that guide, and the only stage with machinery behind it. The
+three before it decide *whether* to lay anything and *which rows to act on*;
+this is what happens once they have.
 
 A repository has seven moments at which it can put something in front of an
 agent: every turn, session start, each prompt, opening a subtree, before an
@@ -110,7 +117,10 @@ land:
 - a rule whose violation is silent becomes a **gate**, which fails the build
 - the reasoning goes in a decision record, so nobody re-argues it next quarter
 
-Two ways in, and `git ls-files` decides which:
+Two ways in, and `git ls-files` decides which. Neither is a whole-repository
+rewrite: the scaffolder is additive and idempotent, and everything already
+present is left alone.
+
 
 | The repository | Gets | How |
 |---|---|---|
