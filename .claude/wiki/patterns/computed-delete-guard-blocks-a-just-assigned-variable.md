@@ -2,7 +2,7 @@
 count: 4
 sessions: [2026-09-02]
 route: guard
-status: open
+status: proposed
 ships: shared/scripts/guards/no_computed_delete.py
 ---
 # `rm -rf "$VAR"` blocked though $VAR was set to a literal one line up
