@@ -7,7 +7,7 @@ the difference decides what you may depend on:
 | | Reaches a stranger by | Examples |
 |---|---|---|
 | **copied** | `scaffold.py`'s `COPY` table writes it into their tree | `gates/` `guards/` `index/` `context/` |
-| **run from here** | the plugin runs it against their repo | `probe_repo.py` `drift.py` `check_plugin_structure.py` `assess/` |
+| **run from here** | the plugin runs it against their repo | `probe_repo.py` `drift.py` `check_plugin_structure.py` `assess/` `wiki/` |
 
 Copied code has to keep working after this plugin is uninstalled, so it may
 depend on nothing but the tree it lands in. Code run from here may import its

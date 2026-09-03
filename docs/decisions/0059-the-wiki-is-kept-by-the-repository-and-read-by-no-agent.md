@@ -1,7 +1,7 @@
 # 0059 · The wiki is kept by the repository and read by no agent
 
-**Date:** 2026-09-03. **Status:** accepted, first half built (the seed and its
-gate); the instruments that fill it follow.
+**Date:** 2026-09-03. **Status:** accepted. Built: the seed and its gate; the
+extractor, the replay and the maintainer behind `/learn`. Next: the proposer.
 
 ## Context
 
@@ -46,8 +46,8 @@ nothing wrong.
 
 ## Consequences
 
-- The maintainer, the extractor, the replayer and the proposer are
-  instruments and stay in the plugin. They read transcripts on the machine
+- The extractor, the replay, the maintainer and the proposer are
+  instruments and stay in the plugin (`shared/scripts/wiki/`, `agents/wiki/`). They read transcripts on the machine
   and write patterns; they may open a pull request that adds a guard, and may
   not merge it. A diagnostic that starts fixing what it finds has stopped
   being a diagnostic (0021).

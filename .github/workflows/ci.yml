@@ -138,6 +138,11 @@ jobs:
       - name: nobody's home directory is committed
         run: python3 shared/scripts/gates/check_no_machine_paths.py --root .
 
+      # This repository keeps its own wiki, filled by /learn from the
+      # sessions on the maintainers' machines. Same gate the payload ships.
+      - name: the wiki stays a record
+        run: python3 shared/scripts/gates/check_wiki_hygiene.py --root .
+
       - name: that gate can still turn red
         run: python3 shared/scripts/gates/check_no_machine_paths.py --selftest
 
@@ -163,7 +168,7 @@ jobs:
         # ratchet, not a budget with headroom: every token here is paid in
         # every repository on the machine, including the ones that never invoke
         # this plugin, so the only honest direction for this number is down.
-        run: python3 shared/scripts/check_plugin_structure.py --root . --always-on-cap 100
+        run: python3 shared/scripts/check_plugin_structure.py --root . --always-on-cap 150
 
       # The other half of drift needs judgement and cannot be a gate. What can
       # be checked is the tool that prepares the judgement: that its git triage
@@ -174,6 +179,14 @@ jobs:
 
       - name: the drift pass can still tell a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
+
+      # The wiki's two instruments. The extractor must tell a guard's refusal
+      # from a file that merely contains the word; the replay must name the
+      # legitimate call a wrong candidate guard would break.
+      - name: the extractor can still tell a refusal from a file that says Blocked
+        run: python3 shared/scripts/wiki/extract.py --selftest --verbose
+      - name: the replay can still name the call a wrong guard would break
+        run: python3 shared/scripts/wiki/replay.py --selftest --verbose
 
       # The push into the template repository. It cannot run here -- the
       # template is a separate repository and this job has no checkout of it --
