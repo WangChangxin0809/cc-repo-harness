@@ -75,6 +75,29 @@ somebody's machine. `<skill>/…` means a file beside the SKILL.md being read.
 Bare paths like `scripts/guards/` mean the **target repository** — that is where
 things end up, and where they must keep working after the plugin is gone.
 
+## Which case you are in
+
+`git ls-files` decides, before anything else.
+
+**Nothing tracked yet**, or only what GitHub writes when it creates a
+repository — a README, a LICENSE, a `.gitignore` — is a **new** repository.
+It is not scaffolded; it starts from the template, the assembled tier-B tree
+with CI, the checks, the docs layout and `START-HERE.md` as the checklist:
+<https://github.com/WangChangxin0809/cc-repo-harness-template>. *Use this template* on that page, or
+
+```bash
+gh repo create <owner>/<name> --template WangChangxin0809/cc-repo-harness-template --private --clone
+```
+
+Then work `START-HERE.md` down: `./ci.sh` exits 2 until it is gone, and that
+list is the plan. Steps 1 to 3 below assess and plan against what exists, so
+they do not apply; the "read the guards before trusting them" part of step
+4, and step 5, still do.
+
+**Anything else** is a repository that exists, and the five steps below are
+for it. `scaffold.py` adds around what is there and never overwrites; the
+template would not fit -> 0057, 0060.
+
 ## Steps
 
 Five. The first two happen before anything in the repository changes, and the

@@ -110,6 +110,13 @@ land:
 - a rule whose violation is silent becomes a **gate**, which fails the build
 - the reasoning goes in a decision record, so nobody re-argues it next quarter
 
+Two ways in, and `git ls-files` decides which:
+
+| The repository | Gets | How |
+|---|---|---|
+| is new — nothing tracked, or only what GitHub wrote at creation | the whole template: CI, checks, docs layout, `START-HERE.md` as the checklist | *Use this template* on [cc-repo-harness-template](https://github.com/WangChangxin0809/cc-repo-harness-template), or `gh repo create <name> --template WangChangxin0809/cc-repo-harness-template` |
+| already exists | the harness fitted around what is there; nothing overwritten | `python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/scaffold.py --root . --tier B` |
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/agent-turn.dark.svg">
   <img src=".github/assets/agent-turn.light.svg" alt="One turn of an agent: a spine from session start to push, with instructions and docs delivered from above, guards and gates holding back from below, and a WikiSkill loop feeding this turn's trace back into the next turn's skills" width="960">

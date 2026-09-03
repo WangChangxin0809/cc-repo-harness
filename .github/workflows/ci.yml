@@ -188,6 +188,7 @@ jobs:
       - name: the replay can still name the call a wrong guard would break
         run: python3 shared/scripts/wiki/replay.py --selftest --verbose
 
+
       # The push into the template repository. It cannot run here -- the
       # template is a separate repository and this job has no checkout of it --
       # but the thing that broke once was the *tool*, not the destination: the
