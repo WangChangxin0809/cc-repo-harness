@@ -32,12 +32,12 @@ the loop that drives a model through tool calls; nothing here touches that.
 |---|---|---|---|
 | **Assess** | measure a repository that already exists | `/assess` | complete |
 | **Improve** | work what the assessment found, then measure again | [the guide](guide/1-assess.md) | early |
-| **Scaffold** | lay the foundation in a repository that has none | `bootstrap-repo-harness` | early |
+| **Start** | a repository that has the harness in its first commit | [the template](https://github.com/WangChangxin0809/cc-repo-harness-template) | complete |
 
 The assessment is the finished part of this release: five dimensions, every
 number produced by a script, a page you can take again after a change. The
-improve guide and the scaffold work today, and they are the parts most likely
-to change shape.
+template is a repository you can start from today. The improve guide works, and
+it is the part most likely to change shape.
 
 Everything the scaffold writes lands in your repository, under version control,
 reviewable in a pull request. Teammates who never installed the plugin get the
@@ -54,8 +54,9 @@ Installing runs nothing in your repository. The first session in each repository
 prints one paragraph about what it has and lacks, and after that the plugin is
 silent until asked.
 
-Then, in a repository: `/assess` measures it as it is. To scaffold one that
-has nothing yet, say *"set this repo up so the rules actually get enforced"*.
+Then, in a repository: `/assess` measures it as it is. In one that has nothing
+yet, say *"set this repo up so the rules actually get enforced"*. A repository
+that does not exist yet starts from the template instead.
 
 ## Assess
 
