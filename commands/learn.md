@@ -48,13 +48,35 @@ Spawn one `wiki-maintainer` with `DIGEST=W/digest.md`, `PACKET=W/packet.json`,
 `WIKI=ROOT/.claude/wiki`, `ROOT`. It reads the digest, writes patterns, and
 replies with the log entry it appended.
 
-## 4. Propose, only if asked
+## 4. Reconcile what was proposed
+
+Every pattern with `status: proposed` names a pull request in its `impact.md`
+row. Ask what happened to it:
+
+```bash
+gh pr view <n> --repo <ROOT's remote> --json state --jq .state
+```
+
+- `MERGED` — set the pattern to `status: shipped`, and the row's outcome to
+  `shipped #<n>`.
+- `CLOSED` — set it back to `status: open`, the outcome to `rejected #<n>`,
+  and append one line to the pattern saying what the refusal was, so the next
+  run does not propose the same fix again.
+- `OPEN` — leave both alone.
+
+No `gh`, no remote, or a repository it cannot see: leave every pattern alone
+and say so in one line. A status you could not confirm is not a status.
+
+Without this, a proposal that landed still reads as pending, and `impact.md`
+never says whether the loop works.
+
+## 5. Propose, only if asked
 
 Skip this entirely unless `--propose` was passed.
 
 Take the patterns with `route: guard` and `status: open`, highest `count`
 first. If `--propose` named one, take that one only. If none qualifies, say
-so in one line and go to step 5 — a run that proposes nothing is the normal
+so in one line and go to step 6 — a run that proposes nothing is the normal
 result, and the bar is the maintainer's: seen in two sessions, or three
 times in one.
 
@@ -67,7 +89,7 @@ Each replies with its `impact.md` row and either a pull request URL or the
 reason there is none. Do not re-run one that rejected: the row is the record
 that it was tried.
 
-## 5. Hand back
+## 6. Hand back
 
 Print the maintainer's log entry, the gate's verdict —
 
