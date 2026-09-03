@@ -127,6 +127,13 @@ a new guard gets the near-miss list instead.
 
 ## 5. Hand it over
 
+**First run what the repository runs before any pull request** — `./ci.sh` if
+there is one, otherwise whatever `CONTRIBUTING.md` names. The two proofs
+above are yours; these are the repository's, and a guard is a change like any
+other. The first proposal ever made here passed both proofs and was refused
+by a release check, because the guard it patched is copied into other
+people's repositories and the version had not been raised.
+
 **If both halves pass**: branch, commit, and open a pull request whose body
 is the pattern's own text plus the replay table. Then set the pattern's
 `status: proposed`, and add the row.
