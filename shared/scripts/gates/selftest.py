@@ -519,6 +519,110 @@ CASES = [
             }, indent=2) + "\n")),
     ),
 
+    # --- check_wiki_hygiene.py ----------------------------------------------
+    # The wiki is written by the plugin from transcripts and read by nobody
+    # during a session. That only stays true while it stays a record: every
+    # pattern carries its four fields, a shipped one points at a file that
+    # exists, and nothing a transcript could carry has got in.
+    dict(
+        gate="check_wiki_hygiene.py",
+        why="a pattern that is a note: no frontmatter at all",
+        needle="missing its fields",
+        plant=lambda t: (write(t, ".claude/wiki/index.md", '# wiki\n\nNot for agents.\n\n| Pattern | Count | Route | Status |\n|---|---|---|---|\n'),
+                         write(t, ".claude/wiki/patterns/pipe.md",
+                               "# Pushes to main through a pipe\n\nIt happened.\n")),
+    ),
+    dict(
+        gate="check_wiki_hygiene.py",
+        why="a shipped pattern whose guard was deleted",
+        needle="nothing at scripts/guards/gone.py",
+        plant=lambda t: (write(t, ".claude/wiki/index.md", '# wiki\n\nNot for agents.\n\n| Pattern | Count | Route | Status |\n|---|---|---|---|\n'),
+                         write(t, ".claude/wiki/patterns/pipe.md", '---\ncount: 3\nsessions:\n  - 2026-08-21\n  - 2026-09-01\nroute: guard\nstatus: shipped\nships: scripts/guards/gone.py\n---\n\n# Pushes to main through a pipe\n')),
+    ),
+    dict(
+        gate="check_wiki_hygiene.py",
+        why="a refused command quoted with its token still in it",
+        needle="credential-shaped",
+        plant=lambda t: (write(t, ".claude/wiki/index.md", '# wiki\n\nNot for agents.\n\n| Pattern | Count | Route | Status |\n|---|---|---|---|\n'),
+                         write(t, ".claude/wiki/patterns/leak.md", '---\ncount: 1\nsessions: [2026-09-02]\nroute: none\nstatus: open\n---\n\n# A token in a refused command\n\nThe command carried ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA and was refused.\n')),
+    ),
+    dict(
+        gate="check_wiki_hygiene.py",
+        why="patterns with no index to say what they are",
+        needle="no index.md",
+        plant=lambda t: write(t, ".claude/wiki/patterns/pipe.md", '---\ncount: 3\nsessions: [2026-08-21, 2026-09-01, 2026-09-02]\nroute: guard\nstatus: open\n---\n\n# Pushes to main through a pipe\n\nWhat happened.\n'),
+    ),
+    dict(
+        gate="check_wiki_hygiene.py",
+        why="a well-formed wiki, which must NOT be reported",
+        needle=None,
+        plant=lambda t: (write(t, ".claude/wiki/index.md", '# wiki\n\nNot for agents.\n\n| Pattern | Count | Route | Status |\n|---|---|---|---|\n'),
+                         write(t, ".claude/wiki/patterns/pipe.md", '---\ncount: 3\nsessions: [2026-08-21, 2026-09-01, 2026-09-02]\nroute: guard\nstatus: open\n---\n\n# Pushes to main through a pipe\n\nWhat happened.\n')),
+    ),
+
+    # --- check_plan_hygiene.py ------------------------------------------------
+    dict(
+        gate="check_plan_hygiene.py",
+        why="a plan whose every step is closed, still carrying its CLAUDE.md",
+        needle="still delivering a CLAUDE.md",
+        plant=lambda t: (
+            write(t, "docs/exec-plans/migrate-verifier/README.md",
+                  "# Migrate to the new verifier\n\n"
+                  "Goal: every node verifying against v2, old path deleted.\n"
+                  "Abort if: v2 latency exceeds 40 ms p99 on any node.\n\n"
+                  "- [x] done    [Shadow-verify one node](steps/01-shadow.md)\n"
+                  "- [x] done    Roll to 10%\n"
+                  "- [~] dropped Dual-write the audit log — v2 writes it\n"),
+            write(t, "docs/exec-plans/migrate-verifier/CLAUDE.md",
+                  "# migrate-verifier — in flight\n\n"
+                  "Branch: `verifier-v2`. Never let a node verify against\n"
+                  "both at once. A step landed when `./ci.sh --fast` is green.\n"),
+        ),
+    ),
+    dict(
+        gate="check_plan_hygiene.py",
+        why="a plan still running, which is exactly when the file is correct",
+        needle=None,
+        plant=lambda t: (
+            write(t, "docs/exec-plans/migrate-verifier/README.md",
+                  "# Migrate to the new verifier\n\n"
+                  "Goal: every node verifying against v2, old path deleted.\n"
+                  "Abort if: v2 latency exceeds 40 ms p99 on any node.\n\n"
+                  "- [x] done    [Shadow-verify one node](steps/01-shadow.md)\n"
+                  "- [>] doing   Roll to 10%\n"
+                  "- [ ] todo    Delete the v1 path\n"),
+            write(t, "docs/exec-plans/migrate-verifier/CLAUDE.md",
+                  "# migrate-verifier — in flight\n\n"
+                  "Branch: `verifier-v2`. Never let a node verify against\n"
+                  "both at once. A step landed when `./ci.sh --fast` is green.\n"),
+        ),
+    ),
+    dict(
+        gate="check_plan_hygiene.py",
+        # The trap `session_brief.py` fell into one level down: a README that
+        # *shows* the markers rather than using them. Without stripping fences
+        # the two closed rows in the example read as a finished plan, and a
+        # folder nobody has started work in gets its CLAUDE.md deleted.
+        why="a README that only demonstrates the markers inside a fence",
+        needle=None,
+        plant=lambda t: (
+            write(t, "docs/exec-plans/retire-exporter/README.md",
+                  "# Retire the legacy exporter\n\n"
+                  "Goal: nothing imports `exporter.v1`.\n"
+                  "Abort if: v2 loses a field the billing job reads.\n\n"
+                  "Steps get rows once they exist. The shape they take:\n\n"
+                  "```markdown\n"
+                  "- [x] done    [Something finished](steps/01-thing.md)\n"
+                  "- [~] dropped Something abandoned\n"
+                  "```\n\n"
+                  "Nothing has started yet.\n"),
+            write(t, "docs/exec-plans/retire-exporter/CLAUDE.md",
+                  "# retire-exporter — in flight\n\n"
+                  "Branch: `drop-exporter-v1`. The billing job is the one\n"
+                  "reader that must not break: `./ci.sh --fast` covers it.\n"),
+        ),
+    ),
+
     # --- negative controls ---------------------------------------------------
     # Each gate needs at least one of these, and coverage_gaps() below enforces
     # it. Without one, a gate that flagged *everything* would show a perfect row

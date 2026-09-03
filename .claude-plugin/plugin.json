@@ -1,10 +1,11 @@
 {
   "name": "cc-repo-harness",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Measure a repository as a place for a coding agent to work, and lay the foundation where it has none: hooks, guards and gates proven to turn red, layered docs, a repo graph, and a five-dimension assessment you can take again later. Bootstraps once; the repository stands on its own.",
   "agents": [
     "./agents/assess/reader.md",
-    "./agents/assess/promise-tester.md"
+    "./agents/assess/promise-tester.md",
+    "./agents/wiki/maintainer.md"
   ],
   "author": {
     "name": "WangChangxin0809"
