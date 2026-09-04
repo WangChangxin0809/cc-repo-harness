@@ -4,6 +4,6 @@
   "private": true,
   "description": "The agent under test, pinned by lockfile. Not a dependency of anything this plugin installs into a repository -- see .github/requirements-dev.txt for the same argument about Python tooling.",
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.251"
+    "@anthropic-ai/claude-code": "2.1.252"
   }
 }
