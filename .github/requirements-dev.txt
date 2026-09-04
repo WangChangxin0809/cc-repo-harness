@@ -12,4 +12,4 @@ coverage==7.16.0           # Line and branch coverage. Without it dimension 2.1
                            # abstains, and an abstention about itself is what
                            # this repository was reporting.
 ruff==0.16.5               # Python lint. Config in ruff.toml. Lint only, no formatter.
-zizmor==1.29.0             # Actions security audit, by Trail of Bits.
+zizmor==1.30.0             # Actions security audit, by Trail of Bits.
