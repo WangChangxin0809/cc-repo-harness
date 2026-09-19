@@ -1,0 +1,172 @@
+name: plugin-behavior-eval
+
+# Paid/model-backed behavioral benchmark. Deliberately manual until the first
+# results are calibrated: turning a new eval into a weekly bill is a separate
+# decision from writing a good eval.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Upstream model id through CC Switch"
+        default: "nvidia/nemotron-3-super-120b-a12b"
+      runs:
+        description: "Runs per arm, per case"
+        default: "3"
+      threshold:
+        description: "Minimum WITH-plugin case score"
+        default: "0.67"
+      max_cost_usd:
+        description: "Claude Code list-price ceiling for the suite"
+        default: "20"
+      concurrency:
+        description: "Concurrent agent runs (shared provider rate limit)"
+        default: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-behavior-eval-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CC_SWITCH_VERSION: v5.10.3
+  UPSTREAM_MODEL: ${{ inputs.model }}
+  PROXY_PORT: "8788"
+  CC_SWITCH_CONFIG_DIR: ${{ github.workspace }}/.cc-switch
+
+jobs:
+  eval:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: eval/agent/package-lock.json
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: install sandbox prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat
+
+      - name: install the pinned Claude Code under test
+        run: |
+          npm ci --prefix eval/agent --no-audit --no-fund
+          eval/agent/node_modules/.bin/claude --version
+          eval/agent/node_modules/.bin/claude plugin eval --help > /dev/null
+
+      - name: install CC Switch
+        run: |
+          set -euo pipefail
+          url="https://github.com/SaladDay/cc-switch-cli/releases/download/${CC_SWITCH_VERSION}/cc-switch-cli-linux-x64-musl.tar.gz"
+          curl -fsSL --retry 3 -o /tmp/ccs.tar.gz "$url"
+          mkdir -p /tmp/ccs
+          tar -xzf /tmp/ccs.tar.gz -C /tmp/ccs
+          bin="$(find /tmp/ccs -type f -name 'cc-switch*' | head -1)"
+          test -n "$bin"
+          install -m755 "$bin" /usr/local/bin/cc-switch
+          cc-switch --version
+
+      - name: configure the provider and start the local translation proxy
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "cannot judge: NVIDIA_API_KEY is not configured" >&2
+            exit 2
+          fi
+          mkdir -p "$CC_SWITCH_CONFIG_DIR"
+          cc-switch --app claude provider add \
+            --name nvidia --id nvidia \
+            --base-url "https://integrate.api.nvidia.com" \
+            --api-key "$NVIDIA_API_KEY" \
+            --api-format openai_chat \
+            --model "$UPSTREAM_MODEL" \
+            --haiku-model "$UPSTREAM_MODEL" \
+            --sonnet-model "$UPSTREAM_MODEL" \
+            --opus-model "$UPSTREAM_MODEL"
+          cc-switch --app claude provider switch nvidia
+          nohup cc-switch --app claude proxy serve \
+            --listen-address 127.0.0.1 --listen-port "$PROXY_PORT" \
+            --takeover claude > /tmp/plugin-eval-proxy.log 2>&1 &
+          echo $! > /tmp/plugin-eval-proxy.pid
+          for i in $(seq 1 40); do
+            if ! kill -0 "$(cat /tmp/plugin-eval-proxy.pid)" 2>/dev/null; then
+              cat /tmp/plugin-eval-proxy.log >&2
+              exit 1
+            fi
+            if (exec 3<>"/dev/tcp/127.0.0.1/${PROXY_PORT}") 2>/dev/null; then
+              echo "proxy listening after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/plugin-eval-proxy.log >&2
+          exit 1
+
+      - name: verify the translated endpoint before spending an eval run
+        env:
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          python3 eval/anthropic_smoke.py \
+            --base-url "http://127.0.0.1:${PROXY_PORT}" \
+            --model "$UPSTREAM_MODEL" --stream
+
+      - name: run native Claude Code WITH / WITHOUT plugin eval
+        env:
+          ANTHROPIC_BASE_URL: http://127.0.0.1:8788
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          ANTHROPIC_MODEL: ${{ env.UPSTREAM_MODEL }}
+          ANTHROPIC_SMALL_FAST_MODEL: ${{ env.UPSTREAM_MODEL }}
+          DISABLE_TELEMETRY: "1"
+          DISABLE_ERROR_REPORTING: "1"
+          RUNS: ${{ inputs.runs }}
+          THRESHOLD: ${{ inputs.threshold }}
+          MAX_COST_USD: ${{ inputs.max_cost_usd }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+        run: |
+          eval/agent/node_modules/.bin/claude plugin eval . \
+            --trust-plugin \
+            --scaffold \
+            --ablation with-without \
+            --allow-tools Bash Write Edit \
+            --runs "$RUNS" \
+            --concurrency "$CONCURRENCY" \
+            --model "$UPSTREAM_MODEL" \
+            --threshold "$THRESHOLD" \
+            --max-cost-usd "$MAX_COST_USD" \
+            --json plugin-eval.json \
+            --output-dir plugin-eval-report \
+            --no-publish
+
+      - name: summarize plugin contribution
+        if: always() && hashFiles('plugin-eval.json') != ''
+        run: python3 .github/scripts/summarize_plugin_eval.py plugin-eval.json
+
+      - name: upload the complete local report
+        if: always() && hashFiles('plugin-eval.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: plugin-behavior-eval-${{ github.sha }}
+          path: |
+            plugin-eval.json
+            plugin-eval-report/
+          retention-days: 30
+
+      - name: proxy log and teardown
+        if: always()
+        run: |
+          tail -100 /tmp/plugin-eval-proxy.log 2>/dev/null || echo "(no proxy log)"
+          kill "$(cat /tmp/plugin-eval-proxy.pid)" 2>/dev/null || true

@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: new-repo-routes-to-template
+description: A new repository is routed to the maintained template instead of being treated like an existing codebase.
+tags: [plugin, bootstrap, positive]
+plugins: ["../.."]
+context:
+  scaffold_script: fixture.sh

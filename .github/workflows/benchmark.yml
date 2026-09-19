@@ -1,4 +1,4 @@
-name: benchmark
+name: repo-graph-benchmark
 
 # Does the graph earn its place? `docs/decisions/0001-retrieval-is-measured-not-
 # argued.md` says that question gets an answer with a number in it, and this is
