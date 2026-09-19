@@ -1,0 +1,49 @@
+name: postmerge-ci
+
+# Full supported-version coverage after merge. Pull requests exercise the
+# oldest and newest supported Python; main exercises every minor between them.
+# This follows the fast-blocking / broad-postmerge split used by large,
+# high-frequency repositories instead of multiplying PR latency by six.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  supported-python:
+    name: Python ${{ matrix.python }} full compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: run the same compatibility lane CI owns
+        run: python3 scripts/check.py --job python-compat
+
+  results:
+    name: Postmerge CI results
+    if: always()
+    needs: [supported-python]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: require the full supported-version matrix
+        env:
+          RESULT: ${{ needs.supported-python.result }}
+        run: test "$RESULT" = success
