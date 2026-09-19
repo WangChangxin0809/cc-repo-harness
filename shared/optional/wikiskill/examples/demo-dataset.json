@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "tasks": [
+    {"id":"train_0","group":"train_group_0","split":"train","prompt":"Return input.text in uppercase.","input":{"text":"train-example-0"},"expected":"TRAIN-EXAMPLE-0"},
+    {"id":"train_1","group":"train_group_1","split":"train","prompt":"Return input.text in uppercase.","input":{"text":"train-example-1"},"expected":"TRAIN-EXAMPLE-1"},
+    {"id":"train_2","group":"train_group_2","split":"train","prompt":"Return input.text in uppercase.","input":{"text":"train-example-2"},"expected":"TRAIN-EXAMPLE-2"},
+    {"id":"train_3","group":"train_group_3","split":"train","prompt":"Return input.text in uppercase.","input":{"text":"train-example-3"},"expected":"TRAIN-EXAMPLE-3"},
+    {"id":"val_0","group":"val_group_0","split":"val","prompt":"Return input.text in uppercase.","input":{"text":"val-example-0"},"expected":"VAL-EXAMPLE-0"},
+    {"id":"val_1","group":"val_group_1","split":"val","prompt":"Return input.text in uppercase.","input":{"text":"val-example-1"},"expected":"VAL-EXAMPLE-1"},
+    {"id":"test_0","group":"test_group_0","split":"test","prompt":"Return input.text in uppercase.","input":{"text":"test-example-0"},"expected":"TEST-EXAMPLE-0"},
+    {"id":"test_1","group":"test_group_1","split":"test","prompt":"Return input.text in uppercase.","input":{"text":"test-example-1"},"expected":"TEST-EXAMPLE-1"}
+  ]
+}

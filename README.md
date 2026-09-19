@@ -148,7 +148,7 @@ The proposal workflow evaluates the candidate against recorded tool calls and ca
 **Publish project knowledge:** maintain reviewed sources and cited answers, with documentation built from approved content.  
 **Evaluate parallel work:** compare task outcomes, elapsed time, and cost alongside coordination readiness.
 
-The preview is a separate implementation candidate, not installed by the quick start above. The [collaboration plan](docs/exec-plans/collaboration-harness/README.md) and [field trial](docs/exec-plans/field-trial/README.md) track the broader direction.
+The preview is opt-in and not installed by the quick start above. Read the [AgentRoom runtime](docs/reference/agentroom-v3.md), [WikiSkill evolution lane](docs/how-to/wikiskill-v3.md), [reviewed knowledge lane](docs/reference/knowledge-v3.md), and [concurrency assessment annex](docs/reference/concurrency-v3.md). The [collaboration plan](docs/exec-plans/collaboration-harness/README.md) and [field trial](docs/exec-plans/field-trial/README.md) track the broader direction.
 
 ## Explore the mechanisms
 
