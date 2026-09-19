@@ -17,6 +17,11 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+try:
+    from .localio import file_lock
+except ImportError:
+    from localio import file_lock
+
 SCHEMA = 1
 MAX_MESSAGE_BYTES = 8192
 MAX_PAGE = 100
@@ -60,28 +65,33 @@ class Room:
         self.db = state_dir / "state.sqlite3"
         if self.db.is_symlink():
             raise ValueError("room database must not be a symlink")
-        with self._connection() as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, SCHEMA):
-                raise ValueError("unsupported room schema; do not delete a live database")
-            conn.executescript("""
-                CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS agents(owner TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, seen REAL NOT NULL);
-                CREATE TABLE IF NOT EXISTS claims(path TEXT PRIMARY KEY, owner TEXT NOT NULL, lease TEXT NOT NULL, expires REAL NOT NULL);
-                CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, created REAL NOT NULL);
-                CREATE TABLE IF NOT EXISTS receipts(owner TEXT NOT NULL, request TEXT NOT NULL, message TEXT NOT NULL, event_id INTEGER NOT NULL, PRIMARY KEY(owner, request));
-            """)
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute("INSERT OR IGNORE INTO metadata VALUES('root', ?)", (str(self.root),))
-            stored = conn.execute("SELECT value FROM metadata WHERE key='root'").fetchone()[0]
-            if stored != str(self.root):
-                conn.rollback()
-                raise ValueError("worktree moved; archived state must be migrated explicitly")
-            conn.execute("PRAGMA user_version=1")
-            conn.commit()
-        if os.name == "posix":
-            os.chmod(self.db, 0o600)
+        # WAL selection and first-schema creation need a cross-process critical
+        # section. SQLite transaction timeouts protect normal writes, but several
+        # processes racing the first PRAGMA journal_mode=WAL can fail before the
+        # schema exists (observed on Python 3.13).
+        with file_lock(state_dir / "init.lock"):
+            with self._connection() as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                version = conn.execute("PRAGMA user_version").fetchone()[0]
+                if version not in (0, SCHEMA):
+                    raise ValueError("unsupported room schema; do not delete a live database")
+                conn.executescript("""
+                    CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                    CREATE TABLE IF NOT EXISTS agents(owner TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, seen REAL NOT NULL);
+                    CREATE TABLE IF NOT EXISTS claims(path TEXT PRIMARY KEY, owner TEXT NOT NULL, lease TEXT NOT NULL, expires REAL NOT NULL);
+                    CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, created REAL NOT NULL);
+                    CREATE TABLE IF NOT EXISTS receipts(owner TEXT NOT NULL, request TEXT NOT NULL, message TEXT NOT NULL, event_id INTEGER NOT NULL, PRIMARY KEY(owner, request));
+                """)
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("INSERT OR IGNORE INTO metadata VALUES('root', ?)", (str(self.root),))
+                stored = conn.execute("SELECT value FROM metadata WHERE key='root'").fetchone()[0]
+                if stored != str(self.root):
+                    conn.rollback()
+                    raise ValueError("worktree moved; archived state must be migrated explicitly")
+                conn.execute("PRAGMA user_version=1")
+                conn.commit()
+            if os.name == "posix":
+                os.chmod(self.db, 0o600)
 
     @contextmanager
     def _connection(self):
