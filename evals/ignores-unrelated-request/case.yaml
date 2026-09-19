@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: ignores-unrelated-request
+description: The bootstrap skill stays out of a simple repository-reading request.
+tags: [plugin, specificity, negative]
+plugins: ["../.."]
+context:
+  scaffold_script: fixture.sh
