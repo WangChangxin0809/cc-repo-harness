@@ -23,6 +23,24 @@ def digest(value):
     return hashlib.sha256(dumps(value).encode('utf-8')).hexdigest()
 
 
+def canonical_path(value, label='path'):
+    """Resolve existing ancestor aliases once, while rejecting a symlink target.
+
+    macOS intentionally exposes paths such as /var through a system symlink to
+    /private/var. Rejecting every symlink ancestor makes ordinary tempfile
+    directories unusable. Resolve those ancestors to one canonical absolute
+    path before opening anything; still reject when the caller's final path is
+    itself a symlink.
+    """
+    raw = Path(value).expanduser()
+    if raw.is_symlink():
+        raise ValueError(label + ' cannot itself be a symlink')
+    try:
+        return raw.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(label + ' cannot be resolved safely') from exc
+
+
 @contextmanager
 def writer_lock(path):
     fd = os.open(path, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
@@ -43,10 +61,7 @@ def writer_lock(path):
 
 class RunDB:
     def __init__(self, root):
-        self.root = Path(root).absolute()
-        for part in [self.root, *self.root.parents]:
-            if part.is_symlink():
-                raise ValueError('run directory ancestors cannot be symlinks')
+        self.root = canonical_path(root, 'run directory')
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.root / 'run.sqlite3'
         if self.path.is_symlink():
