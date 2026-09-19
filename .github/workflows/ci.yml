@@ -1,22 +1,12 @@
 name: ci
 
-# The server-side half of what this plugin tells everyone else to build. Its
-# own README calls a check that only runs on a laptop the weakest of the three
-# layers, and until this file existed that was exactly what this repository
-# had: a ci.sh nobody was obliged to run.
+# Fast merge-blocking CI. Keep the model/API-costing behavioral evals out of
+# this file: an untrusted pull request must not need a repository secret to earn
+# a mergeable result. Expensive/full compatibility lives in postmerge-ci.yml.
 #
-# Exit 2 means "could not judge" and is never a pass. Nothing special is needed
-# to honour that here -- any non-zero exit fails the step -- but it is the
-# reason no step is allowed to swallow a status with `|| true`.
-#
-# Every step is one line invoking a script, and that is the same rule
-# moments.md states for .claude/settings.json rather than a style preference.
-# Judgement written into a CI wiring cannot be run before pushing, cannot be
-# tested, and dies with the provider.
-#
-# No path filters, deliberately. A docs-only change is exactly what breaks the
-# routing table and check_docs_runnable.py, so "skip CI for docs" would skip
-# the checks most likely to catch it.
+# The path selector only saves work on pull requests. Every push to main runs
+# every blocking lane, so a selector bug cannot leave a main commit unjudged.
+# The selector and the final required-context policy are both self-tested.
 
 on:
   pull_request:
@@ -28,9 +18,6 @@ permissions:
   contents: read
 
 concurrency:
-  # Superseded pushes to a pull request are cancelled. Pushes to main are not:
-  # main's history is what every later bisect is measured against, and a
-  # cancelled run leaves a commit nobody ever judged sitting in it.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -39,202 +26,122 @@ defaults:
     shell: bash
 
 jobs:
-  checks:
-    runs-on: ubuntu-latest
-    # The whole job is about five seconds. Anything approaching ten minutes has
-    # hung, and the default six-hour ceiling turns a hang into a queue nobody
-    # notices until someone asks why CI is slow.
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        # The README claims Python 3.9+ with no dependencies. A claim about a
-        # version nobody runs is a claim, not a fact -- so run the floor and
-        # the ceiling, and let the matrix be the thing that keeps it true.
-        python: ["3.9", "3.13"]
+  changes:
+    name: Detect CI lanes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      python: ${{ steps.select.outputs.python }}
+      acceptance: ${{ steps.select.outputs.acceptance }}
+      preview: ${{ steps.select.outputs.preview }}
+      plugin_host: ${{ steps.select.outputs.plugin_host }}
+      force_all: ${{ steps.select.outputs.force_all }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          # checkout leaves the job's token in .git/config unless told not to,
-          # where every later step -- and anything a later step runs -- can read
-          # it. zizmor calls this `artipacked`. Nothing here needs to push.
           persist-credentials: false
+          fetch-depth: 0
+      - name: classify the actual merge-base diff
+        id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: python3 .github/scripts/select_ci.py --base "$BASE" --head "$HEAD" --github-output "$GITHUB_OUTPUT"
 
+  python-compat:
+    name: Python ${{ matrix.python }}
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.python == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        # Fast PR boundary: oldest supported and latest stable. postmerge-ci
+        # covers every supported minor between them.
+        python: ["3.9", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python }}
 
       - name: guards can still turn red
         run: python3 shared/scripts/guards/selftest.py
-
       - name: gates can still turn red
         run: python3 shared/scripts/gates/selftest.py --verbose
-
-      # Delivery is the one thing here that fails *silently in the passing
-      # direction*: a hook that writes to the wrong channel produces text, exits
-      # 0, and reaches nobody. `after_edit.py` did exactly that for its whole
-      # life, with a test that read its stdout and was satisfied.
-      - name: the context hooks still reach the model
+      - name: context hooks still reach the model
         run: python3 shared/scripts/context/selftest.py --verbose
-
-      # The index is the one component whose defects are invisible: a broken
-      # gate turns red, a broken guard fails open and its selftest catches it,
-      # but a graph that ranks the wrong file returns a confident wrong answer
-      # nobody checks. It shipped without a selftest; these are the defects
-      # that were in it.
-      - name: the repo graph still says what it claims
+      - name: repo graph still says what it claims
         run: python3 shared/scripts/index/selftest.py --verbose
-
-      # An assessment that stops working is worse than a gate that stops
-      # working, because it keeps printing numbers. A probe gone blind reports
-      # a repository as safe, and that report is indistinguishable from the
-      # report on a repository that is safe. Half these cases build a
-      # repository that must score *badly* -- a measurement that cannot go down
-      # has not measured anything.
-      - name: the assessment can still tell a good repository from a bad one
+      - name: assessment still distinguishes good and bad repositories
         run: python3 shared/scripts/assess/selftest.py --verbose
-
-      # Optional collaboration previews are not enabled by default, but their
-      # dependency-free control paths still need regression coverage.
       - name: AgentRoom coordination preview still holds
         run: python3 shared/optional/agentroom/selftest.py
-
       - name: AgentRoom installer preview still holds
         run: python3 shared/optional/agentroom/install_selftest.py
-
       - name: WikiSkill evolution preview still holds
         run: python3 shared/optional/wikiskill/selftest.py
-
       - name: concurrency assessment preview stays evidence-scoped
         run: python3 shared/scripts/assess/concurrency_selftest.py
-
-      # The trust gate decides whether an unread repository's code executes on
-      # someone's machine. It is the only component here that fails silently
-      # and in the safe-looking direction: a check that wrongly concludes
-      # "trusted" produces no error, no output and no symptom until the
-      # repository it waved through was hostile. It shipped with no test.
       - name: nothing runs until it is trusted
         run: python3 hooks/selftest.py --verbose
-
-      # The shipped gates, turned on this repository. This is the step that
-      # would have caught the defect that motivated writing check_templates_
-      # filled.py in the first place: a scaffolder whose own output no gate
-      # here could see.
-      - name: no unfilled templates
-        run: python3 shared/scripts/gates/check_templates_filled.py --root .
-
-      - name: public face intact
-        run: python3 shared/scripts/gates/check_community_health.py --root .
-
-      # `aafdc0113` fixed every wired hook here: each one named its script by
-      # a bare relative path, which only resolved when the session's cwd
-      # happened to be the repository root. `python3 <missing>.py` exits 2,
-      # the same code Claude Code reads as *block*, so the failure was not
-      # silence but every matching tool call refused for an unreadable reason
-      # -- and for the Stop hook, a session that could never be ended from
-      # outside a worktree. This is the same-turn layer that defect disabled,
-      # reading the wiring directly instead of trusting it is intact.
-      - name: wired hook commands resolve from any working directory
-        run: python3 shared/scripts/gates/check_hook_paths.py --root .
-
-      - name: docs routing table resolves
-        run: python3 shared/scripts/gates/check_docs_index.py --root .
-
-      # A file past 2000 lines is read by an agent in pieces, and the piece it
-      # did not ask for is where the defect it did not see lives. This gate
-      # found its own 6074-line assess/selftest.py this way.
-      - name: no file is longer than an agent reads in one call
-        run: python3 shared/scripts/gates/check_file_size.py --root .
-
-      # A second instrument scoring this repository found a username in three
-      # committed result files. It was right, and the answer to a finding a
-      # paragraph could have prevented is a check rather than a paragraph.
-      - name: nobody's home directory is committed
-        run: python3 shared/scripts/gates/check_no_machine_paths.py --root .
-
-      # This repository keeps its own wiki, filled by /learn from the
-      # sessions on the maintainers' machines. Same gate the payload ships.
-      - name: the wiki stays a record
-        run: python3 shared/scripts/gates/check_wiki_hygiene.py --root .
-
-      - name: that gate can still turn red
+      - name: machine-path gate can still turn red
         run: python3 shared/scripts/gates/check_no_machine_paths.py --selftest
-
-      # The gate that found four shipped commands in this repository's own
-      # skills that exited with `unrecognized arguments`. Documentation is the
-      # one artefact here that nobody ever executes, which is why it drifts
-      # first and silently.
-      - name: documented commands would run
-        run: python3 shared/scripts/gates/check_docs_runnable.py --root .
-
-      # Every step above this line judges the payload -- the files this plugin
-      # copies into somebody else's repository. None of them judge the plugin:
-      # `.claude-plugin/`, `skills/`, `agents/`, `hooks/hooks.json` are what
-      # Claude Code actually loads, and they had no coverage at all. The gap
-      # was not carelessness. Payload is code, and code gets a selftest; a
-      # skill is markdown, and nobody writes a test for a paragraph.
-      #
-      # What was sitting in the gap: ten commands across four skills telling an
-      # agent to run `python3 <plugin>/shared/scripts/scaffold.py`, against a
-      # placeholder this repository invented and nothing resolves.
-      - name: the plugin surface itself holds
-        # The cap is the tightest one this repository currently passes. It is a
-        # ratchet, not a budget with headroom: every token here is paid in
-        # every repository on the machine, including the ones that never invoke
-        # this plugin, so the only honest direction for this number is down.
-        run: python3 shared/scripts/check_plugin_structure.py --root . --always-on-cap 171
-
-      # The other half of drift needs judgement and cannot be a gate. What can
-      # be checked is the tool that prepares the judgement: that its git triage
-      # points the right way, that `Governs:` matches by segment here too, and
-      # that an unreviewed packet cannot come back clean.
-      - name: the plugin checker can still turn red
+      - name: plugin checker can still turn red
         run: python3 shared/scripts/check_plugin_structure.py --selftest --verbose
-
-      - name: the drift pass can still tell a suspect from a quiet pair
+      - name: drift pass distinguishes a suspect from a quiet pair
         run: python3 shared/scripts/drift.py selftest --verbose
-
-      # The wiki's two instruments. The extractor must tell a guard's refusal
-      # from a file that merely contains the word; the replay must name the
-      # legitimate call a wrong candidate guard would break.
-      - name: the extractor can still tell a refusal from a file that says Blocked
+      - name: extractor distinguishes a refusal from prose
         run: python3 shared/scripts/wiki/extract.py --selftest --verbose
-      - name: the replay can still name the call a wrong guard would break
+      - name: replay names the legitimate call a wrong guard would break
         run: python3 shared/scripts/wiki/replay.py --selftest --verbose
-
-
-      # The push into the template repository. It cannot run here -- the
-      # template is a separate repository and this job has no checkout of it --
-      # but the thing that broke once was the *tool*, not the destination: the
-      # first sync copied four gate files and left `gates/selftest.py` behind,
-      # so the template shipped a ceiling its own suite did not know about.
-      - name: the template sync can still see a partial copy
+      - name: template sync can still see a partial copy
         run: python3 scripts/sync_template.py --selftest --verbose
 
-      # `scripts/check.py` is the one local command, and it works by reading
-      # this file rather than restating it -- so the failure mode is a step
-      # landing here in a shape it cannot classify, which it would then
-      # silently not run. This is the step that catches that: it parses the
-      # real workflow and goes red if anything in it is unreadable.
-      - name: the local runner can still read this file
+  surface:
+    name: Repository and plugin surface
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: no unfilled templates
+        run: python3 shared/scripts/gates/check_templates_filled.py --root .
+      - name: public face intact
+        run: python3 shared/scripts/gates/check_community_health.py --root .
+      - name: wired hook commands resolve from any working directory
+        run: python3 shared/scripts/gates/check_hook_paths.py --root .
+      - name: docs routing table resolves
+        run: python3 shared/scripts/gates/check_docs_index.py --root .
+      - name: files stay inside the agent-readable ceiling
+        run: python3 shared/scripts/gates/check_file_size.py --root .
+      - name: nobody's home directory is committed
+        run: python3 shared/scripts/gates/check_no_machine_paths.py --root .
+      - name: wiki stays a record
+        run: python3 shared/scripts/gates/check_wiki_hygiene.py --root .
+      - name: documented commands resolve
+        run: python3 shared/scripts/gates/check_docs_runnable.py --root .
+      - name: plugin surface stays within its standing-context budget
+        run: python3 shared/scripts/check_plugin_structure.py --root . --always-on-cap 171
+      - name: CI lane selector can still turn every required lane on
+        run: python3 .github/scripts/select_ci.py --self-test
+      - name: stable required context rejects skipped selected work
+        run: python3 .github/scripts/check_ci_results.py --self-test
+      - name: local runner can still read the workflow
         run: python3 scripts/check.py --selftest
 
   acceptance:
-    # The plugin's own acceptance criterion, the one the README states in prose:
-    # scaffold a repository, fill in what the red list names, delete the plugin,
-    # and the repository must still stand on its own.
-    #
-    # Every step in `checks` runs with the plugin sitting right there on disk,
-    # so none of them can tell a repository that stands alone from one quietly
-    # reaching back into the checkout it was scaffolded from. That difference is
-    # invisible to whoever ran the scaffolder and total for the teammate who
-    # clones afterwards.
-    #
-    # Its own job because it is the slow one -- about thirteen seconds of
-    # scaffolding and copying against five for everything else -- and because
-    # "the scaffolder broke" and "a gate broke" deserve two different red
-    # squares.
-    runs-on: ubuntu-latest
+    name: Scaffold acceptance
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.acceptance == 'true' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -242,40 +149,68 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
-
-      - name: the scaffold reaches green, and outlives the plugin
+          python-version: "3.14"
+      - name: scaffold reaches green and outlives the plugin
         run: python3 shared/scripts/selftest.py --verbose
 
+  preview-native:
+    name: AgentRoom native MCP / CRDT
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.preview == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: install the pinned optional native runtime
+        run: python3 -m pip install -r shared/optional/agentroom/requirements.txt
+      - name: official MCP SDK and pycrdt interoperate
+        env:
+          NATIVE_AGENTROOM: "1"
+        run: python3 shared/optional/agentroom/protocol_selftest.py
+
+  plugin-host:
+    name: Claude Code host validation
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.plugin_host == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: eval/agent/package-lock.json
+      - name: install the pinned Claude Code under test
+        run: npm ci --prefix eval/agent --no-audit --no-fund
+      - name: the real Claude Code host accepts this plugin
+        env:
+          CLAUDE_BIN: eval/agent/node_modules/.bin/claude
+        run: '"$CLAUDE_BIN" plugin validate . --strict'
+      - name: the pinned host exposes native plugin evals
+        env:
+          CLAUDE_BIN: eval/agent/node_modules/.bin/claude
+        run: '"$CLAUDE_BIN" plugin eval --help'
+
   hygiene:
-    # Three linters, and the reason they are here rather than in a contributing
-    # note is the repository's own rule: what cannot tolerate a miss does not go
-    # through a paragraph hoping to be read.
-    #
-    # zizmor is the one that earned its place immediately. Run against this file
-    # before it existed, it found ten: seven unpinned actions, and three
-    # checkouts leaving the job's token in .git/config. Both were written by
-    # somebody who had read the security section of this repository's own README
-    # that morning, which is the whole argument for a check over a convention.
-    runs-on: ubuntu-latest
+    name: Workflow and Python hygiene
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
-
-      # Pinned in a requirements file rather than inline, so Dependabot can see
-      # them. A version written into YAML is one nothing updates.
+          python-version: "3.14"
       - name: install the linters
-        # actionlint-py's wheel build downloads a Go binary from GitHub. That
-        # download got "Connection reset by peer" once on main (run
-        # 33623238941; the rerun of the same commit was green), so the install
-        # is attempted three times before the step is red for real. A red
-        # here still says nothing about the repository, only about the runner.
         run: |
           for attempt in 1 2 3; do
             python3 -m pip install -r .github/requirements-dev.txt && exit 0
@@ -283,56 +218,30 @@ jobs:
             sleep 15
           done
           exit 1
-
-      # Syntax, expression typing, and shellcheck over every `run:` block. It
-      # was already clean when introduced; that is the point of adding it before
-      # anything is wrong rather than after.
       - name: workflows are valid
-        # The console script, not `python3 -m actionlint`: actionlint-py wheels
-        # a Go binary and installs an entry point, there is no importable
-        # module. The `-m` form was written here, verified nowhere, and failed
-        # on the first run of the job it was added in.
         run: actionlint
-
-      # Supply chain. A tag is mutable, so an action referenced by tag is a
-      # promise from whoever can move it; the SHA pins are what this enforces.
       - name: workflows are not a supply-chain hole
         run: zizmor --no-progress .github/workflows/
-
-      # Lint only -- see ruff.toml for why there is no formatter, and for what
-      # was deliberately not selected. It found two real defects on first run.
-      - name: the Python says what it means
+      - name: Python says what it means
         run: ruff check .
 
   release-hygiene:
-    # Only on a pull request: there is nothing to diff a push to main against,
-    # and a check that quietly does nothing on half its triggers is worse than
-    # one that is absent, because the green square says it ran.
+    name: Release hygiene
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          # The check diffs against the merge base. A shallow clone has none,
-          # and the script exits 2 rather than guessing.
           fetch-depth: 0
-
-      # First, deliberately. A validator that has stopped detecting its target
-      # reports a clean build forever, and that is precisely the failure this
-      # repository was built to talk about.
-      - name: the version check can still turn red
+      - name: version check can still turn red
         run: python3 .github/scripts/check_version_bumped.py --self-test --verbose
-      - name: the release tagger can still turn red
+      - name: release tagger can still turn red
         run: python3 .github/scripts/release_tag.py --self-test --verbose
-
-      - name: a change that ships something raises the version
+      - name: a shipped change raises the plugin version
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          # A pull request labelled `no-version-bump` is an explicit statement
-          # that this ships nothing, made in public on the pull request. That is
-          # a different thing from forgetting, which is what this catches.
           EXEMPT: >-
             ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump')
                 || github.event.pull_request.user.login == 'dependabot[bot]' }}
@@ -343,3 +252,90 @@ jobs:
             exit 0
           fi
           python3 .github/scripts/check_version_bumped.py --base-ref "$BASE"
+
+  # Transitional compatibility contexts for the repository's existing
+  # classic branch protection. They do not rerun checks; each mirrors the one
+  # version-controlled terminal gate above. Once branch protection requires
+  # only "CI required", delete these five jobs.
+  legacy-checks-39:
+    name: checks (3.9)
+    if: always()
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.required.result }}
+        run: test "$RESULT" = success
+
+  legacy-checks-313:
+    name: checks (3.13)
+    if: always()
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.required.result }}
+        run: test "$RESULT" = success
+
+  legacy-acceptance:
+    name: acceptance
+    if: always()
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.required.result }}
+        run: test "$RESULT" = success
+
+  legacy-hygiene:
+    name: hygiene
+    if: always()
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.required.result }}
+        run: test "$RESULT" = success
+
+  legacy-release-hygiene:
+    name: release-hygiene
+    if: always()
+    needs: required
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.required.result }}
+        run: test "$RESULT" = success
+
+  required:
+    name: CI required
+    if: always()
+    needs:
+      - changes
+      - python-compat
+      - surface
+      - acceptance
+      - preview-native
+      - plugin-host
+      - hygiene
+      - release-hygiene
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: require every selected dependency to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_PYTHON: ${{ needs.changes.outputs.python }}
+          RUN_ACCEPTANCE: ${{ needs.changes.outputs.acceptance }}
+          RUN_PREVIEW: ${{ needs.changes.outputs.preview }}
+          RUN_PLUGIN_HOST: ${{ needs.changes.outputs.plugin_host }}
+        run: python3 .github/scripts/check_ci_results.py

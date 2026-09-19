@@ -164,6 +164,7 @@ def main(argv=None):
     ap.add_argument("--root", default=ROOT)
     ap.add_argument("--list", action="store_true",
                     help="print the verdicts and run nothing")
+    ap.add_argument("--job", help="run/list only one CI job; useful for compatibility matrices")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
     if args.selftest:
@@ -175,6 +176,11 @@ def main(argv=None):
         return 2
     with open(path, encoding="utf-8") as fh:
         steps = parse(fh.read())
+    if args.job:
+        steps = [step for step in steps if step.job == args.job]
+        if not steps:
+            print("could not judge: no CI job named " + args.job, file=sys.stderr)
+            return 2
 
     unknown = [s for s in steps if s.verdict[0] == UNKNOWN]
     if unknown:
@@ -311,6 +317,11 @@ def selftest(verbose=True):
         bad += not ok
         print("{0} the real workflow: {1} runnable, {2} unreadable".format(
             "ok  " if ok else "FAIL", len(runs), len(stuck)))
+        selected = [step for step in real if step.job == "python-compat"]
+        ok = bool(selected) and all(step.job == "python-compat" for step in selected)
+        bad += not ok
+        print("{0} --job can select the compatibility lane ({1} steps)".format(
+            "ok  " if ok else "FAIL", len(selected)))
         for name in stuck:
             print("     {0}".format(name))
     print("\n{0}".format("all cases pass" if not bad
