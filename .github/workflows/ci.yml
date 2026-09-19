@@ -198,6 +198,20 @@ jobs:
         env:
           CLAUDE_BIN: eval/agent/node_modules/.bin/claude
         run: '"$CLAUDE_BIN" plugin eval --help'
+      - name: the native evaluator can load every committed eval case without a model call
+        env:
+          CLAUDE_BIN: eval/agent/node_modules/.bin/claude
+        run: |
+          set +e
+          output="$("$CLAUDE_BIN" plugin eval . \
+            --trust-plugin \
+            --case '__cc_repo_harness_schema_probe_matches_nothing__' \
+            --no-publish 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$rc" -eq 1
+          grep -Fq 'No eval cases found' <<< "$output"
 
   hygiene:
     name: Workflow and Python hygiene
