@@ -16,9 +16,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 try:
-    from .persistence import dumps
+    from .persistence import canonical_path, dumps
 except ImportError:
-    from persistence import dumps
+    from persistence import canonical_path, dumps
 
 SECRET_PATTERNS = [
     re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
@@ -53,9 +53,7 @@ def tokens(text):
 
 class Knowledge:
     def __init__(self, directory):
-        self.root = Path(directory).absolute()
-        if any(p.is_symlink() for p in [self.root, *self.root.parents]):
-            raise ValueError('knowledge directory cannot traverse symlinks')
+        self.root = canonical_path(directory, 'knowledge directory')
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = self.root / 'knowledge.sqlite3'
         if self.db.is_symlink(): raise ValueError('knowledge database cannot be a symlink')
@@ -240,9 +238,7 @@ class Knowledge:
         return result
 
     def publish(self, directory):
-        target = Path(directory)
-        if any(p.is_symlink() for p in [target.absolute(), *target.absolute().parents]):
-            raise ValueError('publish destination cannot traverse symlinks')
+        target = canonical_path(directory, 'publish destination')
         index = []
         with self.connect() as c:
             c.execute('BEGIN')
