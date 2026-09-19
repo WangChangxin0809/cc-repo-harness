@@ -5,6 +5,7 @@ name: ecosystem-canary
 # making an unrelated pull request fail because somebody else released today.
 
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
     - cron: "17 8 * * *"
