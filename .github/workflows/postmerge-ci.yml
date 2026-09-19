@@ -6,6 +6,7 @@ name: postmerge-ci
 # actually differ.
 
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
