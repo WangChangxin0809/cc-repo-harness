@@ -94,6 +94,20 @@ jobs:
       - name: the assessment can still tell a good repository from a bad one
         run: python3 shared/scripts/assess/selftest.py --verbose
 
+      # Optional collaboration previews are not enabled by default, but their
+      # dependency-free control paths still need regression coverage.
+      - name: AgentRoom coordination preview still holds
+        run: python3 shared/optional/agentroom/selftest.py
+
+      - name: AgentRoom installer preview still holds
+        run: python3 shared/optional/agentroom/install_selftest.py
+
+      - name: WikiSkill evolution preview still holds
+        run: python3 shared/optional/wikiskill/selftest.py
+
+      - name: concurrency assessment preview stays evidence-scoped
+        run: python3 shared/scripts/assess/concurrency_selftest.py
+
       # The trust gate decides whether an unread repository's code executes on
       # someone's machine. It is the only component here that fails silently
       # and in the safe-looking direction: a check that wrongly concludes
