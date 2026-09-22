@@ -1,7 +1,8 @@
 name: release
 
 # When the version in .claude-plugin/plugin.json changes on main, tag that
-# commit `v<version>` and publish a GitHub release from it.
+# commit `v<version>` and publish a GitHub release from it, after both main
+# push CI workflows have succeeded for that exact repository and commit.
 #
 # This is the whole of what "shipping" means for a plugin: Claude Code decides
 # whether an installed copy needs updating by comparing that version, and the
@@ -17,8 +18,8 @@ name: release
 # answer is the one that matters -- a version that already has a tag at a
 # different commit was reused, and the run stops rather than moving anything.
 #
-# Idempotent: a rerun, or a merge that touched plugin.json without changing
-# the version, finds the tag in place and exits green having done nothing.
+# Idempotent: a rerun at the same commit finds the tag and publishes nothing.
+# A different commit reusing an existing version is rejected.
 
 on:
   push:
@@ -38,7 +39,24 @@ defaults:
     shell: bash
 
 jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: require successful main push CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release_evidence.py
+
   tag:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

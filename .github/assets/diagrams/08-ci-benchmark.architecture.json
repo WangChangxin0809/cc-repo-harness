@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Quality evidence from PR to release",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1260,
+      680
+    ]
+  },
+  "components": [
+    {
+      "id": "pr",
+      "type": "external",
+      "label": "Pull request",
+      "sublabel": "Code + reviewable diff",
+      "pos": [
+        35,
+        80
+      ],
+      "size": [
+        210,
+        86
+      ]
+    },
+    {
+      "id": "required",
+      "type": "backend",
+      "label": "Required CI",
+      "sublabel": "Contracts + quality",
+      "pos": [
+        350,
+        80
+      ],
+      "size": [
+        220,
+        86
+      ]
+    },
+    {
+      "id": "postmerge",
+      "type": "backend",
+      "label": "Postmerge CI",
+      "sublabel": "Python 3.9 through 3.14",
+      "pos": [
+        670,
+        80
+      ],
+      "size": [
+        220,
+        86
+      ]
+    },
+    {
+      "id": "release",
+      "type": "frontend",
+      "label": "Verified release",
+      "sublabel": "Exact SHA, both CI runs",
+      "pos": [
+        995,
+        80
+      ],
+      "size": [
+        220,
+        86
+      ]
+    },
+    {
+      "id": "benchmark",
+      "type": "backend",
+      "label": "Memory benchmark",
+      "sublabel": "Same harness, base + head",
+      "pos": [
+        350,
+        330
+      ],
+      "size": [
+        220,
+        86
+      ]
+    },
+    {
+      "id": "reports",
+      "type": "database",
+      "label": "Evidence artifacts",
+      "sublabel": "Cases + samples + revisions",
+      "pos": [
+        995,
+        330
+      ],
+      "size": [
+        220,
+        86
+      ]
+    },
+    {
+      "id": "native",
+      "type": "backend",
+      "label": "Native plugin eval",
+      "sublabel": "Manual, bounded WITH / WITHOUT",
+      "pos": [
+        670,
+        500
+      ],
+      "size": [
+        290,
+        86
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "validate",
+      "from": "pr",
+      "to": "required",
+      "label": "validate",
+      "variant": "emphasis"
+    },
+    {
+      "id": "merge",
+      "from": "required",
+      "to": "postmerge",
+      "label": "merge to main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "publish",
+      "from": "postmerge",
+      "to": "release",
+      "label": "success only",
+      "variant": "emphasis"
+    },
+    {
+      "id": "quality",
+      "from": "benchmark",
+      "to": "required",
+      "label": "quality gate",
+      "variant": "dashed",
+      "labelDy": -80
+    },
+    {
+      "id": "measured",
+      "from": "benchmark",
+      "to": "reports",
+      "label": "quality + raw timing",
+      "variant": "emphasis"
+    },
+    {
+      "id": "paired",
+      "from": "native",
+      "to": "reports",
+      "label": "validated paired runs",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Merge and release",
+      "items": [
+        "PR checks reject defects and incomplete evidence.",
+        "Publication waits for both main CI runs at the exact SHA."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Reproducible measurements",
+      "items": [
+        "Linux, Windows and macOS compare the same fixture.",
+        "Timing is reported; deterministic quality is enforced."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Model-backed evidence",
+      "items": [
+        "Manual native eval compares WITH and WITHOUT plugin.",
+        "Safety failures cannot disappear inside average scores."
+      ]
+    }
+  ]
+}

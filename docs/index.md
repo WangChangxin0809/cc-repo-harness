@@ -6,6 +6,8 @@
 
 | I want to | Read first |
 |---|---|
+| Understand CI layers, benchmarks and release evidence | [CI and benchmark automation](exec-plans/ci-benchmark-automation/README.md) |
+| Run CI, compare memory benchmarks or interpret native plugin eval | [CI and benchmark guide](how-to/ci-and-benchmarks.md) |
 | Know how the whole thing works before knowing what to ask | [ARCHITECTURE.md](../ARCHITECTURE.md) |
 | Set up a model backend for Claude Code | [model setup with CC Switch](how-to/model-setup.md) |
 | See the project mechanisms as diagrams | [visual guide](reference/diagram-gallery.md) |

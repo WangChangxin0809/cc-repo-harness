@@ -69,3 +69,21 @@ The script runs Archify's showcase validation, atomic HTML delivery, and officia
 The generated SVG replaces `.github/assets/diagrams/07-shared-memory.architecture.svg`. The interactive HTML, SHA-256 receipts, four viewport measurements, light/dark screenshots, and exported-image screenshots stay under ignored `tmp/shared-memory-implementation/`. Set `ARCHIFY_CHROME` if Chrome/Chromium is not auto-detected. Open the HTML locally to explore or use other native exports. Inspect both themes after generation: successful automated checks establish geometry and containment, while visual review remains a separate step.
 
 The diagram follows the [memory operations design](../exec-plans/shared-project-memory/operations-and-experience.zh-CN.md) and the implemented Git-only runtime. Its overview does not claim measured improvements in agent outcomes. Archify and its original template are MIT-licensed; the retained copyright and permission text is in [diagram notices](../../.github/assets/diagrams/07-shared-memory.NOTICES.md).
+
+## CI, benchmarks and release evidence
+
+![Required PR checks, postmerge compatibility and exact-SHA release verification; offline and native model evals produce evidence](../../.github/assets/diagrams/08-ci-benchmark.architecture.svg)
+
+[Architecture](../exec-plans/ci-benchmark-automation/architecture.zh-CN.md) · [Editable JSON](../../.github/assets/diagrams/08-ci-benchmark.architecture.json) · [License notices](../../.github/assets/diagrams/08-ci-benchmark.NOTICES.md)
+
+Use the same verified Archify 2.16.0 archive described above:
+
+```bash
+node scripts/render_memory_diagram.mjs --archify /path/to/archify --diagram 08-ci-benchmark.architecture
+```
+
+The optional `--diagram` selects a committed architecture specification. This
+diagram's interactive HTML, validation receipts and light/dark screenshots go
+to ignored `tmp/diagrams/08-ci-benchmark.architecture/`. The script preserves
+the default shared-memory diagram invocation. Inspect both exported themes
+after regeneration.

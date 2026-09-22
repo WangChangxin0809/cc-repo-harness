@@ -24,10 +24,14 @@ ALWAYS = ("changes", "surface", "hygiene")
 
 
 def truth(value: str | None) -> bool:
-    return str(value or "").lower() == "true"
+    if value not in ("true", "false"):
+        raise ValueError("selector outputs must be exactly true or false")
+    return value == "true"
 
 
 def expected_jobs(event: str, env: dict[str, str]) -> set[str]:
+    if event not in ("pull_request", "push", "workflow_dispatch"):
+        raise ValueError("unsupported or missing CI event: " + event)
     jobs = set(ALWAYS)
     if event == "pull_request":
         jobs.add("release-hygiene")
@@ -43,15 +47,17 @@ def check(needs: dict, event: str, env: dict[str, str]) -> list[tuple[str, str]]
     if not isinstance(needs, dict):
         raise ValueError("NEEDS must decode to an object")
     expected = expected_jobs(event, env)
-    missing = sorted(expected - set(needs))
+    # Unselected means a deliberate skip, not absent wiring or a failed job.
+    missing = sorted((set(ALWAYS) | set(CONDITIONAL) | {"release-hygiene"}) - set(needs))
     if missing:
         raise ValueError("required fan-in is missing dependencies: " + ", ".join(missing))
     failures = []
-    for name in sorted(expected):
+    for name in sorted(needs):
         item = needs.get(name)
         if not isinstance(item, dict) or not isinstance(item.get("result"), str):
             raise ValueError("dependency has no result: " + name)
-        if item["result"] != "success":
+        allowed = {"success"} if name in expected else {"success", "skipped"}
+        if item["result"] not in allowed:
             failures.append((name, item["result"]))
     return failures
 
