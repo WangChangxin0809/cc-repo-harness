@@ -12,6 +12,8 @@
 | Understand the AgentRoom collaboration preview | [AgentRoom preview](reference/agentroom-v3.md) |
 | Run or review the WikiSkill evolution preview | [WikiSkill preview](how-to/wikiskill-v3.md) |
 | Understand the reviewed knowledge lane | [knowledge stores](reference/knowledge-v3.md) |
+| Review the proposed team-shared project memory architecture | [shared project memory](exec-plans/shared-project-memory/README.md) |
+| Capture, review, consolidate and recall shared project memory | [shared memory guide](how-to/shared-memory.md) |
 | Read concurrency evidence without adding a sixth score | [concurrency preview](reference/concurrency-v3.md) |
 | Know why `docs/` is shaped this way, and what the evidence was | [0019](decisions/0019-constrain-the-top-level-not-the-shape.md) |
 | Know whether the retrieval layer is worth its cost | [0001](decisions/0001-retrieval-is-measured-not-argued.md) |

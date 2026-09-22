@@ -139,6 +139,16 @@ The proposal workflow evaluates the candidate against recorded tool calls and ca
 
 [Explore the learning workflow →](commands/learn.md)
 
+## Shared project memory
+
+Keep project decisions and lessons in Git so the next session can recall relevant knowledge with its sources. `remember` saves private candidates; `propose` and `apply` produce checked repository changes for the team's review and merge. `recall`, `verify`, `forget`, and `sync` maintain the local view.
+
+`dream prepare` freezes selected inputs for bounded, agent-assisted synthesis; `dream finish` checks the resulting private proposal before it can enter the same review path.
+
+<img src=".github/assets/diagrams/07-shared-memory.architecture.svg" alt="Private memory candidates become reviewable Git changes; optional agent-assisted dream preparation and completion feed the proposal path, and recall returns cited task context." width="960">
+
+[Use shared memory →](docs/how-to/shared-memory.md) · [Archify source and reproduction →](docs/reference/diagram-gallery.md#reproduce-the-shared-memory-diagram)
+
 ## Collaboration and skill evolution
 
 **Implementation preview · integration and host validation in progress.** The next layer connects parallel agents and evidence-driven learning to the same repository workflow.
