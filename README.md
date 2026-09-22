@@ -149,6 +149,23 @@ Keep project decisions and lessons in Git so the next session can recall relevan
 
 [Use shared memory →](docs/how-to/shared-memory.md) · [Archify source and reproduction →](docs/reference/diagram-gallery.md#reproduce-the-shared-memory-diagram)
 
+## CI and measurable quality
+
+Pull requests run deterministic checks; relevant code changes also run a fixed
+memory quality benchmark.
+After merge, every supported Python minor is checked; release automation waits
+for both CI runs at the exact commit it will publish. A separate memory workflow
+compares base and head on Linux, Windows and macOS, saving raw timing samples
+and case evidence. Timing is reported without a noisy shared-runner threshold.
+
+Native Claude Code plugin evals compare **WITH / WITHOUT** the plugin. They are
+manual, bounded runs with complete-sample validation and independent safety
+criteria; incomplete evidence cannot become a passing average.
+
+<img src=".github/assets/diagrams/08-ci-benchmark.architecture.svg" alt="Required PR checks lead to full postmerge compatibility and exact-commit verified releases; memory benchmarks and native plugin evals save reproducible evidence." width="960">
+
+[CI and benchmark guide →](docs/how-to/ci-and-benchmarks.md) · [中文架构与设计依据 →](docs/exec-plans/ci-benchmark-automation/README.md) · [Archify source →](.github/assets/diagrams/08-ci-benchmark.architecture.json)
+
 ## Collaboration and skill evolution
 
 **Implementation preview · integration and host validation in progress.** The next layer connects parallel agents and evidence-driven learning to the same repository workflow.

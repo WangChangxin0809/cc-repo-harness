@@ -16,7 +16,7 @@ on:
         description: "Minimum WITH-plugin case score"
         default: "0.67"
       max_cost_usd:
-        description: "Claude Code list-price ceiling for the suite"
+        description: "Claude list-price stop estimate, >0 and <=20 USD (not vendor bill)"
         default: "20"
       concurrency:
         description: "Concurrent agent runs (shared provider rate limit)"
@@ -32,6 +32,10 @@ concurrency:
 env:
   CC_SWITCH_VERSION: v5.10.3
   UPSTREAM_MODEL: ${{ inputs.model }}
+  RUNS: ${{ inputs.runs }}
+  THRESHOLD: ${{ inputs.threshold }}
+  MAX_COST_USD: ${{ inputs.max_cost_usd }}
+  CONCURRENCY: ${{ inputs.concurrency }}
   PROXY_PORT: "8788"
   CC_SWITCH_CONFIG_DIR: ${{ github.workspace }}/.cc-switch
 
@@ -53,6 +57,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.14"
+
+      - name: validate inputs and reviewed suite before provider access
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/validate_plugin_eval.py \
+            --suite evals --from-env --output plugin-eval-inputs.json \
+            2>&1 | tee plugin-eval-preflight.log
 
       - name: install sandbox prerequisites
         run: |
@@ -124,6 +135,7 @@ jobs:
             --model "$UPSTREAM_MODEL" --stream
 
       - name: run native Claude Code WITH / WITHOUT plugin eval
+        id: native_eval
         env:
           ANTHROPIC_BASE_URL: http://127.0.0.1:8788
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.NVIDIA_API_KEY }}
@@ -132,10 +144,6 @@ jobs:
           ANTHROPIC_SMALL_FAST_MODEL: ${{ env.UPSTREAM_MODEL }}
           DISABLE_TELEMETRY: "1"
           DISABLE_ERROR_REPORTING: "1"
-          RUNS: ${{ inputs.runs }}
-          THRESHOLD: ${{ inputs.threshold }}
-          MAX_COST_USD: ${{ inputs.max_cost_usd }}
-          CONCURRENCY: ${{ inputs.concurrency }}
         run: |
           eval/agent/node_modules/.bin/claude plugin eval . \
             --trust-plugin \
@@ -152,16 +160,21 @@ jobs:
             --no-publish
 
       - name: summarize plugin contribution
-        if: always() && hashFiles('plugin-eval.json') != ''
-        run: python3 .github/scripts/summarize_plugin_eval.py plugin-eval.json
+        if: always() && steps.native_eval.outcome != 'skipped'
+        run: |
+          python3 .github/scripts/summarize_plugin_eval.py plugin-eval.json \
+            --inputs plugin-eval-inputs.json
 
       - name: upload the complete local report
-        if: always() && hashFiles('plugin-eval.json') != ''
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: plugin-behavior-eval-${{ github.sha }}
           path: |
             plugin-eval.json
+            plugin-eval-inputs.json
+            plugin-eval-preflight.log
+            evals/policy.json
             plugin-eval-report/
           retention-days: 30
 

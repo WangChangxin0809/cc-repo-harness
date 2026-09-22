@@ -1,7 +1,7 @@
 version: 2
 
 # This repository ships no runtime dependencies, and that claim is enforced by
-# running the whole suite on 3.9 and 3.13 with an empty environment. So the
+# running the core suite on 3.9 and 3.14 with an empty environment. So the
 # things here that can rot are all third-party code that runs with access to
 # the repository, and each is pinned somewhere a human can read.
 
@@ -46,4 +46,15 @@ updates:
     directory: /eval/agent
     schedule:
       interval: weekly
+    open-pull-requests-limit: 3
+
+  # Opt-in AgentRoom has its own pinned SDK/CRDT dependencies. Updates must
+  # pass the real native interoperability lane before they can be merged.
+  - package-ecosystem: pip
+    directory: /shared/optional/agentroom
+    schedule:
+      interval: weekly
+    groups:
+      agentroom-runtime:
+        patterns: ["*"]
     open-pull-requests-limit: 3

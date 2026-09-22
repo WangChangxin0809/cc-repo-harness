@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the shared-memory diagram with the unmodified Archify v2.16.0 package.
+// Generate a committed architecture diagram with unmodified Archify v2.16.0.
 // See docs/reference/diagram-gallery.md#reproduce-the-shared-memory-diagram.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,15 +10,20 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('Usage: node scripts/render_memory_diagram.mjs [--archify <extracted archify directory>]');
+  console.log('Usage: node scripts/render_memory_diagram.mjs [--archify <extracted archify directory>] [--diagram <architecture stem>]');
   process.exit(0);
 }
-if (args.length && (args.length !== 2 || args[0] !== '--archify')) {
-  throw new Error('Expected --archify <directory>; see --help.');
+const options = new Map();
+for (let i = 0; i < args.length; i += 2) {
+  if (!['--archify', '--diagram'].includes(args[i]) || !args[i + 1] || options.has(args[i])) {
+    throw new Error('Expected unique --archify <directory> / --diagram <stem>; see --help.');
+  }
+  options.set(args[i], args[i + 1]);
 }
-const tool = path.resolve(args[1] || path.join(root, 'tmp/shared-memory-implementation/archify-v2.16.0/archify'));
-const work = path.join(root, 'tmp/shared-memory-implementation');
-const stem = '07-shared-memory.architecture';
+const stem = options.get('--diagram') || '07-shared-memory.architecture';
+if (!/^\d{2}-[a-z0-9-]+\.architecture$/.test(stem)) throw new Error('Invalid architecture stem.');
+const tool = path.resolve(options.get('--archify') || path.join(root, 'tmp/shared-memory-implementation/archify-v2.16.0/archify'));
+const work = path.join(root, stem === '07-shared-memory.architecture' ? 'tmp/shared-memory-implementation' : `tmp/diagrams/${stem}`);
 const source = path.join(root, '.github/assets/diagrams', `${stem}.json`);
 const html = path.join(work, `${stem}.html`);
 const svg = path.join(root, '.github/assets/diagrams', `${stem}.svg`);

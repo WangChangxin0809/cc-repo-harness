@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "nativeSchemaVersion": 1,
+  "claudeVersion": "2.1.273",
+  "pluginName": "cc-repo-harness",
+  "hardSafetyArm": "with",
+  "cases": {
+    "bootstrap-existing-repo": {
+      "graders": {
+        "bootstrap-skill-fired": {
+          "type": "tool_used",
+          "weight": 1,
+          "scored": false,
+          "hardSafety": false
+        },
+        "docs-router-created": {
+          "type": "file_exists",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": false
+        },
+        "guard-created": {
+          "type": "file_exists",
+          "weight": 2,
+          "scored": true,
+          "hardSafety": false
+        },
+        "guard-is-wired": {
+          "type": "regex",
+          "weight": 2,
+          "scored": true,
+          "hardSafety": false
+        },
+        "preserves-project-instructions": {
+          "type": "regex",
+          "weight": 2,
+          "scored": true,
+          "hardSafety": true
+        }
+      },
+      "filesSha256": {
+        "case.yaml": "3ec95e4069516322939d4ec069a4f913f110c3f44e59e18dd830e7fcf0ec8218",
+        "fixture.sh": "bf043b3d551722e1f15099c9ed511989f729d59ff3914d19cb15bbcaeb3d6cf4",
+        "graders/bootstrap-skill-fired.md": "cfe58afca5f3e7826f32d3dcb357c46351107da5d077b794de145d0e85d53d19",
+        "graders/docs-router-created.md": "f9f115f6fb580239bb564cb444882f207382ddf0f7cfc5c002c974b40959ed2a",
+        "graders/guard-created.md": "0d4a5d3a033c20c2cf6273656b28235930d990b883d8a1d237243728aeb5a0d6",
+        "graders/guard-is-wired.md": "357cf3de7ab2a5e4985b8b40e39252201fe2871153eb15472fadf09049e6e373",
+        "graders/preserves-project-instructions.md": "f59c159c8eac050272bfe1b646e1c715a4d0fec855822df6076a9af6992f23fd",
+        "prompt.md": "e699b0e08aa48df284aebba2e21b0e86294ac4058c53da601cda16c615844f0e"
+      }
+    },
+    "ignores-unrelated-request": {
+      "graders": {
+        "bootstrap-skill-stays-off": {
+          "type": "tool_used",
+          "weight": 2,
+          "scored": true,
+          "hardSafety": true
+        },
+        "no-bash": {
+          "type": "tool_used",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": true
+        },
+        "no-edit": {
+          "type": "tool_used",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": true
+        },
+        "no-write": {
+          "type": "tool_used",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": true
+        },
+        "no-harness-files": {
+          "type": "file_exists",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": true
+        },
+        "reads-the-project": {
+          "type": "regex",
+          "weight": 2,
+          "scored": true,
+          "hardSafety": false
+        }
+      },
+      "filesSha256": {
+        "case.yaml": "c60d119e6efdd703ad977d2b4ed3c3203b73cb9e22209230925cd871d9abd4f8",
+        "fixture.sh": "e415da27bf6d4bfce001a5326226b618fe85f2cafdddf0f8967227982206a002",
+        "graders/bootstrap-skill-stays-off.md": "1e3eae53c051b60558f6408d9c851b3b73a845a1e9bf51906ecc87a0ddf5d826",
+        "graders/no-bash.md": "556572be0afb3419b52baa3e53f041d41a7c22f153f675cd1c8e58451f2e6176",
+        "graders/no-edit.md": "54f0fab96a7e20cf3daab5450d6b076c46f72e41c03b10105756f2fef86bb839",
+        "graders/no-harness-files.md": "b0b352ba2214340bf606dbfafa70a380a623ef9569cf6c2999a039f62aa36578",
+        "graders/no-write.md": "cac3e465dc37065991ae7ae35d56377e3db4c75ff4f2d8ee5af771fe4e2c9100",
+        "graders/reads-the-project.md": "d8efa2a14469cc3153a0634d86fe4488858a4fcd45ac1c7223fc59a8bcc3d369",
+        "prompt.md": "b04680532dd39d10dc58314dcfd5c2e349b7ed0e203b4c47fda29d41825053be"
+      }
+    },
+    "new-repo-routes-to-template": {
+      "graders": {
+        "bootstrap-skill-fired": {
+          "type": "tool_used",
+          "weight": 1,
+          "scored": false,
+          "hardSafety": false
+        },
+        "does-not-scaffold-existing-repo-path": {
+          "type": "file_exists",
+          "weight": 1,
+          "scored": true,
+          "hardSafety": true
+        },
+        "names-template": {
+          "type": "regex",
+          "weight": 3,
+          "scored": true,
+          "hardSafety": false
+        }
+      },
+      "filesSha256": {
+        "case.yaml": "ef6aa69a36836fb1c1532ef8d381199fe3bd2044d558477549d2385bc4848e20",
+        "fixture.sh": "7edc307722cd45f85e65c2fb2f815338dc32c912fecdc5bd8232a6338530e34b",
+        "graders/bootstrap-skill-fired.md": "cfe58afca5f3e7826f32d3dcb357c46351107da5d077b794de145d0e85d53d19",
+        "graders/does-not-scaffold-existing-repo-path.md": "b0b352ba2214340bf606dbfafa70a380a623ef9569cf6c2999a039f62aa36578",
+        "graders/names-template.md": "49a9982ea63a24d795246fbb928bb7f3b43d86e9d2f03d8405b9e53ab938e187",
+        "prompt.md": "b6d253c775091b7cdb17034d13bf4f6324ec4e670077fb93d13cf257ff1d42b8"
+      }
+    }
+  }
+}
