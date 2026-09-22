@@ -86,7 +86,28 @@ above. `scripts/check.py --job hygiene` passed all three tools (actionlint,
 zizmor and Ruff). `git diff --cached --check` passed; the generated Archify SVG
 retains native CSS spacing under the same narrow per-file attribute as diagram 07.
 
-The full local runner was also started before pushing; its unchanged Windows
-gates reproduce the known docs-index baseline failures. Hosted Linux CI is the
-authoritative full-suite verification for this change. Final hosted results
-are recorded below when complete.
+The full local runner was also attempted before pushing; its unchanged Windows
+gates reproduced the known docs-index baseline failures. It was stopped after
+the full hosted Linux run passed, rather than repeating the remaining unchanged
+runtime tests on this host. This is not a claim of a passing full Windows suite.
+
+## Hosted verification
+
+The implementation commit `f0dfcc700e1949488842cbf86a2cd7accefd7636` was tested as
+GitHub's PR merge candidate. [Full CI run 35760850607](https://github.com/WangChangxin0809/cc-repo-harness/actions/runs/35760850607)
+succeeded, including Python 3.9/3.14, memory quality, scaffold acceptance,
+AgentRoom native interoperability, real Claude host validation, all new evidence
+selftests, linters and every required compatibility context. The Linux
+docs-index gate passed.
+
+[Memory benchmark run 35760850631](https://github.com/WangChangxin0809/cc-repo-harness/actions/runs/35760850631)
+succeeded on **ubuntu-24.04, windows-2025 and macos-15**. Downloaded raw artifacts
+were inspected: each platform's baseline and candidate contains 12 passing
+cases, 36 samples and zero dangerous-marker leaks. All three same-runner
+comparators succeeded. Runtime code is unchanged; this establishes the
+instrument and its portability, not a performance improvement.
+
+Documentation-only completion records follow that tested implementation.
+[PR #104](https://github.com/WangChangxin0809/cc-repo-harness/pull/104) links their
+fresh required checks and the protected merge. Main push CI reruns all lanes,
+and postmerge independently exercises every supported Python minor.

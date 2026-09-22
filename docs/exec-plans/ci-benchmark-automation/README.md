@@ -1,6 +1,6 @@
 # CI, benchmarks and automation
 
-**Status:** implementation complete; final hosted verification in progress. **Baseline:** `eb19d49d34975cb6dce849f2d8798ad09ae2a2d8`.
+**Status:** implemented and verified in full PR CI and all three benchmark platforms. [Delivery PR #104](https://github.com/WangChangxin0809/cc-repo-harness/pull/104) tracks integration. **Baseline:** `eb19d49d34975cb6dce849f2d8798ad09ae2a2d8`.
 
 This work strengthens the existing fast PR / broad postmerge design. It adds
 reproducible memory benchmarks, trustworthy native plugin-eval evidence, and

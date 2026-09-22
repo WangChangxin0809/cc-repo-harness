@@ -84,5 +84,6 @@ docs, Archify JSON/SVG/renderer, integration edits only after owners finish.
   review-based upgrades and stable branch protection contexts.
 - [x] Document pinned upstream evidence, architecture, commands, actual results
   and unsupported claims; generate and inspect the Archify architecture visual.
-- [ ] Run targeted tests, linters and relevant CI lanes; independent review;
-  push PR, require GitHub CI, merge via normal protection and sync main.
+- [x] Run targeted tests, linters and relevant CI lanes; independent review;
+  push PR and require hosted CI. [PR #104](https://github.com/WangChangxin0809/cc-repo-harness/pull/104)
+  records the protected merge and subsequent main verification.
