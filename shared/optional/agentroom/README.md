@@ -5,7 +5,7 @@
 
 ## Two explicit profiles
 
-`paper` is the default: official `mcp==2.2.0` and `pycrdt==0.14.4` (Yrs).
+`paper` is the default: official `mcp==2.2.0` and `pycrdt==0.14.5` (Yrs).
 It selects the paper's CRDT family, not an assertion of source-identical reproduction.
 Install its dependencies in a dedicated Python 3.10+ environment. No dependency
 is installed automatically. Missing dependencies are exit 2 and **never** select
