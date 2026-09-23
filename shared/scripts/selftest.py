@@ -115,7 +115,24 @@ def ci(root, lane="--fast"):
     Here rather than in each case, because the next case to be added would
     otherwise have to remember."""
     sh(["git", "add", "-A"], cwd=root)
-    return sh(["./ci.sh", lane], cwd=root)
+    if os.name == "nt":
+        # Windows may resolve System32's WSL bash.exe before a Git Bash on PATH.
+        git = shutil.which("git")
+        folder = os.path.dirname(git) if git else ""
+        bash = None
+        for _ in range(4):
+            candidate = os.path.join(folder, "bin", "bash.exe")
+            if os.path.isfile(candidate):
+                bash = candidate
+                break
+            parent = os.path.dirname(folder)
+            if parent == folder:
+                break
+            folder = parent
+        command = [bash or shutil.which("bash") or "bash", "./ci.sh", lane]
+    else:
+        command = ["./ci.sh", lane]
+    return sh(command, cwd=root)
 
 
 # ---------------------------------------------------------------------------

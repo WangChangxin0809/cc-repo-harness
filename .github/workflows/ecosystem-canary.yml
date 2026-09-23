@@ -1,0 +1,71 @@
+name: ecosystem-canary
+
+# Deliberately outside merge-blocking CI. These jobs answer "did an upstream or
+# sibling repository move underneath us?" A red canary is actionable without
+# making an unrelated pull request fail because somebody else released today.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecosystem-canary
+  cancel-in-progress: true
+
+jobs:
+  latest-claude-code:
+    name: Latest Claude Code
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: install today's upstream host in an isolated prefix
+        # zizmor: ignore[adhoc-packages] -- this canary intentionally tracks latest
+        run: npm install --prefix /tmp/claude-canary --no-save --no-audit --no-fund @anthropic-ai/claude-code@latest
+
+      - name: record the pinned and canary versions
+        run: |
+          pinned="$(node -p "require('./eval/agent/package.json').dependencies['@anthropic-ai/claude-code']")"
+          latest="$(/tmp/claude-canary/node_modules/.bin/claude --version)"
+          {
+            echo "## Claude Code compatibility canary"
+            echo
+            echo "- pinned eval host: \`$pinned\`"
+            echo "- latest installed host: \`$latest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: latest Claude Code still accepts the plugin
+        run: /tmp/claude-canary/node_modules/.bin/claude plugin validate . --strict
+
+      - name: latest Claude Code still exposes the native plugin evaluator
+        run: /tmp/claude-canary/node_modules/.bin/claude plugin eval --help
+
+  template-drift:
+    name: Template drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: fetch the public template repository
+        run: git clone --quiet --depth 1 https://github.com/WangChangxin0809/cc-repo-harness-template template
+
+      - name: template still carries exactly the tier-B payload
+        run: python3 scripts/sync_template.py --to template --check --tier B

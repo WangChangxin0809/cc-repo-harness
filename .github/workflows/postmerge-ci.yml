@@ -1,11 +1,12 @@
 name: postmerge-ci
 
-# Full supported-version coverage after merge. Pull requests exercise the
-# oldest and newest supported Python; main exercises every minor between them.
-# This follows the fast-blocking / broad-postmerge split used by large,
-# high-frequency repositories instead of multiplying PR latency by six.
+# Broad compatibility after merge. Pull requests keep latency low by exercising
+# boundary versions and Linux host integration; main proves the full Python
+# range plus the operating systems where path, locking and process behavior
+# actually differ.
 
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -36,14 +37,76 @@ jobs:
       - name: run the same compatibility lane CI owns
         run: python3 scripts/check.py --job python-compat
 
+  portability:
+    name: ${{ matrix.name }} portability
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-24.04
+          - name: macOS
+            os: macos-15
+          - name: Windows
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: eval/agent/package-lock.json
+
+      - name: guard behavior is portable
+        run: python shared/scripts/guards/selftest.py
+
+      - name: gate behavior is portable
+        run: python shared/scripts/gates/selftest.py --verbose
+
+      - name: hook context behavior is portable
+        run: python shared/scripts/context/selftest.py --verbose
+
+      - name: AgentRoom reference coordination is portable
+        run: python shared/optional/agentroom/selftest.py
+
+      - name: WikiSkill control flow is portable
+        run: python shared/optional/wikiskill/selftest.py
+
+      - name: trust hook behavior is portable
+        run: python hooks/selftest.py --verbose
+
+      - name: scaffold acceptance is portable
+        run: python shared/scripts/selftest.py --verbose
+
+      - name: install the pinned Claude Code host
+        run: npm ci --prefix eval/agent --no-audit --no-fund
+
+      - name: the plugin validates in the native host on this OS
+        run: npm --prefix eval/agent exec -- claude plugin validate . --strict
+
+      - name: the native host exposes plugin evals on this OS
+        run: npm --prefix eval/agent exec -- claude plugin eval --help
+
   results:
     name: Postmerge CI results
+    needs: [supported-python, portability]
     if: always()
-    needs: [supported-python]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: require the full supported-version matrix
+      - name: require every broad compatibility domain
         env:
-          RESULT: ${{ needs.supported-python.result }}
-        run: test "$RESULT" = success
+          PYTHON_RESULT: ${{ needs.supported-python.result }}
+          PORTABILITY_RESULT: ${{ needs.portability.result }}
+        run: |
+          test "$PYTHON_RESULT" = success
+          test "$PORTABILITY_RESULT" = success

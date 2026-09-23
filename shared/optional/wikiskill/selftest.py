@@ -79,6 +79,30 @@ class WikiSkillTests(unittest.TestCase):
             self.assertEqual(kb.query("beta")["hits"], [])
             self.assertTrue(any(i["kind"] == "stale-source" for i in kb.lint()["issues"]))
 
+    def test_parent_symlink_is_canonicalized_but_final_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="knowledge-path-") as tmp:
+            root = Path(tmp)
+            real_parent = root / "real"
+            real_parent.mkdir()
+            alias_parent = root / "alias"
+            try:
+                alias_parent.symlink_to(real_parent, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest("host cannot create directory symlink fixture: " + str(exc))
+
+            # An ancestor alias is resolved once to its canonical target.
+            kb = Knowledge(alias_parent / "child")
+            self.assertEqual(kb.root, (real_parent / "child").resolve())
+            self.assertTrue(kb.root.is_dir())
+
+            # The caller's final target may not itself be a symlink.
+            real_target = root / "target"
+            real_target.mkdir()
+            direct_alias = root / "direct-alias"
+            direct_alias.symlink_to(real_target, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                Knowledge(direct_alias)
+
     def test_publication_exports_only_approved_pages(self):
         with tempfile.TemporaryDirectory(prefix="knowledge-") as tmp, tempfile.TemporaryDirectory(prefix="publish-parent-") as out:
             kb = Knowledge(tmp)

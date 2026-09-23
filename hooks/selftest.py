@@ -41,6 +41,7 @@ import argparse
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -88,6 +89,15 @@ def make_repo(with_guards=True):
     sh(["git", "init", "-q", "."], cwd=tmp)
     sh(["git", "add", "-A"], cwd=tmp)
     return tmp
+
+
+def remove_tree(path):
+    """Remove generated Git fixtures whose object files can be read-only."""
+    def make_writable(function, target, _exc_info):
+        mode = os.stat(target, follow_symlinks=False).st_mode
+        os.chmod(target, mode | stat.S_IWRITE)
+        function(target)
+    shutil.rmtree(path, onerror=make_writable)
 
 
 class Case:
@@ -394,7 +404,7 @@ def case_unmeasurable_repo_is_marked_anyway(look):
     about it is the exact noise the once-only rule exists to prevent, and it
     would fall on the person with the least to gain from the notice.
     """
-    shutil.rmtree(os.path.join(look.repo, ".git"))
+    remove_tree(os.path.join(look.repo, ".git"))
     with open(os.path.join(look.repo, ".git"), "w", encoding="utf-8") as fh:
         fh.write("gitdir: /nonexistent/wherever-it-used-to-be\n")
 
@@ -465,8 +475,8 @@ def main():
         except Exception as exc:  # a raising case is a failing case
             case.failures.append(f"{label}\n    raised {exc!r}")
         finally:
-            shutil.rmtree(repo, ignore_errors=True)
-            shutil.rmtree(config, ignore_errors=True)
+            remove_tree(repo)
+            remove_tree(config)
         if case.failures:
             failures.extend(f"{label}: {f}" for f in case.failures)
         elif a.verbose:
@@ -481,8 +491,8 @@ def main():
         except Exception as exc:  # a raising case is a failing case
             look.failures.append(f"{label}\n    raised {exc!r}")
         finally:
-            shutil.rmtree(repo, ignore_errors=True)
-            shutil.rmtree(config, ignore_errors=True)
+            remove_tree(repo)
+            remove_tree(config)
         if look.failures:
             failures.extend(f"{label}: {f}" for f in look.failures)
         elif a.verbose:

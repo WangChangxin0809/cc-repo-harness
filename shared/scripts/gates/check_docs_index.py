@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import posixpath
 import re
 import sys
 
@@ -31,7 +32,7 @@ EXEMPT = re.compile(r"<!--\s*unrouted:\s*\S+")
 SKIP_DIRS = {"generated"}
 
 
-PLANS = os.path.join("docs", "exec-plans")
+PLANS = "docs/exec-plans"
 
 
 def plan_steps(root, routed):
@@ -54,11 +55,11 @@ def plan_steps(root, routed):
     same defect one level down, and the one this shape makes easy to create."""
     reached = set()
     for rel in routed:
-        parts = rel.split(os.sep)
-        if not (rel.startswith(PLANS + os.sep) and len(parts) == 4
+        parts = rel.split("/")
+        if not (rel.startswith(PLANS + "/") and len(parts) == 4
                 and parts[3] == "README.md"):
             continue
-        folder = os.path.dirname(rel)
+        folder = posixpath.dirname(rel)
         try:
             with open(os.path.join(root, rel), encoding="utf-8") as fh:
                 body = fh.read()
@@ -68,12 +69,12 @@ def plan_steps(root, routed):
             target = (m.group(1) or m.group(2) or "").strip()
             if not target or target.startswith(("http://", "https://", "mailto:")):
                 continue
-            norm = os.path.normpath(
+            norm = posixpath.normpath(
                 target if target.startswith("docs/")
-                else os.path.join(folder, target))
+                else posixpath.join(folder, target))
             # Confined to the plan's own folder: a README may not route a
             # document that belongs to somebody else's part of docs/.
-            if norm.startswith(folder + os.sep):
+            if norm.startswith(folder + "/"):
                 reached.add(norm)
     return reached
 
@@ -98,8 +99,8 @@ def main():
         target = (m.group(1) or m.group(2) or "").strip()
         if not target or target.startswith(("http://", "https://", "mailto:")):
             continue
-        norm = os.path.normpath(os.path.join("docs", target)
-                                if not target.startswith("docs/") else target)
+        norm = posixpath.normpath(posixpath.join("docs", target)
+                                 if not target.startswith("docs/") else target)
         routed.add(norm)
 
     routed |= plan_steps(root, routed)
@@ -111,7 +112,7 @@ def main():
         for name in filenames:
             if not name.endswith(".md"):
                 continue
-            rel = os.path.relpath(os.path.join(dirpath, name), root)
+            rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
             if rel == "docs/index.md":
                 continue
             with open(os.path.join(dirpath, name), encoding="utf-8") as fh:
@@ -122,8 +123,10 @@ def main():
 
     unrouted = sorted(present - routed)
     # Directories are legitimate route targets; only judge file routes.
-    broken = sorted(p for p in routed - present
-                    if not os.path.exists(os.path.join(root, p)))
+    broken = sorted(
+        p for p in routed - present
+        if not os.path.exists(os.path.join(root, *p.split("/")))
+    )
 
     if not unrouted and not broken:
         return 0

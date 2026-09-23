@@ -89,9 +89,19 @@ class CommandAdapter:
             deadline = time.monotonic() + self.timeout
             def terminate():
                 try:
+                    if p.poll() is not None:
+                        return
                     if os.name == 'posix': os.killpg(p.pid, signal.SIGKILL)
-                    elif p.poll() is None: p.kill()
-                except ProcessLookupError: pass
+                    else: p.kill()
+                except ProcessLookupError:
+                    pass
+                except PermissionError:
+                    # Some macOS runner sandboxes reject process-group signals.
+                    # Still stop the owned adapter process when it is alive.
+                    try:
+                        if p.poll() is None: p.kill()
+                    except ProcessLookupError:
+                        pass
             watchdog = threading.Timer(self.timeout, terminate)
             watchdog.daemon = True; watchdog.start()
             try:
@@ -117,10 +127,7 @@ class CommandAdapter:
                 raise CannotJudge('invalid adapter protocol or unavailable process') from exc
             finally:
                 watchdog.cancel()
-                if os.name == 'posix':
-                    try: os.killpg(p.pid, signal.SIGKILL)
-                    except ProcessLookupError: pass
-                elif p.poll() is None: p.kill()
+                terminate()
                 p.wait(timeout=5)
                 p.stdin.close(); p.stdout.close(); worker.join(timeout=2)
 
