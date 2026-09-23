@@ -31,6 +31,7 @@ jobs:
           node-version: "22"
 
       - name: install today's upstream host in an isolated prefix
+        # zizmor: ignore[adhoc-packages] -- this canary intentionally tracks latest
         run: npm install --prefix /tmp/claude-canary --no-save --no-audit --no-fund @anthropic-ai/claude-code@latest
 
       - name: record the pinned and canary versions
