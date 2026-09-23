@@ -42,7 +42,10 @@ def file_lock(path, blocking=True):
             fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
         elif os.name == 'nt':
             import msvcrt
-            os.write(fd, b'0'); os.lseek(fd, 0, os.SEEK_SET)
+            # Windows can lock a byte beyond EOF. Do not initialize the file
+            # before acquiring the lock: concurrent first users can race while
+            # writing the same byte and fail with a sharing violation.
+            os.lseek(fd, 0, os.SEEK_SET)
             msvcrt.locking(fd, msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK, 1)
         else:
             raise RuntimeError('no supported process-lock backend')
