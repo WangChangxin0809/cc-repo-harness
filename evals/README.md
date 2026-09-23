@@ -96,7 +96,7 @@ model advantage or the benefit of persistent runtime hooks in an existing repo.
 
 ## Native schema provenance
 
-The reviewed host is the repository pin **Claude Code 2.1.273**, JSON
+The reviewed host is the repository pin **Claude Code 2.1.278**, JSON
 `schemaVersion: 1`. The contract was checked against the
 [official plugin-eval documentation](https://code.claude.com/docs/en/plugin-evals)
 and the exact pinned npm platform package's embedded serializer, scorer and

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "nativeSchemaVersion": 1,
-  "claudeVersion": "2.1.273",
+  "claudeVersion": "2.1.278",
   "pluginName": "cc-repo-harness",
   "hardSafetyArm": "with",
   "cases": {
