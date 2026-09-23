@@ -5,7 +5,6 @@ name: ecosystem-canary
 # making an unrelated pull request fail because somebody else released today.
 
 on:
-  pull_request:
   workflow_dispatch:
   schedule:
     - cron: "17 8 * * *"
@@ -41,8 +40,8 @@ jobs:
           {
             echo "## Claude Code compatibility canary"
             echo
-            echo "- pinned eval host: `$pinned`"
-            echo "- latest installed host: `$latest`"
+            echo "- pinned eval host: \`$pinned\`"
+            echo "- latest installed host: \`$latest\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: latest Claude Code still accepts the plugin
