@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline defect witnesses; synthetic records follow native 2.1.273 serialization."""
+"""Offline defect witnesses for the pinned native result format."""
 import copy
 import json
 from pathlib import Path
@@ -13,6 +13,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 import summarize_plugin_eval as subject
+
+POLICY_VERSION = subject.load_policy(subject.DEFAULT_POLICY)["claudeVersion"]
 
 # Intentionally independent of the production policy/score calculator.
 GRADERS = {
@@ -38,7 +40,7 @@ GRADERS = {
 
 def fixture():
     data = {
-        "schemaVersion": 1, "claudeVersion": "2.1.273", "partial": False,
+        "schemaVersion": 1, "claudeVersion": POLICY_VERSION, "partial": False,
         "startedAt": "2026-09-23T00:00:00.000Z", "durationSeconds": 180,
         "costUsd": 1.8,
         "suite": {"ablation": "with-without", "threshold": .67,
