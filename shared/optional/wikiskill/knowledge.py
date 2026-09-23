@@ -13,7 +13,6 @@ import re
 import sqlite3
 import time
 from contextlib import contextmanager
-from pathlib import Path
 
 try:
     from .persistence import canonical_path, dumps
