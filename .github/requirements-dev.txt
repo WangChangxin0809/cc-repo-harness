@@ -11,5 +11,5 @@ actionlint-py==1.7.12.24   # GitHub Actions linter: syntax, expressions, shellch
 coverage==7.16.1           # Line and branch coverage. Without it dimension 2.1
                            # abstains, and an abstention about itself is what
                            # this repository was reporting.
-ruff==0.16.7               # Python lint. Config in ruff.toml. Lint only, no formatter.
+ruff==0.16.8               # Python lint. Config in ruff.toml. Lint only, no formatter.
 zizmor==1.30.1             # Actions security audit, by Trail of Bits.

@@ -1,0 +1,82 @@
+name: memory-benchmark
+
+# A single current harness measures both implementations on the same runner.
+# Quality is deterministic; elapsed time is evidence, not a shared-runner gate.
+on:
+  pull_request:
+    paths:
+      - shared/scripts/memory/**
+      - eval/benchmarks/**
+      - .github/workflows/memory-benchmark.yml
+  push:
+    branches: [main]
+    paths:
+      - shared/scripts/memory/**
+      - eval/benchmarks/**
+      - .github/workflows/memory-benchmark.yml
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  compare:
+    name: Memory evidence (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: select the exact baseline
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p tmp/benchmarks
+          git worktree add --detach tmp/benchmarks/base "$base"
+          printf 'Baseline: %s\nCandidate: %s\n' "$base" "$(git rev-parse HEAD)"
+      - name: measure baseline with the current harness
+        id: baseline
+        run: python eval/benchmarks/memory.py --implementation-root tmp/benchmarks/base --output tmp/benchmarks/base.json --repeats 3
+      - name: measure candidate with the same cases and samples
+        id: candidate
+        if: ${{ !cancelled() }}
+        run: python eval/benchmarks/memory.py --implementation-root . --output tmp/benchmarks/head.json --repeats 3
+      - name: summarize comparable evidence or explain why it is incomplete
+        if: ${{ !cancelled() }}
+        run: python eval/benchmarks/compare.py tmp/benchmarks/base.json tmp/benchmarks/head.json --summary "$GITHUB_STEP_SUMMARY"
+      - name: retain the actual measurements even on failure
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: memory-benchmark-${{ matrix.os }}-${{ github.sha }}
+          path: tmp/benchmarks/*.json
+          if-no-files-found: error
+          retention-days: 30

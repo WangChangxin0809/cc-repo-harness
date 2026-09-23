@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Shared project memory",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [1260, 680]
+  },
+  "components": [
+    { "id": "session", "type": "external", "label": "Agent session", "sublabel": "Decisions + discoveries", "pos": [35, 120], "size": [210, 86] },
+    { "id": "candidates", "type": "database", "label": "Private candidates", "sublabel": "Evidence + scope", "pos": [350, 120], "size": [220, 86] },
+    { "id": "proposal", "type": "backend", "label": "Reviewable proposal", "sublabel": "Diff + source checks", "pos": [670, 120], "size": [220, 86] },
+    { "id": "records", "type": "database", "label": "Accepted Git records", "sublabel": ".harness/memory/", "pos": [995, 120], "size": [220, 86] },
+    { "id": "dream", "type": "backend", "label": "dream", "sublabel": "Bounded agent synthesis", "pos": [350, 445], "size": [220, 86] },
+    { "id": "context", "type": "frontend", "label": "Task context", "sublabel": "Relevant, cited knowledge", "pos": [995, 445], "size": [220, 86] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "PRIVATE / WORKTREE + SESSION", "wraps": ["candidates", "dream"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "capture", "from": "session", "to": "candidates", "label": "remember", "variant": "emphasis" },
+    { "id": "propose", "from": "candidates", "to": "proposal", "label": "propose", "variant": "emphasis" },
+    { "id": "apply", "from": "proposal", "to": "records", "label": "apply + review", "variant": "emphasis" },
+    { "id": "prepare", "from": "candidates", "to": "dream", "label": "prepare", "variant": "dashed", "labelDy": 132 },
+    { "id": "finish", "from": "dream", "to": "proposal", "label": "finish", "variant": "dashed" },
+    { "id": "recall", "from": "records", "to": "context", "label": "verify / recall", "variant": "emphasis", "labelDy": 132 }
+  ],
+  "cards": [
+    { "dot": "violet", "title": "Private discovery", "items": ["Candidates and dream jobs live in Git's private admin directory.", "prepare freezes selected inputs; finish checks agent output."] },
+    { "dot": "emerald", "title": "Shared through Git", "items": ["apply writes checked changes for the team's review and merge.", "Records cite source documents; Git carries the shared state."] },
+    { "dot": "cyan", "title": "Keep context current", "items": ["recall reads eligible knowledge within a bounded budget.", "forget withdraws records; sync rebuilds the local Git view."] }
+  ]
+}

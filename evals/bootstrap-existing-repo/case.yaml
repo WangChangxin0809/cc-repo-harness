@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: bootstrap-existing-repo
+description: An existing repository gains a durable repository-side harness without losing its own instructions.
+tags: [plugin, bootstrap, positive]
+plugins: ["../.."]
+context:
+  scaffold_script: fixture.sh

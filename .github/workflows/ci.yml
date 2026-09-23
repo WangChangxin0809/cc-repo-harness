@@ -74,6 +74,10 @@ jobs:
         run: python3 shared/scripts/gates/selftest.py --verbose
       - name: context hooks still reach the model
         run: python3 shared/scripts/context/selftest.py --verbose
+      - name: shared memory survives isolation, review and transfer
+        run: python3 shared/scripts/memory/selftest.py --verbose
+      - name: memory meets the fixed offline quality contract
+        run: python3 eval/benchmarks/memory.py --implementation-root . --output tmp/benchmarks/quality.json --repeats 1
       - name: repo graph still says what it claims
         run: python3 shared/scripts/index/selftest.py --verbose
       - name: assessment still distinguishes good and bad repositories
@@ -100,6 +104,14 @@ jobs:
         run: python3 shared/scripts/wiki/replay.py --selftest --verbose
       - name: template sync can still see a partial copy
         run: python3 scripts/sync_template.py --selftest --verbose
+      - name: retain memory quality evidence
+        if: ${{ !cancelled() && hashFiles('tmp/benchmarks/quality.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: memory-quality-python-${{ matrix.python }}
+          path: tmp/benchmarks/quality.json
+          if-no-files-found: error
+          retention-days: 14
 
   surface:
     name: Repository and plugin surface
@@ -134,6 +146,16 @@ jobs:
         run: python3 .github/scripts/select_ci.py --self-test
       - name: stable required context rejects skipped selected work
         run: python3 .github/scripts/check_ci_results.py --self-test
+      - name: CI evidence rejects absent selectors and unexpected failures
+        run: python3 .github/scripts/selftest_ci_evidence.py
+      - name: release evidence belongs to the exact verified main commit
+        run: python3 .github/scripts/selftest_release_evidence.py
+      - name: native eval reports cannot manufacture missing evidence
+        run: python3 .github/scripts/test_plugin_eval.py
+      - name: native eval cases and graders match the reviewed inventory
+        run: python3 .github/scripts/validate_plugin_eval.py --suite evals
+      - name: memory benchmark scoring rejects incomplete evidence
+        run: python3 eval/benchmarks/selftest.py
       - name: local runner can still read the workflow
         run: python3 scripts/check.py --selftest
 
@@ -198,6 +220,20 @@ jobs:
         env:
           CLAUDE_BIN: eval/agent/node_modules/.bin/claude
         run: '"$CLAUDE_BIN" plugin eval --help'
+      - name: the native evaluator supports a zero-model case-filter probe
+        env:
+          CLAUDE_BIN: eval/agent/node_modules/.bin/claude
+        run: |
+          set +e
+          output="$("$CLAUDE_BIN" plugin eval . \
+            --trust-plugin \
+            --case '__cc_repo_harness_schema_probe_matches_nothing__' \
+            --no-publish 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$rc" -eq 1
+          grep -Fq 'No eval cases found' <<< "$output"
 
   hygiene:
     name: Workflow and Python hygiene

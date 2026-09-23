@@ -592,6 +592,7 @@ DIRS = [
 COPY = [
     ("guards", "scripts/guards", "A"),
     ("gates", "scripts/gates", "B"),
+    ("memory", "scripts/memory", "B"),
     ("index", "scripts/index", "C"),
 ]
 
@@ -637,6 +638,7 @@ SKILLS = [
     ("writing-checks", "B"),
     ("github-surface", "B"),
     ("consolidating-notes", "B"),
+    ("project-memory", "B"),
     ("repo-index", "C"),
 ]
 
@@ -779,7 +781,13 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--tier", choices=["A", "B", "C"], default="B")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--memory", action="store_true",
+                    help="adopt repository memory and its owned hooks")
+    ap.add_argument("--memory-accepted-ref",
+                    help="explicit trusted integration ref for --memory")
     a = ap.parse_args()
+    if a.memory and (a.tier == "A" or not a.memory_accepted_ref):
+        ap.error("--memory requires tier B/C and --memory-accepted-ref")
     root = os.path.abspath(a.root)
 
     if subprocess.run(["git", "rev-parse", "--git-dir"], cwd=root,
@@ -847,6 +855,8 @@ def main():
               f"(+{len(IGNORE_LINES)} pattern(s) that must never be committed)")
         print(f"  {'MERGE':<14} .claude/settings.json  "
               f"(+{', '.join(sorted({e for e, _, _ in wanted_hooks}))})")
+        if a.memory:
+            print("  ADOPT          repository memory (private trust anchor and owned hooks)")
         return 0
 
     made = []
@@ -861,6 +871,8 @@ def main():
         write(keep, "", made, root)
 
     for name in skills:
+        if a.memory and name == "project-memory":
+            continue  # The versioned installer preflights this payload as one generation.
         target = os.path.join(root, ".claude", "skills", name)
         rel = os.path.relpath(target, root)
         if os.path.exists(target):
@@ -870,6 +882,8 @@ def main():
         made.append(("NEW", rel, ""))
 
     for src, dst in copies:
+        if a.memory and src == "memory":
+            continue
         target_dir = os.path.join(root, dst)
         os.makedirs(target_dir, exist_ok=True)
         for name in sorted(os.listdir(os.path.join(HERE, src))):
@@ -937,6 +951,20 @@ def main():
 
     ensure_gitignore(root, made)
     merge_settings(root, wanted_hooks, made)
+
+    if a.memory:
+        from memory.errors import MemoryFailure
+        from memory.install import install
+        from memory.repository import Repository
+        try:
+            repository = Repository(root)
+            memory_result = install(repository, accepted_ref=a.memory_accepted_ref)
+            print("memory: " + json.dumps(memory_result))
+            if memory_result["status"] == "conflict":
+                return 1
+        except MemoryFailure as exc:
+            print("memory: " + str(exc), file=sys.stderr)
+            return exc.code
 
     width = max((len(p) for _, p, _ in made), default=10)
     for state, path, note in made:

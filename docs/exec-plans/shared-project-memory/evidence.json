@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "research_date": "2026-09-22",
+  "repository_revision": "dad6c6c7dca71eb4fcedce83d799e453d2675765",
+  "method": "Read-only static byte-window analysis; official documentation retrieval; repository inspection and selected baseline checks. No user histories or credentials read; no private endpoints called.",
+  "primary_client": {
+    "version": "2.1.261",
+    "platform": "win32-x64",
+    "source": "locally installed npm package executable",
+    "bytes": 218728608,
+    "sha256": "f2f5d1a155167488aeb32cd263e15436253c7b1681ae147c9e73e4d6bbc3c852",
+    "public_package_metadata": "https://registry.npmjs.org/@anthropic-ai%2Fclaude-code-win32-x64/2.1.261",
+    "public_tarball": "https://registry.npmjs.org/@anthropic-ai/claude-code-win32-x64/-/claude-code-win32-x64-2.1.261.tgz",
+    "registry_integrity": "sha512-QtUUxcOz3gsMiO2d99QGCRaqcjtpYBudioUXMNH9ImeGqqbLArbjJKvder7uAVzhr8lRvk+DUIOwaqjV8kUNXA==",
+    "registry_tarball_downloaded_for_comparison": false
+  },
+  "comparison_client": {
+    "version": "2.1.260",
+    "platform": "win32-x64",
+    "bytes": 217771680,
+    "sha256": "ab5fe6cb800a9faf3df1cc0f6bcb71f097296b302a16b576ca906446a22fea71",
+    "scope": "narrow static comparison of local memory mechanisms"
+  },
+  "repository_eval_client": {
+    "version": "2.1.273",
+    "source": "eval/agent/package.json",
+    "static_analysis_performed": false
+  },
+  "official_snapshots": [
+    {
+      "file": "claude-code-on-the-web.md",
+      "url": "https://code.claude.com/docs/en/claude-code-on-the-web.md",
+      "saved_bytes": 42170,
+      "saved_sha256": "bff22aa7961d6269538c6b0522696bbb6955b71feb02b6311b60a5b68566a6e2"
+    },
+    {
+      "file": "claude-projects.md",
+      "url": "https://code.claude.com/docs/en/claude-projects.md",
+      "saved_bytes": 59859,
+      "saved_sha256": "e5d9259c75b3da68e13326f93a66558d6bfa5ab6c85a9839ab915cea81de2a05"
+    },
+    {
+      "file": "cross-session-messaging.md",
+      "url": "https://code.claude.com/docs/en/cross-session-messaging.md",
+      "saved_bytes": 41254,
+      "saved_sha256": "61beb9bc9013e9939a745a599f18d1eaa72b407afd51dc5f120a65c03abbc5f5"
+    },
+    {
+      "file": "features-overview.md",
+      "url": "https://code.claude.com/docs/en/features-overview.md",
+      "saved_bytes": 32459,
+      "saved_sha256": "3cc109dc8db7ebab9b5e087e315ac0d65b406c567991fae2206dcc82333a077d"
+    },
+    {
+      "file": "hooks.md",
+      "url": "https://code.claude.com/docs/en/hooks.md",
+      "saved_bytes": 330917,
+      "saved_sha256": "37781a4f4313622de8be5af094e0ce05ab22522283076ae0734b70a53b0bba95"
+    },
+    {
+      "file": "llms.txt",
+      "url": "https://code.claude.com/docs/llms.txt",
+      "saved_bytes": 46976,
+      "saved_sha256": "92adf76ba4eb3e090e186ed7766c99686ca7fb067a4038e86754e9231c42dac3"
+    },
+    {
+      "file": "memory.md",
+      "url": "https://code.claude.com/docs/en/memory.md",
+      "saved_bytes": 53171,
+      "saved_sha256": "b94646b89a6a77501746ead8e6f6db5204ee2fcedfae1fccc719c902a3f0b018"
+    },
+    {
+      "file": "projects-redesigned.html",
+      "url": "https://claude.com/blog/projects-redesigned",
+      "saved_bytes": 523409,
+      "saved_sha256": "c74a20a155d7043a185221a78fb565c965b3e5fcf54800762b642248d3a42952"
+    },
+    {
+      "file": "settings-reference.md",
+      "url": "https://code.claude.com/docs/en/settings-reference.md",
+      "saved_bytes": 445110,
+      "saved_sha256": "077f567282fff891b11833aade05fd19d58435004fde5aa603773e8b66644156"
+    },
+    {
+      "file": "sub-agents.md",
+      "url": "https://code.claude.com/docs/en/sub-agents.md",
+      "saved_bytes": 117124,
+      "saved_sha256": "1a8a42ec7187cc64a73f0cc5222019ed71956e4df12cb99609fb34e48d2c8fe4"
+    },
+    {
+      "file": "tools-reference.md",
+      "url": "https://code.claude.com/docs/en/tools-reference.md",
+      "saved_bytes": 110008,
+      "saved_sha256": "72201e1682f1bdc04bcf7b892e072da1427094c84b2b26c20829e11cc23f2406"
+    }
+  ],
+  "limits": [
+    "Offsets apply only to the fingerprinted executable.",
+    "Client-side gated remote-memory code does not establish server semantics or public availability.",
+    "Snapshot digests identify saved page bytes, not a permanent versioned upstream document.",
+    "No new shared-memory runtime or paid behavioral evaluation was implemented/run."
+  ]
+}

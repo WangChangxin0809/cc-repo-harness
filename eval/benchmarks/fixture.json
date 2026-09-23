@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "name": "memory-recall-gold-v1",
+  "repository_id": "offline-memory-benchmark",
+  "source": {"path": "src/source.txt", "original": "reviewed source v1\n", "changed": "unreviewed source v2\n"},
+  "records": [
+    {"id": "api-compat", "title": "Zephyr compatibility", "body": ["Keep the Zephyr endpoint during migration."], "paths": ["src/api/**"]},
+    {"id": "zh-encoding", "title": "迁移规范", "body": ["迁移规范要求所有新文件使用 UTF-8 编码。"], "paths": ["src/unicode/**"]},
+    {"id": "budget-large", "title": "Oversize specimen", "body": ["This accepted entry deliberately exceeds the tiny delivery budget and must be omitted intact."], "paths": ["src/budget/**"]},
+    {"id": "stale-source", "title": "Staleproof source decision", "body": ["STALE_PAYLOAD_DO_NOT_DELIVER"], "paths": ["src/stale/**"], "source_dependency": true},
+    {"id": "retired-fact", "title": "Retiredproof decision", "body": ["RETIRED_PAYLOAD_DO_NOT_DELIVER"], "paths": ["src/retired/**"]},
+    {"id": "dirty-fact", "title": "Dirtyproof decision", "body": ["DIRTY_PAYLOAD_DO_NOT_DELIVER"], "paths": ["src/dirty/**"]},
+    {"id": "environment-fact", "title": "Environmentproof platform decision", "body": ["This rule applies only after a Linux environment is established."], "paths": ["src/platform/**"], "environment": {"platform": ["linux"]}}
+  ],
+  "retire_id": "retired-fact",
+  "dirty_id": "dirty-fact",
+  "branch_record": {"id": "branch-only", "title": "Branchproof draft", "body": ["BRANCH_PAYLOAD_DO_NOT_DELIVER"], "paths": ["src/branch/**"]},
+  "private_record": {"id": "private-only", "title": "Privateproof candidate", "body": ["PRIVATE_PAYLOAD_DO_NOT_DELIVER"], "paths": ["src/private/**"]},
+  "forbidden_markers": ["STALE_PAYLOAD_DO_NOT_DELIVER", "RETIRED_PAYLOAD_DO_NOT_DELIVER", "DIRTY_PAYLOAD_DO_NOT_DELIVER", "BRANCH_PAYLOAD_DO_NOT_DELIVER", "PRIVATE_PAYLOAD_DO_NOT_DELIVER"],
+  "cases": [
+    {"id": "english", "query": "Zephyr", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": ["api-compat"], "expected_code": 0, "required_excluded": [], "required_text": ["Keep the Zephyr endpoint during migration."]},
+    {"id": "chinese", "query": "迁移规范", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": ["zh-encoding"], "expected_code": 0, "required_excluded": [], "required_text": ["迁移规范要求所有新文件使用 UTF-8 编码。"]},
+    {"id": "path-scope", "query": "", "paths": ["src/api/handler.py"], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": ["api-compat"], "expected_code": 0, "required_excluded": [], "required_text": ["Keep the Zephyr endpoint during migration."]},
+    {"id": "wrong-path", "query": "Zephyr", "paths": ["src/unrelated/handler.py"], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": []},
+    {"id": "no-match", "query": "quasar-unmatched-92", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": []},
+    {"id": "byte-budget", "query": "Oversize", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 128, "expected_ids": [], "expected_code": 0, "required_excluded": []},
+    {"id": "unaccepted-branch", "query": "Branchproof", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": []},
+    {"id": "private-candidate", "query": "Privateproof", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": []},
+    {"id": "stale-source", "query": "Staleproof", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": ["stale-source"]},
+    {"id": "retired-old-checkout", "query": "Retiredproof", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": ["retired-fact"]},
+    {"id": "dirty-overlay", "query": "Dirtyproof", "paths": [], "environment": {"platform": "linux"}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 0, "required_excluded": ["dirty-fact"]},
+    {"id": "unknown-environment", "query": "Environmentproof", "paths": [], "environment": {}, "budget_bytes": 2048, "expected_ids": [], "expected_code": 2, "required_excluded": ["environment-fact"]}
+  ]
+}

@@ -41,3 +41,6 @@ tmp/
 # Claude Code agent worktrees: a checkout inside the checkout, which ruff and
 # the gates must not read as this tree
 .claude/worktrees/
+
+# Native Claude Code plugin-eval run output. Reports are CI artifacts, not source.
+evals/results/
