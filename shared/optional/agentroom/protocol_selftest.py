@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import importlib.metadata
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TOOLS = {"room_claim", "room_release", "room_state", "room_broadcast", "room_read",
          "room_join", "room_open", "room_apply", "room_delete", "room_rename"}
+
+
+def pinned_versions():
+    versions = {}
+    for line in (HERE / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        requirement = line.split("#", 1)[0].strip()
+        if not requirement:
+            continue
+        match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+-]+)", requirement)
+        if not match or match.group(1) in versions:
+            raise ValueError("requirements.txt must contain unique exact pins")
+        versions[match.group(1)] = match.group(2)
+    if set(versions) != {"mcp", "pycrdt"}:
+        raise ValueError("requirements.txt must pin exactly mcp and pycrdt")
+    return versions
 
 
 async def scenario(root):
@@ -80,7 +96,7 @@ async def scenario(root):
         assert not (await call(a,"room_claim",{"path":"child.txt","actor_token":second["actor_token"]}))["ok"]
     print(json.dumps({"scope": "mcp-stdio-integration", "sdk": "2.2.0",
                       "clients": 2, "tools": sorted(TOOLS), "result": "pass",
-                      "task_outcomes": "not-measured", "crdt": "pycrdt-0.14.4-mediated-edits",
+                      "task_outcomes": "not-measured", "crdt": "pycrdt-mediated-edits",
                       "host": "official-sdk-client-not-Claude-Code"}))
 
 
@@ -89,10 +105,11 @@ def main():
         print("could not judge: assertions disabled by Python optimization", file=sys.stderr)
         return 2
     try:
-        if (importlib.metadata.version("mcp") != "2.2.0"
-                or importlib.metadata.version("pycrdt") != "0.14.4"):
-            raise ValueError("install the pinned requirements.txt in an isolated environment")
-    except (importlib.metadata.PackageNotFoundError, ValueError) as exc:
+        expected = pinned_versions()
+        installed = {name: importlib.metadata.version(name) for name in expected}
+        if installed != expected:
+            raise ValueError("installed MCP runtime differs from pinned requirements.txt")
+    except (OSError, importlib.metadata.PackageNotFoundError, ValueError) as exc:
         print("could not judge MCP protocol: " + str(exc), file=sys.stderr)
         return 2
     with tempfile.TemporaryDirectory(prefix="room-mcp-") as tmp:
